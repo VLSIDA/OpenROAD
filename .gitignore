@@ -17,6 +17,7 @@ TAGS
 .~lock.*#
 .DS_Store
 .cache
+*.log
 Makefile
 __pycache__
 
