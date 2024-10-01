@@ -16,15 +16,15 @@ RUN rm /bin/sh && ln -s /bin/bash /bin/sh
 
 
 ### OpenROAD ###
-COPY . /openroad
-WORKDIR /openroad
+COPY . /openroad_build
+WORKDIR /openroad_build
 RUN ./etc/DependencyInstaller.sh
 RUN mkdir build
-WORKDIR /openroad/build
+WORKDIR /openroad_build/build
 RUN cmake ..
 RUN make -j$(nproc)
 RUN make install
-WORKDIR /openroad
+WORKDIR /openroad_build
 
 
 ### CLEAN UP ###
