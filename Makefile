@@ -14,8 +14,6 @@ mount:
 	@docker run -it \
 		-v .:/openroad \
 		-v $(HOME):$(HOME)\
-		-v $(PDK_ROOT):/pdk \
-		-e PDK_ROOT=/pdk \
 		-w /openroad \
         vlsida/openroad-ubuntu:latest
 .PHONY: mount
