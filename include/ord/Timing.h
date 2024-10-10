@@ -114,6 +114,8 @@ class Timing
   void makeEquivCells();
   std::vector<odb::dbMaster*> equivCells(odb::dbMaster* master);
 
+  std::string reportDelayCalcString(odb::dbITerm* db_pin, bool is_max, int digits);
+
  private:
   sta::dbSta* getSta();
   sta::MinMax* getMinMax(MinMax type);

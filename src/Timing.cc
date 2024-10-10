@@ -47,6 +47,7 @@
 #include "rsz/Resizer.hh"
 #include "sta/Corner.hh"
 #include "sta/Liberty.hh"
+#include "sta/GraphDelayCalc.hh"
 #include "sta/TimingArc.hh"
 #include "sta/TimingRole.hh"
 #include "utl/Logger.h"
@@ -73,6 +74,35 @@ std::pair<odb::dbITerm*, odb::dbBTerm*> Timing::staToDBPin(const sta::Pin* pin)
   odb::dbModBTerm* modbterm;
   db_network->staToDb(pin, iterm, bterm, moditerm, modbterm);
   return std::make_pair(iterm, bterm);
+}
+
+std::string Timing::reportDelayCalcString(odb::dbITerm* db_pin, bool is_max, int digits)
+{
+  std::string result;
+  sta::dbSta* sta = getSta();
+  sta::dbNetwork* network = sta->getDbNetwork();
+  const sta::Corner* corner = sta->cmdCorner();
+  const sta::MinMax* min_max = sta::MinMax::min();
+  if (is_max) {
+    min_max = sta::MinMax::max();
+  }
+  sta::Pin* sta_pin = network->dbToSta(db_pin);
+  auto vertex_array = Timing::vertices(sta_pin);
+  for (auto vertex : vertex_array) {
+    if (vertex == nullptr) {
+      continue;
+    }
+    auto iterator = new sta::VertexInEdgeIterator(vertex, sta->graph());
+    while (iterator->hasNext()) {
+        auto edge = iterator->next();
+        auto arcs = edge->timingArcSet()->arcs();
+        for (auto arc : arcs) {
+          result += sta->reportDelayCalc(edge, arc, corner, min_max, digits);
+          result += ".....\n";
+        }
+    }
+  }
+  return result;
 }
 
 bool Timing::isEndpoint(odb::dbITerm* db_pin)
