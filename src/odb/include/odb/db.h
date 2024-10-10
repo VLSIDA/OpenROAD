@@ -4493,6 +4493,7 @@ class dbCapNode : public dbObject
   /// Get the coupling caps bound to this node
   ///
   dbSet<dbCCSeg> getCCSegs();
+  std::vector<dbCCSeg*> getCCSegsVector();
 
   ///
   /// Net given the capNode id

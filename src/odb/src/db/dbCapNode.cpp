@@ -930,6 +930,19 @@ dbSet<dbCCSeg> dbCapNode::getCCSegs()
   return dbSet<dbCCSeg>(seg, block->_cc_seg_itr);
 }
 
+std::vector<dbCCSeg*> dbCapNode::getCCSegsVector()
+{
+    std::vector<dbCCSeg*> cc_segs_vec;
+    dbSet<dbCCSeg> cc_segs = getCCSegs();
+    dbSet<dbCCSeg>::iterator cc_itr;
+
+    for (cc_itr = cc_segs.begin(); cc_itr != cc_segs.end(); ++cc_itr) {
+      dbCCSeg* cc = *cc_itr;
+      cc_segs_vec.push_back(cc);
+    }
+    return cc_segs_vec;
+}
+
 void dbCapNode::setNext(uint nextid)
 {
   _dbCapNode* seg = (_dbCapNode*) this;
