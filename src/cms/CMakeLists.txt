@@ -26,8 +26,8 @@ swig_lib(NAME      cms
 
 target_sources(cms
   PRIVATE
-  src/MakeTool.cc
-  src/Tool.cc
+  src/MakeClockMesh.cc
+  src/ClockMesh.cc
 )
 
 target_include_directories(cms
