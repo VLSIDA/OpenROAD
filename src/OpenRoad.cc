@@ -112,6 +112,7 @@ OpenRoad::~OpenRoad()
   deleteDistributed(distributer_);
   deleteSteinerTreeBuilder(stt_builder_);
   dft::deleteDft(dft_);
+  deleteTool(tool_);
   delete logger_;
   delete verilog_reader_;
 }
@@ -178,6 +179,7 @@ void OpenRoad::init(Tcl_Interp* tcl_interp,
   distributer_ = makeDistributed();
   stt_builder_ = makeSteinerTreeBuilder();
   dft_ = dft::makeDft();
+  tool_ = makeTool();
 
   // Init components.
   Ord_Init(tcl_interp);
@@ -212,6 +214,7 @@ void OpenRoad::init(Tcl_Interp* tcl_interp,
   initDistributed(this);
   initSteinerTreeBuilder(this);
   dft::initDft(this);
+  initTool(this);
 
   // Import exported commands to global namespace.
   Tcl_Eval(tcl_interp, "sta::define_sta_cmds");

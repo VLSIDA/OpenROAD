@@ -270,6 +270,7 @@ add_subdirectory(pdn)
 add_subdirectory(dft)
 add_subdirectory(mpl)
 add_subdirectory(par)
+add_subdirectory(cms)
 
 ################################################################
 
@@ -319,6 +320,7 @@ target_link_libraries(openroad
   rcx
   rmp
   cts
+  cms
   grt
   tap
   gui
