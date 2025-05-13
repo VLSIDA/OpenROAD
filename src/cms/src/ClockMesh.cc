@@ -28,17 +28,17 @@ extern "C" {
 extern int CMS_Init(Tcl_Interp *interp);
 }
 
-cms::ClockMesh() :
+ClockMesh::ClockMesh() :
 {
-  value = 0;
+  this->value_ = 0;
 }
 
-cms::~Tool()
+ClockMesh::~Tool()
 {
 }
 
 void
-cms::init(Tcl_Interp *tcl_interp,
+ClockMesh::init(Tcl_Interp *tcl_interp,
 	   odb::dbDatabase *db)
 {
   db_ = db;
@@ -50,15 +50,15 @@ cms::init(Tcl_Interp *tcl_interp,
 }
 
 void
-cms::dumpValue()
+ClockMesh::dumpValue()
 {
-  printf("Clock Mesh Value: %d\n",value_);
+  printf("Clock Mesh Value: %d\n",this->value_);
 }
 
 void
-cms::setValue(int value)
+ClockMesh::setValue(int value)
 {
-  value_ = value;
+  this->value_ = value;
 }
 
 }
