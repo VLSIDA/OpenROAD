@@ -32,7 +32,7 @@ target_sources(cms
 
 target_include_directories(cms
   PUBLIC
-    include
+    ../include
 )
 
 target_link_libraries(cms
