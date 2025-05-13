@@ -28,12 +28,12 @@ extern "C" {
 extern int CMS_Init(Tcl_Interp *interp);
 }
 
-ClockMesh::ClockMesh() :
+ClockMesh::ClockMesh()
 {
   this->value_ = 0;
 }
 
-ClockMesh::~Tool()
+ClockMesh::~ClockMesh()
 {
 }
 
