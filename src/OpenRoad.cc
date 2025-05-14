@@ -57,6 +57,7 @@
 #include "utl/MakeLogger.h"
 #include "utl/ScopedTemporaryFile.h"
 #include "utl/decode.h"
+#include "cms/MakeClockMesh.hh"
 
 namespace ord {
 extern const char* ord_tcl_inits[];
@@ -112,7 +113,7 @@ OpenRoad::~OpenRoad()
   deleteDistributed(distributer_);
   deleteSteinerTreeBuilder(stt_builder_);
   dft::deleteDft(dft_);
-  deleteTool(tool_);
+  deleteClockMesh(cms_);
   delete logger_;
   delete verilog_reader_;
 }
@@ -179,7 +180,7 @@ void OpenRoad::init(Tcl_Interp* tcl_interp,
   distributer_ = makeDistributed();
   stt_builder_ = makeSteinerTreeBuilder();
   dft_ = dft::makeDft();
-  tool_ = makeTool();
+  cms_ = makeClockMesh();
 
   // Init components.
   Ord_Init(tcl_interp);
@@ -214,7 +215,7 @@ void OpenRoad::init(Tcl_Interp* tcl_interp,
   initDistributed(this);
   initSteinerTreeBuilder(this);
   dft::initDft(this);
-  initClockMesh(this);
+  cms::initClockMesh(this);
 
   // Import exported commands to global namespace.
   Tcl_Eval(tcl_interp, "sta::define_sta_cmds");
