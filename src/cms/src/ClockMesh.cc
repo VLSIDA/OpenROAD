@@ -25,7 +25,7 @@ extern const char *cms_tcl_inits[];
 namespace cms {
 
 extern "C" {
-extern int CMS_Init(Tcl_Interp *interp);
+//extern int CMS_Init(Tcl_Interp *interp);
 }
 
 ClockMesh::ClockMesh()
@@ -44,7 +44,7 @@ ClockMesh::init(Tcl_Interp *tcl_interp,
   db_ = db;
 
   // Define swig TCL commands.
-  CMS_Init(tcl_interp);
+  //CMS_Init(tcl_interp);
   // Eval encoded sta TCL sources.
   sta::evalTclInit(tcl_interp, sta::cms_tcl_inits);
 }
