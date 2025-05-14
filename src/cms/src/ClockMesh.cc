@@ -19,7 +19,7 @@
 
 namespace sta {
 // Tcl files encoded into strings.
-extern const char *tool_tcl_inits[];
+extern const char *cms_tcl_inits[];
 }
 
 namespace cms {
