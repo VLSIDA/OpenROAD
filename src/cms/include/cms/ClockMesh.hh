@@ -34,4 +34,4 @@ private:
   int value_;
 };
 
-}
+} //  namespace cms

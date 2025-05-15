@@ -34,5 +34,5 @@ deleteClockMesh(cms::ClockMesh *mesh);
 void
 initClockMesh(OpenRoad *openroad);
 
-} // namespace cms
+} // namespace ord
 #endif
