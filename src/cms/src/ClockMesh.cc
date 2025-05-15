@@ -17,16 +17,14 @@
 #include "cms/ClockMesh.hh"
 #include "sta/StaMain.hh"
 
-namespace sta {
-// Tcl files encoded into strings.
-extern const char *cms_tcl_inits[];
+extern "C" {
+extern int CMS_Init(Tcl_Interp *interp);
 }
 
 namespace cms {
 
-extern "C" {
-extern int CMS_Init(Tcl_Interp *interp);
-}
+// Tcl files encoded into strings.
+extern const char *cms_tcl_inits[];
 
 ClockMesh::ClockMesh()
 {
@@ -46,7 +44,7 @@ ClockMesh::init(Tcl_Interp *tcl_interp,
   // Define swig TCL commands.
   CMS_Init(tcl_interp);
   // Eval encoded sta TCL sources.
-  sta::evalTclInit(tcl_interp, sta::cms_tcl_inits);
+  sta::evalTclInit(tcl_interp, cms::cms_tcl_inits);
 }
 
 void
@@ -61,4 +59,4 @@ ClockMesh::setValue(int value)
   this->value_ = value;
 }
 
-}
+} //namespace cms
