@@ -18,7 +18,7 @@
 #include "sta/StaMain.hh"
 
 extern "C" {
-extern int cms_Init(Tcl_Interp *interp);
+extern int Cms_Init(Tcl_Interp *interp);
 }
 
 namespace cms {
@@ -42,7 +42,7 @@ ClockMesh::init(Tcl_Interp *tcl_interp,
   db_ = db;
 
   // Define swig TCL commands.
-  cms_Init(tcl_interp);
+  Cms_Init(tcl_interp);
   // Eval encoded cms TCL sources.
   sta::evalTclInit(tcl_interp, cms::cms_tcl_inits);
 }
