@@ -42,8 +42,8 @@ ClockMesh::init(Tcl_Interp *tcl_interp,
   db_ = db;
 
   // Define swig TCL commands.
-  CMS_Init(tcl_interp);
-  // Eval encoded sta TCL sources.
+  //CMS_Init(tcl_interp);
+  // Eval encoded cms TCL sources.
   sta::evalTclInit(tcl_interp, cms::cms_tcl_inits);
 }
 
