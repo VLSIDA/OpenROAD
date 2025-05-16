@@ -27,7 +27,7 @@ makeClockMesh()
 }
 
 void
-deleteTool(cms::ClockMesh *mesh)
+deleteClockMesh(cms::ClockMesh *mesh)
 {
   delete mesh;
 }
