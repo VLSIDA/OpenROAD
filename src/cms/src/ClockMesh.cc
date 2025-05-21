@@ -37,11 +37,13 @@ ClockMesh::ClockMesh()
 
 ClockMesh::~ClockMesh()
 {
-  for (auto buffer) {
+  for (auto buffer: buffers_) {
     removeBuffer(buffer);
   }
   delete[] this->buffers_;
   this->buffers_ = nullptr;
+  delete point_;
+  this->point_ = nullptr;
 }
 
 void
@@ -49,7 +51,7 @@ ClockMesh::init(Tcl_Interp* tcl_interp,
 	   odb::dbDatabase* db,
      sta::dbNetwork* network,
      rsz::Resizer* resizer,
-     utl::Logger logger)
+     utl::Logger* logger)
 {
   db_ = db;
   logger_ = logger;
@@ -78,7 +80,7 @@ int
 ClockMesh::createBufferArray(int amount)
 {
   if (amount == 0) {
-    logger_->inof(CMS, 003, "Need to set CMS Buffer Amount to non zero");
+    logger_->info(CMS, 003, "Need to set CMS Buffer Amount to non zero");
     return 1;
   } else {
     this->buffers_ = new Instance*[amount];
