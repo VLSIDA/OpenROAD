@@ -39,12 +39,15 @@ ClockMesh::ClockMesh()
 ClockMesh::~ClockMesh()
 {
   if (this->buffers_ != nullptr) {
-    for (auto buffer : this->buffers_) {
+    for (auto buffer : this->buffers_: buffers_) {
       removeBuffer(buffer);
     }
     delete[] this->buffers_;
     this->buffers_ = nullptr;
+    delete point_;
+    this->point_ = nullptr;
   }
+  
 }
 
 void
@@ -52,7 +55,7 @@ ClockMesh::init(Tcl_Interp* tcl_interp,
 	   odb::dbDatabase* db,
      sta::dbNetwork* network,
      rsz::Resizer* resizer,
-     utl::Logger logger)
+     utl::Logger* logger)
 {
   db_ = db;
   logger_ = logger;
