@@ -57,7 +57,7 @@ public:
 	    odb::dbDatabase *db,
       sta::dbNetwork* network,
       rsz::Resizer* resizer,
-      ult::Logger* logger);
+      utl::Logger* logger);
   void dumpValue();
   void setValue(int value);
   void addBuffer(LibertyCell* bufferCell, 

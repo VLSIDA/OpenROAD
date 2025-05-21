@@ -17,11 +17,14 @@
 #include "cms/ClockMesh.hh"
 #include "sta/StaMain.hh"
 
+
 extern "C" {
 extern int Cms_Init(Tcl_Interp *interp);
 }
 
 namespace cms {
+
+using utl::CMS;
 
 // Tcl files encoded into strings.
 extern const char *cms_tcl_inits[];
@@ -75,11 +78,11 @@ int
 ClockMesh::createBufferArray(int amount)
 {
   if (amount == 0) {
-    logger_->in03, "Need to set CMS Buffer Amount to non zero");
+    logger_->inof(CMS, 003, "Need to set CMS Buffer Amount to non zero");
     return 1;
   } else {
     this->buffers_ = new Instance*[amount];
-    this->point_ = new Point()[amount];
+    this->point_ = new Point[amount];
     logger_->info(CMS, 004, "CMS Buffer and Point arrays initialized!");
     return 0;
   }
