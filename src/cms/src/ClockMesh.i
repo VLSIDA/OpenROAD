@@ -32,13 +32,13 @@ getCMS()
 %inline %{
 
 void
-dumpValue()
+dump_value()
 {
   getCMS()->dumpValue();
 }
 
 void
-setValue(int value)
+set_value(int value)
 {
   getCMS()->setValue(value);
 }

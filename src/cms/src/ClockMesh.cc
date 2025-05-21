@@ -29,18 +29,29 @@ extern const char *cms_tcl_inits[];
 ClockMesh::ClockMesh()
 {
   this->value_ = 0;
+  this->buffer_ptr_ = 0;
 }
 
 ClockMesh::~ClockMesh()
 {
+  for (auto buffer) {
+    removeBuffer(buffer);
+  }
+  delete[] this->buffers_;
+  this->buffers_ = nullptr;
 }
 
 void
-ClockMesh::init(Tcl_Interp *tcl_interp,
-	   odb::dbDatabase *db)
+ClockMesh::init(Tcl_Interp* tcl_interp,
+	   odb::dbDatabase* db,
+     sta::dbNetwork* network,
+     rsz::Resizer* resizer,
+     utl::Logger logger)
 {
   db_ = db;
-
+  logger_ = logger;
+  network_ = network;
+  resizer_ = resizer;
   // Define swig TCL commands.
   Cms_Init(tcl_interp);
   // Eval encoded cms TCL sources.
@@ -50,13 +61,42 @@ ClockMesh::init(Tcl_Interp *tcl_interp,
 void
 ClockMesh::dumpValue()
 {
-  printf("Clock Mesh Value: %d\n",this->value_);
+  logger_->info(CMS, 001, "Dumping ClockMesh Value of {}",value_);
 }
 
 void
 ClockMesh::setValue(int value)
 {
-  this->value_ = value;
+  this->value_ = std::abs(value);
+  logger_->info(CMS, 002, "Set ClockMesh Value to {}", value);
 }
 
-} //namespace cms
+int
+ClockMesh::createBufferArray(int amount)
+{
+  if (amount == 0) {
+    logger_->info(CMS, 003, "Need to set CMS Buffer Amount to non zero");
+    return 1;
+  } else {
+    this->buffers_ = new Instance*[amount];
+    this->point_ = new Point()[amount];
+    logger_->info(CMS, 004, "CMS Buffer and Point arrays initialized!");
+    return 0;
+  }
+}
+
+void
+ClockMesh::addBuffer()
+{
+  this->point_[buffer_ptr_].setX(buffer_ptr_);
+  this->point_[buffer_ptr_].setY(buffer_ptr_);
+  string buffer_name = makeUniqueInstName("buffer")
+  buffers_[buffer_ptr_] = makeBuffer(resizer_->buffer_lowest_drive, 
+                          buffer_name.c_str(), 
+                          nullptr, 
+                          point_[buffer_ptr_]);
+  logger_->info(CMS, 005, "CMS added buffer: {} at point X: {} Y: {}",buffer_name, point_[buffer_ptr_].getX(),point_[buffer_ptr_].getY());
+  buffer_ptr_++;
+}
+
+} // namespace cms

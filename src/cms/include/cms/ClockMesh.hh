@@ -14,10 +14,39 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+#pragma once
+
 #include <tcl.h>
 #include "odb/db.h"
+#include "sta/Sdc.hh"
+#include "db_sta/dbNetwork.hh"
+#include "db_sta/dbSta.hh"
+#include "utl/Logger.h"
+#include "rsz/Resizer.hh"
+
+namespace utl {
+class Logger;
+}
+
+namespace rsz {
+class Resizer;
+} // namespace rsz
+
+namespace sta {
+class dbSta;
+class Clock;
+class dbNetwork;
+class Unit;
+class LibertyCell;
+class Vertex;
+class Graph;
+}  // namespace sta
+
 
 namespace cms {
+
+using utl::Logger;
+using odb::Point;
 
 class ClockMesh
 {
@@ -25,13 +54,27 @@ public:
   ClockMesh();
   ~ClockMesh();
   void init(Tcl_Interp *tcl_interp,
-	    odb::dbDatabase *db);
+	    odb::dbDatabase *db,
+      sta::dbNetwork* network,
+      rsz::Resizer* resizer,
+      ult::Logger* logger);
   void dumpValue();
   void setValue(int value);
+  void addBuffer(LibertyCell* bufferCell, 
+                const char* name, 
+                Instance* parent, 
+                const Point& location);
+  int createBufferArray(int amount);
 
 private:
-  odb::dbDatabase *db_;
+  Instance** buffers_ = nullptr; 
+  odb::dbDatabase *db_ = nullptr;
+  Point* point_ = nullptr;
+  rsz::Resizer* resizer_ = nullptr;
+  sta::dbNetwork* network_ = nullptr;
+  utl::Logger* logger_ = nullptr;
   int value_;
+  int buffer_ptr_;
 };
 
 } //  namespace cms
