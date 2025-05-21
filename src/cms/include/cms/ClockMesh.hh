@@ -60,14 +60,14 @@ public:
       utl::Logger* logger);
   void dumpValue();
   void setValue(int value);
-  void addBuffer(LibertyCell* bufferCell, 
+  void addBuffer(sta::LibertyCell* bufferCell, 
                 const char* name, 
-                Instance* parent, 
+                sta::Instance* parent, 
                 const Point& location);
   int createBufferArray(int amount);
 
 private:
-  Instance** buffers_ = nullptr; 
+  sta::Instance** buffers_ = nullptr; 
   odb::dbDatabase *db_ = nullptr;
   Point* point_ = nullptr;
   rsz::Resizer* resizer_ = nullptr;

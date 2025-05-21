@@ -33,15 +33,18 @@ ClockMesh::ClockMesh()
 {
   this->value_ = 0;
   this->buffer_ptr_ = 0;
+  this->buffers_ = nullptr;
 }
 
 ClockMesh::~ClockMesh()
 {
-  for (auto buffer) {
-    removeBuffer(buffer);
+  if (this->buffers_ != nullptr) {
+    for (auto buffer : this->buffers_) {
+      removeBuffer(buffer);
+    }
+    delete[] this->buffers_;
+    this->buffers_ = nullptr;
   }
-  delete[] this->buffers_;
-  this->buffers_ = nullptr;
 }
 
 void
@@ -78,10 +81,10 @@ int
 ClockMesh::createBufferArray(int amount)
 {
   if (amount == 0) {
-    logger_->inof(CMS, 003, "Need to set CMS Buffer Amount to non zero");
+    logger_->info(CMS, 003, "Need to set CMS Buffer Amount to non zero");
     return 1;
   } else {
-    this->buffers_ = new Instance*[amount];
+    this->buffers_ = new sta::Instance*[amount];
     this->point_ = new Point[amount];
     logger_->info(CMS, 004, "CMS Buffer and Point arrays initialized!");
     return 0;
