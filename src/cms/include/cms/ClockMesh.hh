@@ -50,7 +50,11 @@ class Graph;
 namespace cms {
 
 using utl::Logger;
+
 using odb::Point;
+
+using sta::Instance;
+using sta::LibertyCell;
 
 class ClockMesh
 {
