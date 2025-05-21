@@ -75,7 +75,7 @@ int
 ClockMesh::createBufferArray(int amount)
 {
   if (amount == 0) {
-    logger_->info(CMS, 003, "Need to set CMS Buffer Amount to non zero");
+    logger_->in03, "Need to set CMS Buffer Amount to non zero");
     return 1;
   } else {
     this->buffers_ = new Instance*[amount];

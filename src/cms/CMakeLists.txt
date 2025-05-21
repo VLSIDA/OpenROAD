@@ -38,6 +38,9 @@ target_include_directories(cms
 target_link_libraries(cms
     OpenSTA
     odb
+    rsz_lib
+    utl_lib
+    dbSta_lib
 )
 
 messages(
