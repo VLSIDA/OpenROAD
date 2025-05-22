@@ -71,11 +71,13 @@ public:
   void dumpValue();
   void setValue(int value);
   void addBuffer();
-  int createBufferArray(int amount);
   void createGrid();
 
 private:
-  std::string ClockMesh::makeUniqueInstName(const char* base_name, bool underscore);
+  std::string makeUniqueInstName(const char* base_name, bool underscore);
+  void findBuffers();
+  int createBufferArray(int amount);
+
   sta::Instance** buffers_ = nullptr; 
   odb::dbDatabase *db_ = nullptr;
   Point* point_ = nullptr;

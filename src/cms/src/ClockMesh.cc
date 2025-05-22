@@ -16,7 +16,6 @@
 
 #include "cms/ClockMesh.hh"
 #include "sta/StaMain.hh"
-#include <string>
 
 
 extern "C" {
