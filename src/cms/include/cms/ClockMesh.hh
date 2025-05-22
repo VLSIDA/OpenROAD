@@ -79,7 +79,8 @@ private:
   std::string makeUniqueInstName(const char* base_name, bool underscore);
   void findBuffers();
   int createBufferArray(int amount);
-
+  bool isLinkCell(LibertyCell* cell) const;
+  
   sta::Instance** buffers_ = nullptr; 
   odb::dbDatabase *db_ = nullptr;
   Point* point_ = nullptr;

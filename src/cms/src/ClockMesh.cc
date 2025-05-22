@@ -41,7 +41,7 @@ ClockMesh::~ClockMesh()
 {
   if (this->buffers_ != nullptr) {
     for (int i = 0; i < value_; i++) {
-      resizer_->removeBuffer(buffers_[i]);
+      network_->deleteInstance(buffers_[i]);
     }
     delete[] this->buffers_;
     this->buffers_ = nullptr;
@@ -101,10 +101,9 @@ ClockMesh::addBuffer()
   this->point_[buffer_ptr_].setX(buffer_ptr_);
   this->point_[buffer_ptr_].setY(buffer_ptr_);
   const string buffer_name = makeUniqueInstName("clock_mesh_buffer",true);
-  buffers_[buffer_ptr_] = makeInstance(buffer_cells_[0], 
-                          buffer_name.c_str(), 
-                          nullptr, 
-                          point_[buffer_ptr_]);
+  buffers_[buffer_ptr_] = network_->makeInstance(buffer_cells_[0],
+                          buffer_name.c_str(),
+                          nullptr);
   logger_->info(CMS, 005, "CMS added buffer: {} at point X: {} Y: {}",buffer_name, point_[buffer_ptr_].getX(),point_[buffer_ptr_].getY());
   buffer_ptr_++;
 }
@@ -113,11 +112,11 @@ void
 ClockMesh::findBuffers()
 {
   if (buffer_cells_.empty()) {
-    LibertyLibraryIterator* lib_iter = network_->libertyLibraryIterator();
+    sta::LibertyLibraryIterator* lib_iter = network_->libertyLibraryIterator();
     while (lib_iter->hasNext()) {
       LibertyLibrary* lib = lib_iter->next();
       for (LibertyCell* buffer : *lib->buffers()) {
-        if (!dontUse(buffer) && isLinkCell(buffer)) {
+        if (!resizer_->dontUse(buffer) && isLinkCell(buffer)) {
           buffer_cells_.emplace_back(buffer);
         }
       }
@@ -154,6 +153,11 @@ void
 ClockMesh::createGrid()
 {
   findBuffers();
+}
+
+bool ClockMesh::isLinkCell(LibertyCell* cell) const
+{
+  return network_->findLibertyCell(cell->name()) == cell;
 }
 
 } // namespace cms
