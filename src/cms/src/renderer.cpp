@@ -8,27 +8,27 @@
 
 #include "domain.h"
 #include "grid.h"
-#include "pdn/PdnGen.hh"
+#include "cms/ClockMesh.hh"
 #include "straps.h"
 
-namespace pdn {
+namespace cms {
 
-const gui::Painter::Color PDNRenderer::ring_color_
+const gui::Painter::Color CMSRenderer::ring_color_
     = gui::Painter::Color(gui::Painter::red, 100);
-const gui::Painter::Color PDNRenderer::strap_color_
+const gui::Painter::Color CMSRenderer::strap_color_
     = gui::Painter::Color(gui::Painter::cyan, 100);
-const gui::Painter::Color PDNRenderer::followpin_color_
+const gui::Painter::Color CMSRenderer::followpin_color_
     = gui::Painter::Color(gui::Painter::green, 100);
-const gui::Painter::Color PDNRenderer::via_color_
+const gui::Painter::Color CMSRenderer::via_color_
     = gui::Painter::Color(gui::Painter::blue, 100);
-const gui::Painter::Color PDNRenderer::obstruction_color_
+const gui::Painter::Color CMSRenderer::obstruction_color_
     = gui::Painter::Color(gui::Painter::gray, 100);
-const gui::Painter::Color PDNRenderer::repair_color_
+const gui::Painter::Color CMSRenderer::repair_color_
     = gui::Painter::Color(gui::Painter::light_gray, 100);
-const gui::Painter::Color PDNRenderer::repair_outline_color_
+const gui::Painter::Color CMSRenderer::repair_outline_color_
     = gui::Painter::Color(gui::Painter::yellow, 100);
 
-PDNRenderer::PDNRenderer(PdnGen* pdn) : pdn_(pdn)
+CMSRenderer::CMSRenderer(ClockMesh* clockmesh) : clockmesh_(clockmesh)
 {
   addDisplayControl(grid_obs_text_, false);
   addDisplayControl(initial_obs_text_, false);
@@ -44,7 +44,7 @@ PDNRenderer::PDNRenderer(PdnGen* pdn) : pdn_(pdn)
   gui::Gui::get()->registerRenderer(this);
 }
 
-void PDNRenderer::update()
+void CMSRenderer::update()
 {
   shapes_.clear();
   initial_obstructions_.clear();
@@ -52,8 +52,8 @@ void PDNRenderer::update()
   vias_.clear();
   repair_.clear();
 
-  if (!pdn_->getDomains().empty()) {
-    auto* domain = pdn_->getDomains()[0];
+  if (!clockmesh_->getDomains().empty()) {
+    auto* domain = clockmesh_->getDomains()[0];
     ShapeVectorMap initial_shapes;
     Grid::makeInitialObstructions(
         domain->getBlock(), initial_shapes, {}, domain->getLogger());
@@ -64,7 +64,7 @@ void PDNRenderer::update()
   ShapeVectorMap shapes;
   ShapeVectorMap obs;
   std::vector<ViaPtr> vias;
-  for (const auto& domain : pdn_->getDomains()) {
+  for (const auto& domain : clockmesh_->getDomains()) {
     for (auto* net : domain->getBlock()->getNets()) {
       Shape::populateMapFromDb(net, obs);
     }
@@ -110,7 +110,7 @@ void PDNRenderer::update()
   redraw();
 }
 
-void PDNRenderer::drawLayer(odb::dbTechLayer* layer, gui::Painter& painter)
+void CMSRenderer::drawLayer(odb::dbTechLayer* layer, gui::Painter& painter)
 {
   const double net_name_margin = 0.8;
   const double net_name_increment = 5;
@@ -281,13 +281,13 @@ void PDNRenderer::drawLayer(odb::dbTechLayer* layer, gui::Painter& painter)
   }
 }
 
-void PDNRenderer::drawObjects(gui::Painter& painter)
+void CMSRenderer::drawObjects(gui::Painter& painter)
 {
 }
 
-void PDNRenderer::pause()
+void CMSRenderer::pause()
 {
   gui::Gui::get()->pause();
 }
 
-}  // namespace pdn
+}  // namespace cms

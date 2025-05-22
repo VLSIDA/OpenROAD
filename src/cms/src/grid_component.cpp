@@ -18,7 +18,7 @@
 #include "utl/Logger.h"
 #include "via.h"
 
-namespace pdn {
+namespace cms {
 
 GridComponent::GridComponent(Grid* grid)
     : grid_(grid), starts_with_power_(grid_->startsWithPower())
@@ -61,7 +61,7 @@ std::string GridComponent::typeToString(Type type)
 ShapePtr GridComponent::addShape(Shape* shape)
 {
   debugPrint(getLogger(),
-             utl::PDN,
+             utl::CMS,
              "Shape",
              3,
              "Adding shape {}.",
@@ -78,7 +78,7 @@ ShapePtr GridComponent::addShape(Shape* shape)
   auto& shapes = shapes_[shape_ptr->getLayer()];
 
   debugPrint(getLogger(),
-             utl::PDN,
+             utl::CMS,
              "Shape",
              3,
              "Checking against {} shapes",
@@ -95,7 +95,7 @@ ShapePtr GridComponent::addShape(Shape* shape)
     if (intersecting_shape->getNet() != shape_ptr->getNet()) {
       // short
       debugPrint(getLogger(),
-                 utl::PDN,
+                 utl::CMS,
                  "Shape",
                  4,
                  "Short between {} and {}",
@@ -116,7 +116,7 @@ ShapePtr GridComponent::addShape(Shape* shape)
 
     if (!is_x_overlap && !is_y_overlap) {
       debugPrint(getLogger(),
-                 utl::PDN,
+                 utl::CMS,
                  "Shape",
                  4,
                  "Unable to merge {} and {}",
@@ -220,7 +220,7 @@ void GridComponent::getObstructions(
     Shape::ObstructionTreeMap& obstructions) const
 {
   debugPrint(getLogger(),
-             utl::PDN,
+             utl::CMS,
              "Make",
              2,
              "Getting obstructions in \"{}\"",
@@ -262,14 +262,14 @@ void GridComponent::removeShapes(Shape::ShapeTreeMap& shapes) const
 void GridComponent::cutShapes(const Shape::ObstructionTreeMap& obstructions)
 {
   debugPrint(getLogger(),
-             utl::PDN,
+             utl::CMS,
              "Make",
              1,
              "Cutting shapes in \"{}\"",
              getGrid()->getName());
 
   debugPrint(getLogger(),
-             utl::PDN,
+             utl::CMS,
              "Make",
              2,
              "Initial shape count: {}",
@@ -296,7 +296,7 @@ void GridComponent::cutShapes(const Shape::ObstructionTreeMap& obstructions)
   }
 
   debugPrint(getLogger(),
-             utl::PDN,
+             utl::CMS,
              "Make",
              2,
              "Final shape count: {}",
@@ -347,7 +347,7 @@ void GridComponent::checkLayerWidth(odb::dbTechLayer* layer,
   // check for min width violation
   const int min_width = tech_layer.getMinWidth();
   if (width < min_width) {
-    getLogger()->error(utl::PDN,
+    getLogger()->error(utl::CMS,
                        106,
                        "Width ({:.4f} um) specified for layer {} is less than "
                        "minimum width ({:.4f} um).",
@@ -359,7 +359,7 @@ void GridComponent::checkLayerWidth(odb::dbTechLayer* layer,
   // check for max width violation
   const int max_width = tech_layer.getMaxWidth();
   if (width > max_width) {
-    getLogger()->error(utl::PDN,
+    getLogger()->error(utl::CMS,
                        107,
                        "Width ({:.4f} um) specified for layer {} is greater "
                        "than maximum width ({:.4f} um).",
@@ -407,7 +407,7 @@ void GridComponent::checkLayerWidth(odb::dbTechLayer* layer,
         }
         widths += fmt::format("{:.4f}", tech_layer.dbuToMicron(width));
       }
-      getLogger()->error(utl::PDN,
+      getLogger()->error(utl::CMS,
                          114,
                          "Width ({:.4f} um) specified for layer {} in not a "
                          "valid width, must be {}.",
@@ -422,7 +422,7 @@ void GridComponent::checkLayerWidth(odb::dbTechLayer* layer,
     const int double_grid = 2 * tech->getManufacturingGrid();
     if (width % double_grid != 0) {
       getLogger()->error(
-          utl::PDN,
+          utl::CMS,
           117,
           "Width ({:.4f} um) specified must be a multiple of {:.4f} um.",
           tech_layer.dbuToMicron(width),
@@ -442,7 +442,7 @@ void GridComponent::checkLayerSpacing(
   // check min spacing violation
   const int min_spacing = tech_layer.getSpacing(width);
   if (spacing < min_spacing) {
-    getLogger()->error(utl::PDN,
+    getLogger()->error(utl::CMS,
                        108,
                        "Spacing ({:.4f} um) specified for layer {} is less "
                        "than minimum spacing ({:.4f} um).",
@@ -456,7 +456,7 @@ void GridComponent::checkLayerSpacing(
     const int grid = tech->getManufacturingGrid();
     if (spacing % grid != 0) {
       getLogger()->error(
-          utl::PDN,
+          utl::CMS,
           118,
           "Spacing ({:.4f} um) specified must be a multiple of {:.4f} um.",
           tech_layer.dbuToMicron(spacing),
@@ -481,7 +481,7 @@ void GridComponent::setNets(const std::vector<odb::dbNet*>& nets)
   const auto grid_nets = grid_->getNets();
   for (auto* net : nets) {
     if (std::find(grid_nets.begin(), grid_nets.end(), net) == grid_nets.end()) {
-      getLogger()->error(utl::PDN,
+      getLogger()->error(utl::CMS,
                          224,
                          "{} is not a net in {}.",
                          net->getName(),
@@ -505,4 +505,4 @@ int GridComponent::getNetCount() const
   return getNets().size();
 }
 
-}  // namespace pdn
+}  // namespace cms

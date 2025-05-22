@@ -24,7 +24,7 @@
 #include "techlayer.h"
 #include "utl/Logger.h"
 
-namespace pdn {
+namespace cms {
 
 Straps::Straps(Grid* grid,
                odb::dbTechLayer* layer,
@@ -60,7 +60,7 @@ void Straps::checkLayerSpecifications() const
 
   if (direction_ == odb::dbTechLayerDir::NONE) {
     getLogger()->error(
-        utl::PDN,
+        utl::CMS,
         187,
         "Unable to place strap on {} with unknown routing direction.",
         layer_->getName());
@@ -80,7 +80,7 @@ void Straps::checkLayerSpecifications() const
     const int min_pitch = strap_width + spacing_;
     if (pitch_ < min_pitch) {
       getLogger()->error(
-          utl::PDN,
+          utl::CMS,
           175,
           "Pitch {:.4f} is too small for, must be atleast {:.4f}",
           layer.dbuToMicron(pitch_),
@@ -105,7 +105,7 @@ bool Straps::checkLayerOffsetSpecification(bool error) const
     if (error) {
       const TechLayer layer(layer_);
       getLogger()->error(
-          utl::PDN,
+          utl::CMS,
           185,
           "Insufficient width ({:.2f} um) to add straps on layer {} in grid "
           "\"{}\" "
@@ -147,7 +147,7 @@ void Straps::setStrapStartEnd(int start, int end)
 void Straps::makeShapes(const Shape::ShapeTreeMap& other_shapes)
 {
   debugPrint(getLogger(),
-             utl::PDN,
+             utl::CMS,
              "Make",
              1,
              "Strap start of make shapes for on layer {}",
@@ -224,7 +224,7 @@ void Straps::makeShapes(const Shape::ShapeTreeMap& other_shapes)
                avoid);
   }
   debugPrint(getLogger(),
-             utl::PDN,
+             utl::CMS,
              "Straps",
              1,
              "Generated {} straps on {}",
@@ -253,7 +253,7 @@ void Straps::makeStraps(int x_start,
   const int group_pitch = spacing_ + width_;
 
   debugPrint(getLogger(),
-             utl::PDN,
+             utl::CMS,
              "Straps",
              2,
              "Generating straps on {} from ({:.4f}, {:.4f}) to ({:.4f}, "
@@ -279,7 +279,7 @@ void Straps::makeStraps(int x_start,
       const int strap_start = group_pos - half_width;
       const int strap_end = strap_start + width_;
       debugPrint(getLogger(),
-                 utl::PDN,
+                 utl::CMS,
                  "Straps",
                  3,
                  "Snapped from {:.4f} -> {:.4f} resulting in strap from {:.4f} "
@@ -388,7 +388,7 @@ FollowPins::FollowPins(Grid* grid, odb::dbTechLayer* layer, int width)
   } else {
     if (getPitch() == 0) {
       getLogger()->error(
-          utl::PDN, 190, "Unable to determine the pitch of the rows.");
+          utl::CMS, 190, "Unable to determine the pitch of the rows.");
     }
   }
 }
@@ -396,7 +396,7 @@ FollowPins::FollowPins(Grid* grid, odb::dbTechLayer* layer, int width)
 void FollowPins::makeShapes(const Shape::ShapeTreeMap& other_shapes)
 {
   debugPrint(getLogger(),
-             utl::PDN,
+             utl::CMS,
              "Make",
              1,
              "Follow pin start of make shapes on layer {}",
@@ -469,7 +469,7 @@ void FollowPins::determineWidth()
       if (master->isCore()) {
         // only check core cells
         debugPrint(getLogger(),
-                   utl::PDN,
+                   utl::CMS,
                    "Followpin",
                    1,
                    "Checking master {} (current width: {})",
@@ -480,7 +480,7 @@ void FollowPins::determineWidth()
             continue;
           }
           debugPrint(getLogger(),
-                     utl::PDN,
+                     utl::CMS,
                      "Followpin",
                      2,
                      "Checking master/pin {}/{} (current width: {})",
@@ -499,7 +499,7 @@ void FollowPins::determineWidth()
 
               width = std::min(width, static_cast<int>(box->getDY()));
               debugPrint(getLogger(),
-                         utl::PDN,
+                         utl::CMS,
                          "Followpin",
                          3,
                          "Updating based on pin: {}",
@@ -514,7 +514,7 @@ void FollowPins::determineWidth()
   // nothing was found
   if (width == std::numeric_limits<int>::max()) {
     getLogger()->error(
-        utl::PDN,
+        utl::CMS,
         109,
         "Unable to determine width of followpin straps from standard cells.");
   }
@@ -574,7 +574,7 @@ void PadDirectConnectionStraps::initialize(ConnectionType type)
   }
 
   debugPrint(getLogger(),
-             utl::PDN,
+             utl::CMS,
              "Pad",
              1,
              "{} connecting on edge: north {}, south {}, east {}, west {}",
@@ -865,7 +865,7 @@ void PadDirectConnectionStraps::makeShapes(
     const Shape::ShapeTreeMap& other_shapes)
 {
   debugPrint(getLogger(),
-             utl::PDN,
+             utl::CMS,
              "Make",
              1,
              "Direct connect pin start of make shapes for {}",
@@ -1094,7 +1094,7 @@ void PadDirectConnectionStraps::makeShapesOverPads(
                             std::find(straps.begin(), straps.end(), this));
 
   debugPrint(getLogger(),
-             utl::PDN,
+             utl::CMS,
              "Pad",
              2,
              "Pad connections for {} has {} connections and this one is at "
@@ -1120,7 +1120,7 @@ void PadDirectConnectionStraps::makeShapesOverPads(
     // dont build anything
     debugPrint(
         getLogger(),
-        utl::PDN,
+        utl::CMS,
         "Pad",
         3,
         "Skipping because strap would be {} and needed to be atleast {}.",
@@ -1152,7 +1152,7 @@ void PadDirectConnectionStraps::makeShapesOverPads(
     pin_shape.set_xhi(pin_shape.xMin() + getWidth());
   }
   debugPrint(getLogger(),
-             utl::PDN,
+             utl::CMS,
              "Pad",
              3,
              "Connecting using shape: {}",
@@ -1167,7 +1167,7 @@ void PadDirectConnectionStraps::makeShapesOverPads(
     }
   }
   if (closest_shape == nullptr) {
-    debugPrint(getLogger(), utl::PDN, "Pad", 3, "No connecting shape found.");
+    debugPrint(getLogger(), utl::CMS, "Pad", 3, "No connecting shape found.");
     return;
   }
 
@@ -1349,7 +1349,7 @@ bool PadDirectConnectionStraps::strapViaIsObstructed(
     if (has_obstruction) {
       debugPrint(
           getLogger(),
-          utl::PDN,
+          utl::CMS,
           "Pad",
           recheck ? 4 : 3,
           "Direct connect shape {} with obstruction {} using pin {} on {}",
@@ -1466,7 +1466,7 @@ bool PadDirectConnectionStraps::refineShape(
 
     debugPrint(
         getLogger(),
-        utl::PDN,
+        utl::CMS,
         "Pad",
         4,
         "Checking new shape: {} on {}",
@@ -1553,7 +1553,7 @@ RepairChannelStraps::RepairChannelStraps(
   if (connect_direction == getDirection()) {
     debugPrint(
         getLogger(),
-        utl::PDN,
+        utl::CMS,
         "Channel",
         1,
         "Reject repair channel due to layer directions {} ({} / {}) -> {} ({})",
@@ -1572,7 +1572,7 @@ RepairChannelStraps::RepairChannelStraps(
   if (invalid_) {
     const TechLayer layer(getLayer());
     debugPrint(getLogger(),
-               utl::PDN,
+               utl::CMS,
                "Channel",
                1,
                "Cannot repair channel {} on {} with straps on {} for: {}",
@@ -1627,7 +1627,7 @@ void RepairChannelStraps::continueRepairs(
   const int next_width = getNextWidth();
   debugPrint(
       getLogger(),
-      utl::PDN,
+      utl::CMS,
       "Channel",
       1,
       "Continue repair at {} on {} with straps on {} for {}: changing width "
@@ -1647,7 +1647,7 @@ void RepairChannelStraps::determineParameters(
 {
   debugPrint(
       getLogger(),
-      utl::PDN,
+      utl::CMS,
       "Channel",
       1,
       "Determining channel parameters for {} on {} with straps on {} for {}",
@@ -1668,7 +1668,7 @@ void RepairChannelStraps::determineParameters(
     if (group_width > area_width) {
       debugPrint(
           getLogger(),
-          utl::PDN,
+          utl::CMS,
           "Channel",
           2,
           "Failed on channel width check, group {:.4f} and channel {:.4f}.",
@@ -1678,7 +1678,7 @@ void RepairChannelStraps::determineParameters(
     }
     const bool done = determineOffset(obstructions);
     debugPrint(
-        getLogger(), utl::PDN, "Channel", 2, "Determine offset: {}", done);
+        getLogger(), utl::CMS, "Channel", 2, "Determine offset: {}", done);
     return done;
   };
 
@@ -1693,7 +1693,7 @@ void RepairChannelStraps::determineParameters(
   setSpacing(layer.getSpacing(getWidth(), max_length));
 
   debugPrint(getLogger(),
-             utl::PDN,
+             utl::CMS,
              "Channel",
              2,
              "Adjust spacing to {:.4f} um.",
@@ -1711,7 +1711,7 @@ void RepairChannelStraps::determineParameters(
     setSpacing(layer.getSpacing(new_width, max_length));
 
     debugPrint(getLogger(),
-               utl::PDN,
+               utl::CMS,
                "Channel",
                2,
                "Adjust width to {:.4f} um and spacing to {:.4f} um.",
@@ -1761,7 +1761,7 @@ bool RepairChannelStraps::determineOffset(
 
   debugPrint(
       getLogger(),
-      utl::PDN,
+      utl::CMS,
       "Channel",
       3,
       "Estimating strap to be {} within {}.",
@@ -1854,7 +1854,7 @@ bool RepairChannelStraps::determineOffset(
     }
 
     debugPrint(getLogger(),
-               utl::PDN,
+               utl::CMS,
                "ChannelBisect",
                1,
                "Current level {}, offset {:.4f} um, group width {:.4f} um.",
@@ -1862,7 +1862,7 @@ bool RepairChannelStraps::determineOffset(
                layer.dbuToMicron(extra_offset),
                layer.dbuToMicron(group_width));
     debugPrint(getLogger(),
-               utl::PDN,
+               utl::CMS,
                "ChannelBisect",
                2,
                "  Bisect distance {:.4f} um, low {:.4f} um, high {:.4f} um.",
@@ -1988,7 +1988,7 @@ Straps* RepairChannelStraps::getTargetStrap(Grid* grid, odb::dbTechLayer* layer)
   }
 
   debugPrint(grid->getLogger(),
-             utl::PDN,
+             utl::CMS,
              "Channel",
              2,
              "Target strap for repair on layer {} is on layer {}.",
@@ -2023,7 +2023,7 @@ odb::dbTechLayer* RepairChannelStraps::getHighestStrapLayer(Grid* grid)
 
   debugPrint(
       grid->getLogger(),
-      utl::PDN,
+      utl::CMS,
       "Channel",
       2,
       "Highest strap layer in grid {} is: {}.",
@@ -2228,7 +2228,7 @@ void RepairChannelStraps::repairGridChannels(
     const Shape::ShapeTreeMap& global_shapes,
     Shape::ObstructionTreeMap& obstructions,
     bool allow,
-    PDNRenderer* renderer)
+    CMSRenderer* renderer)
 {
   // create copy of shapes so they can be used to determine repair locations
   Shape::ShapeTreeMap local_shapes = global_shapes;
@@ -2237,7 +2237,7 @@ void RepairChannelStraps::repairGridChannels(
 
   const auto channels = findRepairChannels(grid);
   debugPrint(grid->getLogger(),
-             utl::PDN,
+             utl::CMS,
              "Channel",
              1,
              "Channels to repair {}.",
@@ -2293,7 +2293,7 @@ void RepairChannelStraps::repairGridChannels(
     }
     if (dont_repair) {
       debugPrint(grid->getLogger(),
-                 utl::PDN,
+                 utl::CMS,
                  "Channel",
                  1,
                  "Skipping repair at {} in {}.",
@@ -2366,7 +2366,7 @@ void RepairChannelStraps::repairGridChannels(
           nets += net->getName();
         }
         grid->getLogger()->warn(
-            utl::PDN,
+            utl::CMS,
             178,
             "Remaining channel {} on {} for nets: {}",
             Shape::getRectText(channel.area, dbu_to_microns),
@@ -2375,7 +2375,7 @@ void RepairChannelStraps::repairGridChannels(
       }
       if (!allow) {
         grid->getLogger()->error(
-            utl::PDN, 179, "Unable to repair all channels.");
+            utl::CMS, 179, "Unable to repair all channels.");
       }
     }
   }
@@ -2441,4 +2441,4 @@ bool RepairChannelStraps::isEmpty() const
   return true;
 }
 
-}  // namespace pdn
+}  // namespace cms

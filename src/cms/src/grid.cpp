@@ -23,7 +23,7 @@
 #include "techlayer.h"
 #include "utl/Logger.h"
 
-namespace pdn {
+namespace cms {
 
 namespace bgi = boost::geometry::index;
 
@@ -92,7 +92,7 @@ void Grid::addConnect(std::unique_ptr<Connect> connect)
       if (conn->getLowerLayer() == connect->getLowerLayer()
           && conn->getUpperLayer() == connect->getUpperLayer()) {
         getLogger()->error(
-            utl::PDN,
+            utl::CMS,
             186,
             "Connect between layers {} and {} already exists in \"{}\".",
             connect->getLowerLayer()->getName(),
@@ -109,7 +109,7 @@ void Grid::makeShapes(const Shape::ShapeTreeMap& global_shapes,
                       const Shape::ObstructionTreeMap& obstructions)
 {
   auto* logger = getLogger();
-  logger->info(utl::PDN, 1, "Inserting grid: {}", getLongName());
+  logger->info(utl::CMS, 1, "Inserting grid: {}", getLongName());
 
   // copy obstructions
   Shape::ObstructionTreeMap local_obstructions = obstructions;
@@ -162,7 +162,7 @@ void Grid::makeShapes(const Shape::ShapeTreeMap& global_shapes,
       all_shapes,
       local_obstructions,
       allow_repair_channels_,
-      domain_->getPDNGen()->getDebugRenderer());
+      domain_->getClockMesh()->getDebugRenderer());
 }
 
 void Grid::makeRoutingObstructions(odb::dbBlock* block) const
@@ -271,7 +271,7 @@ bool Grid::repairVias(const Shape::ShapeTreeMap& global_shapes,
                       Shape::ObstructionTreeMap& obstructions)
 {
   debugPrint(getLogger(),
-             utl::PDN,
+             utl::CMS,
              "ViaRepair",
              1,
              "Start via repair: {}",
@@ -333,7 +333,7 @@ bool Grid::repairVias(const Shape::ShapeTreeMap& global_shapes,
   }
 
   debugPrint(getLogger(),
-             utl::PDN,
+             utl::CMS,
              "ViaRepair",
              1,
              "End via repair: {}",
@@ -470,7 +470,7 @@ void Grid::getIntersections(std::vector<ViaPtr>& shape_intersections,
                             const Shape::ShapeTreeMap& search_shapes) const
 {
   debugPrint(getLogger(),
-             utl::PDN,
+             utl::CMS,
              "Via",
              1,
              "Getting via intersections in \"{}\" - start",
@@ -499,7 +499,7 @@ void Grid::getIntersections(std::vector<ViaPtr>& shape_intersections,
     const auto& upper_shapes = shapes.at(upper_layer);
 
     debugPrint(getLogger(),
-               utl::PDN,
+               utl::CMS,
                "Via",
                2,
                "Getting via intersections in \"{}\" - layers {} ({} shapes) - "
@@ -540,7 +540,7 @@ void Grid::getIntersections(std::vector<ViaPtr>& shape_intersections,
     }
   }
   debugPrint(getLogger(),
-             utl::PDN,
+             utl::CMS,
              "Via",
              1,
              "Getting via intersections in \"{}\" - end",
@@ -604,7 +604,7 @@ void Grid::checkSetup() const
 
   if (follow_pin_layers.size() > 1 && follow_pin_connect.empty()) {
     // found no connect statements between followpins
-    getLogger()->error(utl::PDN,
+    getLogger()->error(utl::CMS,
                        192,
                        "There are multiple ({}) followpin definitions in {}, "
                        "but no connect statements between them.",
@@ -612,7 +612,7 @@ void Grid::checkSetup() const
                        getName());
   }
   if (follow_pin_layers.size() - 1 != follow_pin_connect.size()) {
-    getLogger()->error(utl::PDN,
+    getLogger()->error(utl::CMS,
                        193,
                        "There are only ({}) followpin connect statements when "
                        "{} is/are required.",
@@ -636,7 +636,7 @@ void Grid::checkSetup() const
       }
 
       if (connect0->overlaps(connect1) || connect1->overlaps(connect0)) {
-        getLogger()->error(utl::PDN,
+        getLogger()->error(utl::CMS,
                            194,
                            "Connect statements for followpins overlap between "
                            "layers: {} -> {} and {} -> {}",
@@ -673,7 +673,7 @@ void Grid::makeVias(const Shape::ShapeTreeMap& global_shapes,
 void Grid::makeVias(const Shape::ShapeTreeMap& global_shapes,
                     const Shape::ObstructionTreeMap& obstructions)
 {
-  debugPrint(getLogger(), utl::PDN, "Make", 1, "Making vias in \"{}\"", name_);
+  debugPrint(getLogger(), utl::CMS, "Make", 1, "Making vias in \"{}\"", name_);
   Shape::ShapeTreeMap search_shapes = getShapes();
 
   odb::Rect search_area = getDomainBoundary();
@@ -737,7 +737,7 @@ void Grid::makeVias(const Shape::ShapeTreeMap& global_shapes,
     }
   }
   debugPrint(getLogger(),
-             utl::PDN,
+             utl::CMS,
              "Via",
              2,
              "Removing {} vias due to obstructions.",
@@ -782,7 +782,7 @@ void Grid::makeVias(const Shape::ShapeTreeMap& global_shapes,
     }
   }
   debugPrint(getLogger(),
-             utl::PDN,
+             utl::CMS,
              "Via",
              2,
              "Removing {} vias due to overlaps.",
@@ -907,7 +907,7 @@ void Grid::writeToDb(const std::map<odb::dbNet*, odb::dbSWire*>& net_map,
 void Grid::getGridLevelObstructions(ShapeVectorMap& obstructions) const
 {
   debugPrint(getLogger(),
-             utl::PDN,
+             utl::CMS,
              "Obs",
              1,
              "Collecting grid obstructions from: {}",
@@ -929,7 +929,7 @@ void Grid::getGridLevelObstructions(ShapeVectorMap& obstructions) const
   for (auto* layer : layers) {
     auto obs = std::make_shared<GridObsShape>(layer, core, this);
     debugPrint(getLogger(),
-               utl::PDN,
+               utl::CMS,
                "Obs",
                2,
                "Adding obstruction on layer {} covering {}",
@@ -952,7 +952,7 @@ void Grid::getGridLevelObstructions(ShapeVectorMap& obstructions) const
       obs->generateObstruction();
       debugPrint(
           getLogger(),
-          utl::PDN,
+          utl::CMS,
           "Obs",
           2,
           "Adding obstruction on layer {} covering {}",
@@ -968,7 +968,7 @@ void Grid::makeInitialObstructions(odb::dbBlock* block,
                                    const std::set<odb::dbInst*>& skip_insts,
                                    utl::Logger* logger)
 {
-  debugPrint(logger, utl::PDN, "Make", 2, "Get initial obstructions - begin");
+  debugPrint(logger, utl::CMS, "Make", 2, "Get initial obstructions - begin");
   // routing obs
   for (auto* ob : block->getObstructions()) {
     if (ob->isSlotObstruction() || ob->isFillObstruction()) {
@@ -1022,7 +1022,7 @@ void Grid::makeInitialObstructions(odb::dbBlock* block,
     }
 
     debugPrint(logger,
-               utl::PDN,
+               utl::CMS,
                "Make",
                3,
                "Get instance {} obstructions",
@@ -1052,18 +1052,18 @@ void Grid::makeInitialObstructions(odb::dbBlock* block,
     }
   }
 
-  debugPrint(logger, utl::PDN, "Make", 2, "Get initial obstructions - end");
+  debugPrint(logger, utl::CMS, "Make", 2, "Get initial obstructions - end");
 }
 
 void Grid::makeInitialShapes(odb::dbBlock* block,
                              ShapeVectorMap& shapes,
                              utl::Logger* logger)
 {
-  debugPrint(logger, utl::PDN, "Make", 2, "Get initial shapes - start");
+  debugPrint(logger, utl::CMS, "Make", 2, "Get initial shapes - start");
   for (auto* net : block->getNets()) {
     Shape::populateMapFromDb(net, shapes);
   }
-  debugPrint(logger, utl::PDN, "Make", 2, "Get initial shapes - end");
+  debugPrint(logger, utl::CMS, "Make", 2, "Get initial shapes - end");
 }
 
 std::set<odb::dbTechLayer*> Grid::connectableLayers(
@@ -1546,7 +1546,7 @@ void InstanceGrid::report() const
 bool InstanceGrid::isValid() const
 {
   if (getNets(startsWithPower()).empty()) {
-    getLogger()->warn(utl::PDN,
+    getLogger()->warn(utl::CMS,
                       231,
                       "{} is not connected to any power/ground nets.",
                       inst_->getName());
@@ -1633,7 +1633,7 @@ bool BumpGrid::isRouted() const
 ////////
 
 ExistingGrid::ExistingGrid(
-    PdnGen* pdngen,
+    ClockMesh* clockmesh,
     odb::dbBlock* block,
     utl::Logger* logger,
     const std::string& name,
@@ -1676,7 +1676,7 @@ ExistingGrid::ExistingGrid(
   std::vector<odb::dbNet*> nets_vec;
   nets_vec.insert(nets_vec.end(), nets.begin(), nets.end());
   domain_ = std::make_unique<VoltageDomain>(
-      pdngen, block, power, ground, nets_vec, logger);
+      clockmesh, block, power, ground, nets_vec, logger);
 
   setDomain(domain_.get());
 
@@ -1713,10 +1713,10 @@ void ExistingGrid::addStrap(std::unique_ptr<Straps> strap)
 
 void ExistingGrid::addGridComponent(GridComponent* component) const
 {
-  getLogger()->error(utl::PDN,
+  getLogger()->error(utl::CMS,
                      188,
                      "Existing grid does not support adding {}.",
                      GridComponent::typeToString(component->type()));
 }
 
-}  // namespace pdn
+}  // namespace cms

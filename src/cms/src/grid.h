@@ -19,7 +19,7 @@ namespace utl {
 class Logger;
 }  // namespace utl
 
-namespace pdn {
+namespace cms {
 class VoltageDomain;
 class Rings;
 class Straps;
@@ -27,7 +27,7 @@ class Connect;
 class GridComponent;
 class GridSwitchedPower;
 
-class PdnGen;
+class ClockMesh;
 
 class Grid
 {
@@ -293,7 +293,7 @@ class BumpGrid : public InstanceGrid
 class ExistingGrid : public Grid
 {
  public:
-  ExistingGrid(PdnGen* pdngen,
+  ExistingGrid(ClockMesh* clockmesh,
                odb::dbBlock* block,
                utl::Logger* logger,
                const std::string& name,
@@ -316,4 +316,4 @@ class ExistingGrid : public Grid
   void addGridComponent(GridComponent* component) const;
 };
 
-}  // namespace pdn
+}  // namespace cms

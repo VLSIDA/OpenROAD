@@ -17,7 +17,7 @@
 #include "utl/Logger.h"
 #include "via.h"
 
-namespace pdn {
+namespace cms {
 
 Shape::Shape(odb::dbTechLayer* layer,
              odb::dbNet* net,
@@ -333,7 +333,7 @@ void Shape::writeToDb(odb::dbSWire* swire,
                       bool make_rect_as_pin) const
 {
   debugPrint(getLogger(),
-             utl::PDN,
+             utl::CMS,
              "Shape",
              5,
              "Adding shape {} with pins {} and rect as pin {}",
@@ -343,7 +343,7 @@ void Shape::writeToDb(odb::dbSWire* swire,
 
   if (!is_locked_ && !hasDBConnectivity()) {
     getLogger()->warn(
-        utl::PDN, 200, "Removing floating shape: {}", getReportText());
+        utl::CMS, 200, "Removing floating shape: {}", getReportText());
     return;
   }
 
@@ -746,4 +746,4 @@ GridObsShape::GridObsShape(odb::dbTechLayer* layer,
   setObstruction(rect);
 }
 
-}  // namespace pdn
+}  // namespace cms
