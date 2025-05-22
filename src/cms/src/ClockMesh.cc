@@ -115,7 +115,7 @@ void
 ClockMesh::findBuffers()
 {
   if (buffer_cells_.empty()) {
-    LibertyLibraryIterator* lib_iter = network_->libertyLibraryIterator();
+    sta::LibertyLibraryIterator* lib_iter = network_->libertyLibraryIterator();
     while (lib_iter->hasNext()) {
       LibertyLibrary* lib = lib_iter->next();
       for (LibertyCell* buffer : *lib->buffers()) {
