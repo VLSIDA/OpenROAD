@@ -7,6 +7,7 @@
 #include <optional>
 #include <string>
 
+#include "cms/ClockMesh.hh"
 #include "db_sta/dbNetwork.hh"
 #include "db_sta/dbSta.hh"
 #include "dpl/Opendp.h"
@@ -815,6 +816,7 @@ class Resizer : public dbStaState, public dbNetworkObserver
   std::shared_ptr<ResizerObserver> graphics_;
 
   friend class BufferedNet;
+  friend class ClockMesh;
   friend class GateCloner;
   friend class PreChecks;
   friend class RecoverPower;
