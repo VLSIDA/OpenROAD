@@ -152,7 +152,8 @@ ClockMesh::makeUniqueInstName(const char* base_name, bool underscore)
   return inst_name;
 }
 
-float bufferDriveResistance(const LibertyCell* buffer) const
+float
+ClockMesh::bufferDriveResistance(const LibertyCell* buffer) const
 {
   LibertyPort *input, *output;
   buffer->bufferPorts(input, output);
@@ -166,7 +167,8 @@ ClockMesh::createGrid()
   findBuffers();
 }
 
-bool ClockMesh::isLinkCell(LibertyCell* cell) const
+bool
+ClockMesh::isLinkCell(LibertyCell* cell) const
 {
   return network_->findLibertyCell(cell->name()) == cell;
 }
