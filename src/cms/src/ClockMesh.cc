@@ -41,8 +41,8 @@ ClockMesh::ClockMesh()
 ClockMesh::~ClockMesh()
 {
   if (this->buffers_ != nullptr) {
-    for (auto buffer : this->buffers_: buffers_) {
-      removeBuffer(buffer);
+    for (auto buffer : this->buffers_) {
+      resizer_->removeBuffer(buffer);
     }
     delete[] this->buffers_;
     this->buffers_ = nullptr;
@@ -101,8 +101,8 @@ ClockMesh::addBuffer()
 {
   this->point_[buffer_ptr_].setX(buffer_ptr_);
   this->point_[buffer_ptr_].setY(buffer_ptr_);
-  const string buffer_name = makeUniqueInstName("buffer");
-  buffers_[buffer_ptr_] = makeBuffer(resizer_->buffer_lowest_drive, 
+  const string buffer_name = resizer_->makeUniqueInstName("buffer");
+  buffers_[buffer_ptr_] = resizer_->makeBuffer(resizer_->buffer_lowest_drive_, 
                           buffer_name.c_str(), 
                           nullptr, 
                           point_[buffer_ptr_]);
