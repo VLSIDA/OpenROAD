@@ -17,6 +17,7 @@
 #pragma once
 
 #include <tcl.h>
+#include <string>
 #include "db_sta/dbNetwork.hh"
 #include "db_sta/dbSta.hh"
 #include "odb/db.h"
@@ -41,8 +42,6 @@ class dbSta;
 class Clock;
 class dbNetwork;
 class Unit;
-class LibertyCell;
-class LibertyCellSeq;
 class Vertex;
 class Graph;
 }  // namespace sta
@@ -76,7 +75,7 @@ public:
   void createGrid();
 
 private:
-  string ClockMesh::makeUniqueInstName(const char* base_name, bool underscore);
+  std::string ClockMesh::makeUniqueInstName(const char* base_name, bool underscore);
   sta::Instance** buffers_ = nullptr; 
   odb::dbDatabase *db_ = nullptr;
   Point* point_ = nullptr;

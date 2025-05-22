@@ -41,8 +41,8 @@ ClockMesh::ClockMesh()
 ClockMesh::~ClockMesh()
 {
   if (this->buffers_ != nullptr) {
-    for (auto it = std::begin(buffers_); it != std::end(buffers_); it++) {
-      resizer_->removeBuffer(*it);
+    for (int i = 0; i < value_; i++) {
+      resizer_->removeBuffer(buffers_[i]);
     }
     delete[] this->buffers_;
     this->buffers_ = nullptr;
@@ -136,7 +136,8 @@ ClockMesh::findBuffers()
   }
 }
 
-string ClockMesh::makeUniqueInstName(const char* base_name, bool underscore)
+std::string
+ClockMesh::makeUniqueInstName(const char* base_name, bool underscore)
 {
   string inst_name;
   do {
