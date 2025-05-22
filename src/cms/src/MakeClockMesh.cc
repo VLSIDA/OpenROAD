@@ -14,33 +14,29 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-%module cms
-
-%{
-
-#include "cms/ClockMesh.hh"
 #include "ord/OpenRoad.hh"
+#include "cms/ClockMesh.hh"
+#include "cms/MakeClockMesh.hh"
+
+namespace ord {
 
 cms::ClockMesh *
-getCMS()
+makeClockMesh()
 {
-  return ord::OpenRoad::openRoad()->getCMS();
-}
-
-%}
-
-%inline %{
-
-void
-dumpValue()
-{
-  getCMS()->dumpValue();
+  return new cms::ClockMesh;
 }
 
 void
-setValue(int value)
+deleteClockMesh(cms::ClockMesh *mesh)
 {
-  getCMS()->setValue(value);
+  delete mesh;
 }
 
-%} // inline
+void
+initClockMesh(OpenRoad *openroad)
+{
+  openroad->getCMS()->init(openroad->tclInterp(),
+			    openroad->getDb());
+}
+
+}
