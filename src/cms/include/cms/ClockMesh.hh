@@ -56,6 +56,8 @@ using odb::Point;
 using sta::Instance;
 using sta::LibertyCell;
 using sta::LibertyCellSeq;
+using sta::LibertyLibrary;
+using sta::LibertyLibrarySeq;
 
 
 class ClockMesh

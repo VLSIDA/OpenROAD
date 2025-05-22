@@ -101,7 +101,7 @@ ClockMesh::addBuffer()
   this->point_[buffer_ptr_].setX(buffer_ptr_);
   this->point_[buffer_ptr_].setY(buffer_ptr_);
   const string buffer_name = makeUniqueInstName("clock_mesh_buffer",true);
-  buffers_[buffer_ptr_] = resizer_->makeBuffer(buffer_cells_[0], 
+  buffers_[buffer_ptr_] = makeBuffer(buffer_cells_[0], 
                           buffer_name.c_str(), 
                           nullptr, 
                           point_[buffer_ptr_]);
