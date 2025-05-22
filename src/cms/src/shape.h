@@ -21,7 +21,7 @@ namespace utl {
 class Logger;
 }  // namespace utl
 
-namespace pdn {
+namespace cms {
 
 namespace bgi = boost::geometry::index;
 
@@ -293,4 +293,4 @@ class GridObsShape : public Shape
   const Grid* grid_;
 };
 
-}  // namespace pdn
+}  // namespace cms

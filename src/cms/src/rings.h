@@ -12,7 +12,7 @@ namespace odb {
 class dbTechLayer;
 }  // namespace odb
 
-namespace pdn {
+namespace cms {
 class Grid;
 
 class Rings : public GridComponent
@@ -65,4 +65,4 @@ class Rings : public GridComponent
   odb::Rect getInnerRingOutline() const;
 };
 
-}  // namespace pdn
+}  // namespace cms

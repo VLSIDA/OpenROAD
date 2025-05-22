@@ -11,19 +11,19 @@
 
 #include "grid.h"
 #include "odb/db.h"
-#include "pdn/PdnGen.hh"
+#include "cms/ClockMesh.hh"
 #include "utl/Logger.h"
 
-namespace pdn {
+namespace cms {
 
-VoltageDomain::VoltageDomain(PdnGen* pdngen,
+VoltageDomain::VoltageDomain(ClockMesh* clockmesh,
                              odb::dbBlock* block,
                              odb::dbNet* power,
                              odb::dbNet* ground,
                              const std::vector<odb::dbNet*>& secondary_nets,
                              utl::Logger* logger)
     : name_("Core"),
-      pdngen_(pdngen),
+      clockmesh_(clockmesh),
       block_(block),
       power_(power),
       switched_power_(nullptr),
@@ -35,7 +35,7 @@ VoltageDomain::VoltageDomain(PdnGen* pdngen,
   determinePowerGroundNets();
 }
 
-VoltageDomain::VoltageDomain(PdnGen* pdngen,
+VoltageDomain::VoltageDomain(ClockMesh* clockmesh,
                              const std::string& name,
                              odb::dbBlock* block,
                              odb::dbNet* power,
@@ -44,7 +44,7 @@ VoltageDomain::VoltageDomain(PdnGen* pdngen,
                              odb::dbRegion* region,
                              utl::Logger* logger)
     : name_(name),
-      pdngen_(pdngen),
+      clockmesh_(clockmesh),
       block_(block),
       power_(power),
       switched_power_(nullptr),
@@ -57,9 +57,9 @@ VoltageDomain::VoltageDomain(PdnGen* pdngen,
     const int rect_count = getRegionRectCount(region_);
     if (rect_count == 0) {
       logger_->error(
-          utl::PDN, 103, "{} region must have a shape.", region_->getName());
+          utl::CMS, 103, "{} region must have a shape.", region_->getName());
     } else if (rect_count > 1) {
-      logger_->error(utl::PDN,
+      logger_->error(utl::CMS,
                      104,
                      "{} region contains {} shapes, but only one is supported.",
                      region_->getName(),
@@ -166,7 +166,7 @@ std::vector<odb::dbRow*> VoltageDomain::getRegionRows() const
 std::vector<odb::dbRow*> VoltageDomain::getDomainRows() const
 {
   std::set<odb::dbRow*> claimed_rows;
-  for (auto* domain : pdngen_->getDomains()) {
+  for (auto* domain : clockmesh_->getDomains()) {
     if (domain == this) {
       continue;
     }
@@ -232,14 +232,14 @@ odb::dbNet* VoltageDomain::findDomainNet(const odb::dbSigType& type) const
   }
 
   if (nets.empty()) {
-    logger_->error(utl::PDN,
+    logger_->error(utl::CMS,
                    100,
                    "Unable to find {} net for {} domain.",
                    type.getString(),
                    name_);
   }
   if (nets.size() > 1) {
-    logger_->error(utl::PDN,
+    logger_->error(utl::CMS,
                    181,
                    "Found multiple possible nets for {} net for {} domain.",
                    type.getString(),
@@ -254,7 +254,7 @@ void VoltageDomain::determinePowerGroundNets()
   // look for power
   if (power_ == nullptr) {
     power_ = findDomainNet(odb::dbSigType::POWER);
-    logger_->info(utl::PDN,
+    logger_->info(utl::CMS,
                   101,
                   "Using {} as power net for {} domain.",
                   power_->getName(),
@@ -263,7 +263,7 @@ void VoltageDomain::determinePowerGroundNets()
   // look for ground
   if (ground_ == nullptr) {
     ground_ = findDomainNet(odb::dbSigType::GROUND);
-    logger_->info(utl::PDN,
+    logger_->info(utl::CMS,
                   102,
                   "Using {} as ground net for {} domain.",
                   ground_->getName(),
@@ -295,4 +295,4 @@ odb::dbNet* VoltageDomain::getPower() const
   return power_;
 }
 
-}  // namespace pdn
+}  // namespace cms

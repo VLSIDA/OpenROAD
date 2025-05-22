@@ -16,7 +16,7 @@
 #include "straps.h"
 #include "utl/Logger.h"
 
-namespace pdn {
+namespace cms {
 
 PowerCell::PowerCell(utl::Logger* logger,
                      odb::dbMaster* master,
@@ -100,7 +100,7 @@ GridSwitchedPower::GridSwitchedPower(Grid* grid,
 {
   if (network_ == PowerSwitchNetworkType::DAISY && !cell->hasAcknowledge()) {
     grid->getLogger()->error(
-        utl::PDN,
+        utl::CMS,
         198,
         "{} requires the power cell to have an acknowledge pin.",
         toString(DAISY));
@@ -128,7 +128,7 @@ PowerSwitchNetworkType GridSwitchedPower::fromString(const std::string& type,
     return DAISY;
   }
 
-  logger->error(utl::PDN, 197, "Unrecognized network type: {}", type);
+  logger->error(utl::CMS, 197, "Unrecognized network type: {}", type);
   return STAR;
 }
 
@@ -208,7 +208,7 @@ void GridSwitchedPower::build()
   if (!insts_.empty()) {
     // power switches already built and need to be ripped up to try again
     grid_->getLogger()->warn(
-        utl::PDN,
+        utl::CMS,
         222,
         "Power switch insertion has already run. To reset use -ripup option.");
     return;
@@ -219,7 +219,7 @@ void GridSwitchedPower::build()
   auto* target = getLowestStrap();
   if (target == nullptr) {
     grid_->getLogger()->error(
-        utl::PDN, 220, "Unable to find a strap to connect power switched to.");
+        utl::CMS, 220, "Unable to find a strap to connect power switched to.");
   }
 
   const InstTree exisiting_insts = buildInstanceSearchTree();
@@ -247,7 +247,7 @@ void GridSwitchedPower::build()
     int idx = 0;
 
     debugPrint(grid_->getLogger(),
-               utl::PDN,
+               utl::CMS,
                "PowerSwitch",
                2,
                "Adding power switches in row: {}",
@@ -275,7 +275,7 @@ void GridSwitchedPower::build()
       if (inst == nullptr) {
         inst = grid_->getBlock()->findInst(new_name.c_str());
         if (inst->getMaster() != cell_->getMaster()) {
-          grid_->getLogger()->error(utl::PDN,
+          grid_->getLogger()->error(utl::CMS,
                                     221,
                                     "Instance {} should be {}, but is {}.",
                                     new_name,
@@ -289,7 +289,7 @@ void GridSwitchedPower::build()
       }
 
       debugPrint(grid_->getLogger(),
-                 utl::PDN,
+                 utl::CMS,
                  "PowerSwitch",
                  3,
                  "Adding switch {}",
@@ -305,7 +305,7 @@ void GridSwitchedPower::build()
         odb::dbInst::destroy(inst);
         const double dbu_to_microns = grid_->getBlock()->getDbUnitsPerMicron();
         grid_->getLogger()->warn(
-            utl::PDN,
+            utl::CMS,
             223,
             "Unable to insert power switch ({}) at ({:.4f}, {:.4f}), due to "
             "lack of available rows.",
@@ -324,7 +324,7 @@ void GridSwitchedPower::build()
   }
 
   if (!found_row) {
-    grid_->getLogger()->error(utl::PDN,
+    grid_->getLogger()->error(utl::CMS,
                               240,
                               "No rows found that match the power cell: {}.",
                               cell_->getMaster()->getName());
@@ -439,7 +439,7 @@ void GridSwitchedPower::checkAndFixOverlappingInsts(const InstTree& insts)
       continue;
     }
     debugPrint(grid_->getLogger(),
-               utl::PDN,
+               utl::CMS,
                "PowerSwitch",
                2,
                "Power switch {} overlaps with {}",
@@ -459,7 +459,7 @@ void GridSwitchedPower::checkAndFixOverlappingInsts(const InstTree& insts)
       if (!checkInstanceOverlap(inst, overlapping)) {
         debugPrint(
             grid_->getLogger(),
-            utl::PDN,
+            utl::CMS,
             "PowerSwitch",
             3,
             "Fixed by moving {} to ({}, {})",
@@ -508,7 +508,7 @@ void GridSwitchedPower::checkAndFixOverlappingInsts(const InstTree& insts)
     overlapping->setLocation(other_new_loc, overlap_y);
     overlapping->setPlacementStatus(prev_status);
     debugPrint(grid_->getLogger(),
-               utl::PDN,
+               utl::CMS,
                "PowerSwitch",
                3,
                "Fixed by moving {} to ({}, {}) and {} to ({}, {})",
@@ -643,4 +643,4 @@ std::set<int> GridSwitchedPower::computeLocations(
   return pos;
 }
 
-}  // namespace pdn
+}  // namespace cms

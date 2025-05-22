@@ -14,7 +14,7 @@
 #include "utl/Logger.h"
 #include "via.h"
 
-namespace pdn {
+namespace cms {
 
 ViaRepair::ViaRepair(utl::Logger* logger, const std::set<odb::dbNet*>& nets)
     : logger_(logger), nets_(nets)
@@ -101,7 +101,7 @@ void ViaRepair::repair()
   for (const auto& [layer, vias] : block_vias_to_remove) {
     if (!vias.empty()) {
       logger_->warn(
-          utl::PDN,
+          utl::CMS,
           226,
           "{} contains block vias to be removed, which is not supported."),
           layer->getName();
@@ -265,4 +265,4 @@ void ViaRepair::report() const
   }
 }
 
-}  // namespace pdn
+}  // namespace cms

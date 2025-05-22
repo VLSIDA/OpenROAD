@@ -8,15 +8,15 @@
 
 #include "odb/db.h"
 
-namespace pdn {
+namespace cms {
 
-class PdnGen;
+class ClockMesh;
 class VoltageDomain;
 
 class SRoute
 {
  public:
-  SRoute(PdnGen* pdngen, odb::dbDatabase* db, utl::Logger* logger);
+  SRoute(ClockMesh* clockmesh, odb::dbDatabase* db, utl::Logger* logger);
 
   void createSrouteWires(const char* net_name,
                          const char* outer_net_name,
@@ -42,9 +42,9 @@ class SRoute
   std::vector<VoltageDomain*> getDomains() const;
 
   utl::Logger* logger_;
-  PdnGen* pdngen_;
+  ClockMesh* clockmesh_;
   odb::dbDatabase* db_;
   std::vector<std::vector<odb::dbITerm*>> sroute_itermss_;
 };
 
-}  // namespace pdn
+}  // namespace cms

@@ -21,14 +21,14 @@ namespace utl {
 class Logger;
 }
 
-namespace pdn {
+namespace cms {
 class Grid;
-class PdnGen;
+class ClockMesh;
 
 class VoltageDomain
 {
  public:
-  VoltageDomain(PdnGen* pdngen,
+  VoltageDomain(ClockMesh* clockmesh,
                 const std::string& name,
                 odb::dbBlock* block,
                 odb::dbNet* power,
@@ -37,7 +37,7 @@ class VoltageDomain
                 odb::dbRegion* region,
                 utl::Logger* logger);
 
-  VoltageDomain(PdnGen* pdngen,
+  VoltageDomain(ClockMesh* clockmesh,
                 odb::dbBlock* block,
                 odb::dbNet* power,
                 odb::dbNet* ground,
@@ -48,7 +48,7 @@ class VoltageDomain
 
   odb::dbBlock* getBlock() const { return block_; }
   utl::Logger* getLogger() const { return logger_; }
-  PdnGen* getPDNGen() const { return pdngen_; }
+  ClockMesh* getClockMesh() const { return clockmesh_; }
 
   odb::dbNet* getPower() const;
   odb::dbNet* getGround() const { return ground_; }
@@ -85,7 +85,7 @@ class VoltageDomain
 
  private:
   std::string name_;
-  PdnGen* pdngen_;
+  ClockMesh* clockmesh_;
   odb::dbBlock* block_;
   odb::dbNet* power_;
   odb::dbNet* switched_power_;
@@ -111,4 +111,4 @@ class VoltageDomain
   odb::dbNet* findDomainNet(const odb::dbSigType& type) const;
 };
 
-}  // namespace pdn
+}  // namespace cms

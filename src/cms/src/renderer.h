@@ -14,15 +14,15 @@ namespace odb {
 class Rect;
 }  // namespace odb
 
-namespace pdn {
+namespace cms {
 
-class PdnGen;
+class ClockMesh;
 
 // renderer for debugging, not intended for general use.
-class PDNRenderer : public gui::Renderer
+class CMSRenderer : public gui::Renderer
 {
  public:
-  explicit PDNRenderer(PdnGen* pdn);
+  explicit CMSRenderer(ClockMesh* clockmesh);
 
   void update();
 
@@ -34,7 +34,7 @@ class PDNRenderer : public gui::Renderer
   void pause();
 
  private:
-  PdnGen* pdn_;
+  ClockMesh* clockmesh_;
   Shape::ShapeTreeMap shapes_;
   Shape::ObstructionTreeMap grid_obstructions_;
   Shape::ObstructionTreeMap initial_obstructions_;
@@ -67,4 +67,4 @@ class PDNRenderer : public gui::Renderer
   static constexpr const char* repair_text_ = "Repair channels";
 };
 
-}  // namespace pdn
+}  // namespace cms
