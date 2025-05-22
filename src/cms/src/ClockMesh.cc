@@ -26,6 +26,9 @@ namespace cms {
 
 using utl::CMS;
 using std::string;
+using sta::LibertyLibrary;
+using sta::LibertyLibrarySeq;
+using sta::LibertyPort;
 
 // Tcl files encoded into strings.
 extern const char *cms_tcl_inits[];
@@ -112,7 +115,7 @@ void
 ClockMesh::findBuffers()
 {
   if (buffer_cells_.empty()) {
-    sta::LibertyLibraryIterator* lib_iter = network_->libertyLibraryIterator();
+    LibertyLibraryIterator* lib_iter = network_->libertyLibraryIterator();
     while (lib_iter->hasNext()) {
       LibertyLibrary* lib = lib_iter->next();
       for (LibertyCell* buffer : *lib->buffers()) {
@@ -148,6 +151,14 @@ ClockMesh::makeUniqueInstName(const char* base_name, bool underscore)
   } while (network_->findInstance(inst_name.c_str()));
   return inst_name;
 }
+
+float bufferDriveResistance(const LibertyCell* buffer) const
+{
+  LibertyPort *input, *output;
+  buffer->bufferPorts(input, output);
+  return output->driveResistance();
+}
+
 
 void
 ClockMesh::createGrid()

@@ -80,7 +80,8 @@ private:
   void findBuffers();
   int createBufferArray(int amount);
   bool isLinkCell(LibertyCell* cell) const;
-  
+  float bufferDriveResistance(const LibertyCell* buffer) const
+
   sta::Instance** buffers_ = nullptr; 
   odb::dbDatabase *db_ = nullptr;
   Point* point_ = nullptr;
