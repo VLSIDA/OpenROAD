@@ -108,7 +108,7 @@ ClockMesh::addBuffer()
   buffers_[buffer_ptr_] = network_->makeInstance(buffer_cells_[0],
                           buffer_name.c_str(),
                           nullptr);
-  logger_->info(CMS, 005, "CMS added buffer: {} at point X: {} Y: {}",buffer_name, point_[buffer_ptr_].getX(),point_[buffer_ptr_].getY());
+  logger_->info(CMS, 095, "CMS added buffer: {} at point X: {} Y: {}",buffer_name, point_[buffer_ptr_].getX(),point_[buffer_ptr_].getY());
   buffer_ptr_++;
 }
 
