@@ -74,14 +74,14 @@ int
 ClockMesh::dump_value()
 {
   return this->value_;
-  logger_->info(CMS, 001, "Dumping ClockMesh Value of {}",value_);
+  logger_->info(CMS, 189, "Dumping ClockMesh Value of {}",value_);
 }
 
 int
 ClockMesh::set_value(int value)
 {
   this->value_ = std::abs(value);
-  logger_->info(CMS, 002, "Set ClockMesh Value to {}", value);
+  logger_->info(CMS, 151, "Set ClockMesh Value to {}", value);
   return this->value_;
 }
 
@@ -89,12 +89,12 @@ int
 ClockMesh::createBufferArray(int amount)
 {
   if (amount == 0) {
-    logger_->error(CMS, 003, "Need to set CMS Buffer Amount to non zero");
+    logger_->error(CMS, 409, "Need to set CMS Buffer Amount to non zero");
     return 1;
   } else {
     this->buffers_ = new sta::Instance*[amount];
     this->point_ = new Point[amount];
-    logger_->info(CMS, 004, "CMS Buffer and Point arrays initialized!");
+    logger_->info(CMS, 125, "CMS Buffer and Point arrays initialized!");
     return 0;
   }
 }
@@ -108,7 +108,7 @@ ClockMesh::addBuffer()
   buffers_[buffer_ptr_] = network_->makeInstance(buffer_cells_[0],
                           buffer_name.c_str(),
                           nullptr);
-  logger_->info(CMS, 005, "CMS added buffer: {} at point X: {} Y: {}",buffer_name, point_[buffer_ptr_].getX(),point_[buffer_ptr_].getY());
+  logger_->info(CMS, 095, "CMS added buffer: {} at point X: {} Y: {}",buffer_name, point_[buffer_ptr_].getX(),point_[buffer_ptr_].getY());
   buffer_ptr_++;
 }
 
@@ -127,7 +127,7 @@ ClockMesh::findBuffers()
     }
     delete lib_iter;
     if (buffer_cells_.empty()) {
-      logger_->error(CMS, 006, "no buffers found.");
+      logger_->error(CMS, 124, "no buffers found.");
     } else {
       sort(buffer_cells_,
            [this](const LibertyCell* buffer1, const LibertyCell* buffer2) {

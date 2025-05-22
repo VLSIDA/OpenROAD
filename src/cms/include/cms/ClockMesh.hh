@@ -70,8 +70,8 @@ public:
       sta::dbNetwork* network,
       rsz::Resizer* resizer,
       utl::Logger* logger);
-  int dumpValue();
-  int setValue(int value);
+  int dump_value();
+  int set_value(int value);
   void addBuffer();
   void createGrid();
 
@@ -79,7 +79,7 @@ private:
   std::string makeUniqueInstName(const char* base_name, bool underscore);
   void findBuffers();
   int createBufferArray(int amount);
-  bool Resizer::isLinkCell(LibertyCell* cell) const;
+  bool isLinkCell(LibertyCell* cell) const;
   float bufferDriveResistance(const LibertyCell* buffer) const;
   sta::Instance** buffers_ = nullptr; 
   odb::dbDatabase *db_ = nullptr;
