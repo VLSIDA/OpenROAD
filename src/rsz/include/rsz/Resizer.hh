@@ -154,6 +154,8 @@ struct BufferData
 
 class OdbCallBack;
 
+class ClockMesh;
+
 class Resizer : public dbStaState, public dbNetworkObserver
 {
  public:

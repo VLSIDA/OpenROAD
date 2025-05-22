@@ -41,7 +41,7 @@ ClockMesh::ClockMesh()
 ClockMesh::~ClockMesh()
 {
   if (this->buffers_ != nullptr) {
-    for (auto it = std::begin(buffer_); it != std::end(buffers_); it++) {
+    for (auto it = std::begin(buffers_); it != std::end(buffers_); it++) {
       resizer_->removeBuffer(*it);
     }
     delete[] this->buffers_;
