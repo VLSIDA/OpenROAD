@@ -16,6 +16,7 @@
 
 #include "cms/ClockMesh.hh"
 #include "sta/StaMain.hh"
+#include <string>
 
 
 extern "C" {
@@ -25,6 +26,7 @@ extern int Cms_Init(Tcl_Interp *interp);
 namespace cms {
 
 using utl::CMS;
+using std::string;
 
 // Tcl files encoded into strings.
 extern const char *cms_tcl_inits[];
@@ -95,7 +97,7 @@ ClockMesh::addBuffer()
 {
   this->point_[buffer_ptr_].setX(buffer_ptr_);
   this->point_[buffer_ptr_].setY(buffer_ptr_);
-  string buffer_name = makeUniqueInstName("buffer")
+  const string buffer_name = makeUniqueInstName("buffer");
   buffers_[buffer_ptr_] = makeBuffer(resizer_->buffer_lowest_drive, 
                           buffer_name.c_str(), 
                           nullptr, 
