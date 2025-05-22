@@ -42,6 +42,7 @@ class Clock;
 class dbNetwork;
 class Unit;
 class LibertyCell;
+class LibertyCellSeq;
 class Vertex;
 class Graph;
 }  // namespace sta
@@ -55,6 +56,8 @@ using odb::Point;
 
 using sta::Instance;
 using sta::LibertyCell;
+using sta::LibertyCellSeq;
+
 
 class ClockMesh
 {
@@ -70,8 +73,10 @@ public:
   void setValue(int value);
   void addBuffer();
   int createBufferArray(int amount);
+  void createGrid();
 
 private:
+  string ClockMesh::makeUniqueInstName(const char* base_name, bool underscore);
   sta::Instance** buffers_ = nullptr; 
   odb::dbDatabase *db_ = nullptr;
   Point* point_ = nullptr;
@@ -80,6 +85,8 @@ private:
   utl::Logger* logger_ = nullptr;
   int value_;
   int buffer_ptr_;
+  LibertyCellSeq buffer_cells_;
+  int unique_inst_index_ = 1;
 };
 
 } //  namespace cms

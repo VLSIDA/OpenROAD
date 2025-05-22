@@ -86,7 +86,7 @@ int
 ClockMesh::createBufferArray(int amount)
 {
   if (amount == 0) {
-    logger_->info(CMS, 003, "Need to set CMS Buffer Amount to non zero");
+    logger_->error(CMS, 003, "Need to set CMS Buffer Amount to non zero");
     return 1;
   } else {
     this->buffers_ = new sta::Instance*[amount];
@@ -101,13 +101,59 @@ ClockMesh::addBuffer()
 {
   this->point_[buffer_ptr_].setX(buffer_ptr_);
   this->point_[buffer_ptr_].setY(buffer_ptr_);
-  const string buffer_name = resizer_->makeUniqueInstName("buffer");
-  buffers_[buffer_ptr_] = resizer_->makeBuffer(resizer_->buffer_lowest_drive_, 
+  const string buffer_name = makeUniqueInstName("clock_mesh_buffer",true);
+  buffers_[buffer_ptr_] = resizer_->makeBuffer(buffer_cells_[0], 
                           buffer_name.c_str(), 
                           nullptr, 
                           point_[buffer_ptr_]);
   logger_->info(CMS, 005, "CMS added buffer: {} at point X: {} Y: {}",buffer_name, point_[buffer_ptr_].getX(),point_[buffer_ptr_].getY());
   buffer_ptr_++;
+}
+
+void
+ClockMesh::findBuffers()
+{
+  if (buffer_cells_.empty()) {
+    LibertyLibraryIterator* lib_iter = network_->libertyLibraryIterator();
+    while (lib_iter->hasNext()) {
+      LibertyLibrary* lib = lib_iter->next();
+      for (LibertyCell* buffer : *lib->buffers()) {
+        if (!dontUse(buffer) && isLinkCell(buffer)) {
+          buffer_cells_.emplace_back(buffer);
+        }
+      }
+    }
+    delete lib_iter;
+    if (buffer_cells_.empty()) {
+      logger_->error(CMS, 006, "no buffers found.");
+    } else {
+      sort(buffer_cells_,
+           [this](const LibertyCell* buffer1, const LibertyCell* buffer2) {
+             return bufferDriveResistance(buffer1)
+                    > bufferDriveResistance(buffer2);
+           });
+    }
+  }
+}
+
+string ClockMesh::makeUniqueInstName(const char* base_name, bool underscore)
+{
+  string inst_name;
+  do {
+    // sta::stringPrint can lead to string overflow and fatal
+    if (underscore) {
+      inst_name = fmt::format("{}_{}", base_name, unique_inst_index_++);
+    } else {
+      inst_name = fmt::format("{}{}", base_name, unique_inst_index_++);
+    }
+  } while (network_->findInstance(inst_name.c_str()));
+  return inst_name;
+}
+
+void
+ClockMesh::createGrid()
+{
+  findBuffers();
 }
 
 } // namespace cms

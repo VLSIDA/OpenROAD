@@ -54,7 +54,6 @@ target_link_libraries(rsz_lib
     dbSta_lib
     grt_lib
     utl_lib
-    cms
 )
 
 target_link_libraries(rsz
@@ -67,7 +66,6 @@ target_link_libraries(rsz
     grt
     gui
     utl_lib
-    cms
 )
 
 messages(
