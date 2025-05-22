@@ -68,10 +68,7 @@ public:
       utl::Logger* logger);
   void dumpValue();
   void setValue(int value);
-  void addBuffer(sta::LibertyCell* bufferCell, 
-                const char* name, 
-                sta::Instance* parent, 
-                const Point& location);
+  void addBuffer();
   int createBufferArray(int amount);
 
 private:
