@@ -69,8 +69,8 @@ public:
       sta::dbNetwork* network,
       rsz::Resizer* resizer,
       utl::Logger* logger);
-  void dumpValue();
-  void setValue(int value);
+  void dump_value();
+  void set_value(int value);
   void addBuffer();
   void createGrid();
 

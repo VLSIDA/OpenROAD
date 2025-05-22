@@ -63,6 +63,10 @@ namespace cts {
 class TritonCTS;
 }
 
+namespace cms {
+  class ClockMesh;
+}
+
 namespace drt {
 class TritonRoute;
 }
@@ -178,6 +182,7 @@ class Design
   rsz::Resizer* getResizer();
   stt::SteinerTreeBuilder* getSteinerTreeBuilder();
   tap::Tapcell* getTapcell();
+  cms::ClockMesh* getCMS();
 
   // Needed by standalone startup, not for general use.
   ord::OpenRoad* getOpenRoad();

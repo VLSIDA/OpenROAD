@@ -17,7 +17,6 @@
 #include "cms/ClockMesh.hh"
 #include "sta/StaMain.hh"
 
-
 extern "C" {
 extern int Cms_Init(Tcl_Interp *interp);
 }
@@ -71,17 +70,19 @@ ClockMesh::init(Tcl_Interp* tcl_interp,
   sta::evalTclInit(tcl_interp, cms::cms_tcl_inits);
 }
 
-void
-ClockMesh::dumpValue()
+int
+ClockMesh::dump_value()
 {
+  return this->value_;
   logger_->info(CMS, 001, "Dumping ClockMesh Value of {}",value_);
 }
 
-void
-ClockMesh::setValue(int value)
+int
+ClockMesh::set_value(int value)
 {
   this->value_ = std::abs(value);
   logger_->info(CMS, 002, "Set ClockMesh Value to {}", value);
+  return this->value_;
 }
 
 int

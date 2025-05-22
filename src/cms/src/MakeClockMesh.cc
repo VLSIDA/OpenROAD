@@ -17,7 +17,16 @@
 #include "ord/OpenRoad.hh"
 #include "cms/ClockMesh.hh"
 #include "cms/MakeClockMesh.hh"
+#include "utl/decode.h"
 
+namespace cms {
+  extern const char* cms_tcl_inits[];
+  
+  extern "C" {
+  extern int Cms_Init(Tcl_Interp* interp);
+  }
+  }  // namespace cms
+  
 namespace ord {
 
 cms::ClockMesh *
@@ -35,7 +44,14 @@ deleteClockMesh(cms::ClockMesh *mesh)
 void
 initClockMesh(OpenRoad *openroad)
 {
-  openroad->getCMS()->init(openroad->tclInterp(),
+  Tcl_Interp* interp = openroad->tclInterp();
+  // Define swig TCL commands.
+  cms::Cms_Init(interp);
+  // Eval encoded sta TCL sources.
+  utl::evalTclInit(interp, cms::cms_tcl_inits);
+
+
+  openroad->getCMS()->init(interp,
 			    openroad->getDb(),
           openroad->getDbNetwork(),
           openroad->getResizer(),

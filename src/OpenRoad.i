@@ -101,6 +101,13 @@ getTritonCts()
   return openroad->getTritonCts();
 }
 
+cms::ClockMesh *
+getCMS()
+{
+  OpenRoad *openroad = getOpenRoad();
+  return openroad->getCMS();
+}
+
 mpl::MacroPlacer *
 getMacroPlacer()
 {

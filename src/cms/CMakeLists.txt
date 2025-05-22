@@ -21,6 +21,7 @@ project(cms)
 swig_lib(NAME      cms
          NAMESPACE cms
          I_FILE    src/ClockMesh.i
+         SWIG_INCLUDES ${ODB_HOME}/src/include
          SCRIPTS   src/ClockMesh.tcl
 )
 

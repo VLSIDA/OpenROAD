@@ -268,6 +268,11 @@ cts::TritonCTS* Design::getTritonCts()
   return getOpenRoad()->getTritonCts();
 }
 
+cms::ClockMesh* Design::getCMS()
+{
+  return getOpenRoad()->getCMS();
+}
+
 drt::TritonRoute* Design::getTritonRoute()
 {
   return getOpenRoad()->getTritonRoute();

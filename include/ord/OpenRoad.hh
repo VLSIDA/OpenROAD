@@ -114,7 +114,7 @@ namespace dft {
 class Dft;
 }
 
-namespace cms{
+namespace cms {
 class ClockMesh;
 }
 
