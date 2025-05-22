@@ -56,7 +56,8 @@ using odb::Point;
 using sta::Instance;
 using sta::LibertyCell;
 using sta::LibertyCellSeq;
-
+using sta::LibertyLibrary;
+using sta::LibertyLibrarySeq;
 
 
 class ClockMesh
@@ -69,8 +70,8 @@ public:
       sta::dbNetwork* network,
       rsz::Resizer* resizer,
       utl::Logger* logger);
-  void dump_value();
-  void set_value(int value);
+  int dumpValue();
+  int setValue(int value);
   void addBuffer();
   void createGrid();
 
@@ -78,9 +79,7 @@ private:
   std::string makeUniqueInstName(const char* base_name, bool underscore);
   void findBuffers();
   int createBufferArray(int amount);
-  bool isLinkCell(LibertyCell* cell) const;
-  float bufferDriveResistance(const LibertyCell* buffer) const;
-
+  bool Resizer::isLinkCell(LibertyCell* cell) const
   sta::Instance** buffers_ = nullptr; 
   odb::dbDatabase *db_ = nullptr;
   Point* point_ = nullptr;
