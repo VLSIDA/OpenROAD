@@ -17,7 +17,7 @@ namespace utl {
 class Logger;
 }  // namespace utl
 
-namespace pdn {
+namespace cms {
 
 class Grid;
 class VoltageDomain;
@@ -111,4 +111,4 @@ class GridComponent
   Shape::ShapeTreeMap shapes_;
 };
 
-}  // namespace pdn
+}  // namespace cms

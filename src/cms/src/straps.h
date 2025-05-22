@@ -11,9 +11,9 @@
 
 #include "grid_component.h"
 #include "odb/db.h"
-#include "pdn/PdnGen.hh"
+#include "cms/ClockMesh.hh"
 
-namespace pdn {
+namespace cms {
 class Grid;
 
 class Straps : public GridComponent
@@ -240,7 +240,7 @@ class RepairChannelStraps : public Straps
                                  const Shape::ShapeTreeMap& global_shapes,
                                  Shape::ObstructionTreeMap& obstructions,
                                  bool allow,
-                                 PDNRenderer* renderer);
+                                 CMSRenderer* renderer);
 
   struct RepairChannelArea
   {
@@ -283,4 +283,4 @@ class RepairChannelStraps : public Straps
   int getMaxLength() const;
 };
 
-}  // namespace pdn
+}  // namespace cms

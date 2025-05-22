@@ -12,7 +12,7 @@ namespace utl {
 class Logger;
 }  // namespace utl
 
-namespace pdn {
+namespace cms {
 
 class TechLayer
 {
@@ -68,4 +68,4 @@ class TechLayer
   std::vector<int> grid_;
 };
 
-}  // namespace pdn
+}  // namespace cms

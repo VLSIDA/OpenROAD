@@ -14,7 +14,7 @@ namespace utl {
 class Logger;
 }
 
-namespace pdn {
+namespace cms {
 
 class ViaRepair
 {
@@ -49,4 +49,4 @@ class ViaRepair
   ObsRect collectNetObstructions(odb::dbBlock* block);
 };
 
-}  // namespace pdn
+}  // namespace cms

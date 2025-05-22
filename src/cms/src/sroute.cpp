@@ -12,15 +12,15 @@
 
 #include "domain.h"
 #include "grid.h"
-#include "pdn/PdnGen.hh"
+#include "cms/ClockMesh.hh"
 #include "shape.h"
 #include "via.h"
-namespace pdn {
+namespace cms {
 
-using utl::PDN;
+using utl::CMS;
 
-SRoute::SRoute(PdnGen* pdngen, odb::dbDatabase* db, utl::Logger* logger)
-    : logger_(logger), pdngen_(pdngen), db_(db)
+SRoute::SRoute(ClockMesh* clockmesh, odb::dbDatabase* db, utl::Logger* logger)
+    : logger_(logger), clockmesh_(clockmesh), db_(db)
 {
 }
 
@@ -68,7 +68,7 @@ void SRoute::addSrouteInst(odb::dbNet* net,
 {
   odb::dbITerm* iterm = inst->findITerm(iterm_name);
   if (!iterm) {
-    logger_->error(PDN,
+    logger_->error(CMS,
                    115,
                    "Can't find iterm {} on inst {}",
                    iterm_name,
@@ -124,7 +124,7 @@ void SRoute::createSrouteWires(
 
   odb::dbNet* net = block->findNet(net_name);
   if (!net) {
-    logger_->error(PDN, 116, "Can't find net {}", net_name);
+    logger_->error(CMS, 116, "Can't find net {}", net_name);
   }
 
   uint Hdy = 0;
@@ -168,7 +168,7 @@ void SRoute::createSrouteWires(
     odb::dbTechLayer* metal_layer = layer0;
     odb::dbTechLayer* stripe_metal_layer;
 
-    odb::dbSBox* pdn_wire = new odb::dbSBox();
+    odb::dbSBox* cms_wire = new odb::dbSBox();
     odb::dbSWire* nwsw = odb::dbSWire::create(net, odb::dbWireType::ROUTED);
 
     bool first = true;
@@ -184,19 +184,19 @@ void SRoute::createSrouteWires(
             if ((direction == 1) && (stripe_metal_layer == metal_layer)
                 && (wire->getDY() != Hdy)) {
               first = false;
-              pdn_wire = wire;
+              cms_wire = wire;
             }
           } else {
             if ((direction == 1) && (stripe_metal_layer == metal_layer)
                 && (wire->getDY() != Hdy)
                 && (std::abs(wire->yMin() - avg_iterm_y)
-                    < std::abs(pdn_wire->yMin() - avg_iterm_y))) {
-              pdn_wire = wire;
+                    < std::abs(cms_wire->yMin() - avg_iterm_y))) {
+              cms_wire = wire;
             }
           }
         }
       }
-      odb::dbSBox* right_pdn_wire = new odb::dbSBox();
+      odb::dbSBox* right_cms_wire = new odb::dbSBox();
       first = true;
       // find closest wire to right of the center point
       for (auto* swire : outer_net->getSWires()) {
@@ -205,19 +205,19 @@ void SRoute::createSrouteWires(
           if (first) {
             if ((direction == 0) && (wire->xMax() > avg_iterm_x)) {
               first = false;
-              right_pdn_wire = wire;
+              right_cms_wire = wire;
             }
           } else {
-            if ((direction == 0) && (wire->xMax() < pdn_wire->xMax())
+            if ((direction == 0) && (wire->xMax() < cms_wire->xMax())
                 && (wire->xMax() > avg_iterm_x)) {
-              right_pdn_wire = wire;
+              right_cms_wire = wire;
             }
           }
         }
       }
 
       // find closest wire to left of the center point
-      odb::dbSBox* left_pdn_wire = new odb::dbSBox();
+      odb::dbSBox* left_cms_wire = new odb::dbSBox();
       first = true;
       for (auto* swire : outer_net->getSWires()) {
         for (auto* wire : swire->getWires()) {
@@ -225,64 +225,64 @@ void SRoute::createSrouteWires(
           if (first) {
             if ((direction == 0) && (wire->xMin() < avg_iterm_x)) {
               first = false;
-              left_pdn_wire = wire;
+              left_cms_wire = wire;
             }
           } else {
-            if ((direction == 0) && (wire->xMin() > pdn_wire->xMin())
+            if ((direction == 0) && (wire->xMin() > cms_wire->xMin())
                 && (wire->xMin() < avg_iterm_x)) {
-              left_pdn_wire = wire;
+              left_cms_wire = wire;
             }
           }
         }
       }
 
       // if center point is in the middle of two wire
-      if ((left_pdn_wire->xMax() < avg_iterm_x)
-          && (right_pdn_wire->xMin() > avg_iterm_x)) {
-        if ((left_pdn_wire->xMax() + metalspaces[0] + metalwidths[0] / 2)
+      if ((left_cms_wire->xMax() < avg_iterm_x)
+          && (right_cms_wire->xMin() > avg_iterm_x)) {
+        if ((left_cms_wire->xMax() + metalspaces[0] + metalwidths[0] / 2)
             > avg_iterm_x) {
           avg_iterm_x
-              = left_pdn_wire->xMax() + metalspaces[0] + metalwidths[0] / 2;
-        } else if ((right_pdn_wire->xMin() - metalspaces[0]
+              = left_cms_wire->xMax() + metalspaces[0] + metalwidths[0] / 2;
+        } else if ((right_cms_wire->xMin() - metalspaces[0]
                     - metalwidths[0] / 2)
                    < avg_iterm_x) {
           avg_iterm_x
-              = right_pdn_wire->xMin() - metalspaces[0] - metalwidths[0] / 2;
+              = right_cms_wire->xMin() - metalspaces[0] - metalwidths[0] / 2;
         }
       }
       // if center point is on the rightwire
-      else if (right_pdn_wire->xMin() < avg_iterm_x) {
+      else if (right_cms_wire->xMin() < avg_iterm_x) {
         avg_iterm_x
-            = right_pdn_wire->xMin() - metalspaces[0] - metalwidths[0] / 2;
+            = right_cms_wire->xMin() - metalspaces[0] - metalwidths[0] / 2;
       }
       // if center point is on the leftwire
-      else if (left_pdn_wire->xMax() > avg_iterm_x) {
+      else if (left_cms_wire->xMax() > avg_iterm_x) {
         avg_iterm_x
-            = left_pdn_wire->xMax() + metalspaces[0] + metalwidths[0] / 2;
+            = left_cms_wire->xMax() + metalspaces[0] + metalwidths[0] / 2;
       }
 
       odb::dbSBox::create(nwsw,
                           ongrid[0],
                           ring[index]->xMin(),
-                          (pdn_wire->yMin() + pdn_wire->yMax()) / 2
+                          (cms_wire->yMin() + cms_wire->yMax()) / 2
                               - metalwidths[metalwidths.size() - 1] / 2,
                           avg_iterm_x,
-                          (pdn_wire->yMin() + pdn_wire->yMax()) / 2
+                          (cms_wire->yMin() + cms_wire->yMax()) / 2
                               + metalwidths[metalwidths.size() - 1] / 2,
                           odb::dbWireShapeType::NONE);
 
-      if ((pdn_wire->yMax() > high_y) && (pdn_wire->yMax() > low_y)) {
+      if ((cms_wire->yMax() > high_y) && (cms_wire->yMax() > low_y)) {
         odb::dbSBox::create(nwsw,
                             ongrid[ongrid.size() - 1],
                             avg_iterm_x - metalwidths[0],
                             low_y,
                             avg_iterm_x,
-                            (pdn_wire->yMin() + pdn_wire->yMax()) / 2
+                            (cms_wire->yMin() + cms_wire->yMax()) / 2
                                 + metalwidths[metalwidths.size() - 1] / 2,
                             odb::dbWireShapeType::NONE);
       }
       // middle
-      else if ((pdn_wire->yMax() < high_y) && (pdn_wire->yMin() > low_y)) {
+      else if ((cms_wire->yMax() < high_y) && (cms_wire->yMin() > low_y)) {
         odb::dbSBox::create(nwsw,
                             ongrid[ongrid.size() - 1],
                             avg_iterm_x - metalwidths[0],
@@ -294,7 +294,7 @@ void SRoute::createSrouteWires(
         odb::dbSBox::create(nwsw,
                             ongrid[ongrid.size() - 1],
                             avg_iterm_x - metalwidths[0],
-                            (pdn_wire->yMin() + pdn_wire->yMax()) / 2
+                            (cms_wire->yMin() + cms_wire->yMax()) / 2
                                 - metalwidths[metalwidths.size() - 1] / 2,
                             avg_iterm_x,
                             high_y,
@@ -320,10 +320,10 @@ void SRoute::createSrouteWires(
           int64_t row = 0;
           int64_t col = 0;
           if (rows % 2 == 1) {
-            row = (pdn_wire->yMin() + pdn_wire->yMax()) / 2
+            row = (cms_wire->yMin() + cms_wire->yMax()) / 2
                   - centerY * (via_width + cut_pitch_y) - via_width / 2;
           } else {
-            row = (pdn_wire->yMin() + pdn_wire->yMax()) / 2
+            row = (cms_wire->yMin() + cms_wire->yMax()) / 2
                   - centerY * (via_width) -cut_pitch_y / 2;
           }
           for (int r = 0; r < rows; r++) {
@@ -353,10 +353,10 @@ void SRoute::createSrouteWires(
         odb::dbSBox::create(nwsw,
                             ongrid[i],
                             avg_iterm_x - metalwidths[0],
-                            (pdn_wire->yMin() + pdn_wire->yMax()) / 2
+                            (cms_wire->yMin() + cms_wire->yMax()) / 2
                                 - metalwidths[metalwidths.size() - 1] / 2,
                             avg_iterm_x,
-                            (pdn_wire->yMin() + pdn_wire->yMax()) / 2
+                            (cms_wire->yMin() + cms_wire->yMax()) / 2
                                 + metalwidths[metalwidths.size() - 1] / 2,
                             odb::dbWireShapeType::NONE);
       }
@@ -376,10 +376,10 @@ void SRoute::createSrouteWires(
         int64_t row = 0;
         int64_t col = 0;
         if (rows % 2 == 1) {
-          row = (pdn_wire->yMin() + pdn_wire->yMax()) / 2
+          row = (cms_wire->yMin() + cms_wire->yMax()) / 2
                 - centerY * (via_width + cut_pitch_y) - via_width / 2;
         } else {
-          row = (pdn_wire->yMin() + pdn_wire->yMax()) / 2
+          row = (cms_wire->yMin() + cms_wire->yMax()) / 2
                 - centerY * (via_width) -cut_pitch_y / 2;
         }
         for (int r = 0; r < rows; r++) {
@@ -477,33 +477,33 @@ void SRoute::createSrouteWires(
       }
 
     } else {
-      pdn_wire = ring[index];
+      cms_wire = ring[index];
 
       // check to see if center point is too far
-      if ((pdn_wire->xMax() - 1000) < avg_iterm_x) {
-        std::cout << "xmax is " << pdn_wire->xMax() << std::endl;
+      if ((cms_wire->xMax() - 1000) < avg_iterm_x) {
+        std::cout << "xmax is " << cms_wire->xMax() << std::endl;
         odb::dbSBox::create(nwsw,
                             ongrid[ongrid.size() - 1],
-                            pdn_wire->xMax() - metalwidths[0],
-                            pdn_wire->yMin(),
-                            pdn_wire->xMax(),
+                            cms_wire->xMax() - metalwidths[0],
+                            cms_wire->yMin(),
+                            cms_wire->xMax(),
                             high_y,
                             odb::dbWireShapeType::NONE);
-        avg_iterm_x = pdn_wire->xMax() - metalwidths[0];
-      } else if ((pdn_wire->xMin() + metalwidths[0]) > avg_iterm_x) {
+        avg_iterm_x = cms_wire->xMax() - metalwidths[0];
+      } else if ((cms_wire->xMin() + metalwidths[0]) > avg_iterm_x) {
         odb::dbSBox::create(nwsw,
                             ongrid[ongrid.size() - 1],
-                            pdn_wire->xMin(),
-                            pdn_wire->yMin(),
-                            pdn_wire->xMin() + metalwidths[0],
+                            cms_wire->xMin(),
+                            cms_wire->yMin(),
+                            cms_wire->xMin() + metalwidths[0],
                             high_y,
                             odb::dbWireShapeType::NONE);
-        avg_iterm_x = pdn_wire->xMin() + metalwidths[0];
+        avg_iterm_x = cms_wire->xMin() + metalwidths[0];
       } else {
         odb::dbSBox::create(nwsw,
                             ongrid[ongrid.size() - 1],
                             avg_iterm_x - metalwidths[0] / 2,
-                            pdn_wire->yMin(),
+                            cms_wire->yMin(),
                             avg_iterm_x + metalwidths[0] / 2,
                             high_y,
                             odb::dbWireShapeType::NONE);
@@ -513,9 +513,9 @@ void SRoute::createSrouteWires(
         odb::dbSBox::create(nwsw,
                             ongrid[i],
                             avg_iterm_x - metalwidths[0] / 2,
-                            pdn_wire->yMin(),
+                            cms_wire->yMin(),
                             avg_iterm_x + metalwidths[0] / 2,
-                            pdn_wire->yMax(),
+                            cms_wire->yMax(),
                             odb::dbWireShapeType::NONE);
       }
 
@@ -525,7 +525,7 @@ void SRoute::createSrouteWires(
         int via_width = box->getDX();
 
         int rows = std::min((odb::uint) max_rows,
-                            (pdn_wire->yMax() - pdn_wire->yMin() - cut_pitch_y)
+                            (cms_wire->yMax() - cms_wire->yMin() - cut_pitch_y)
                                 / (cut_pitch_y + box->getDY()));
         int cols = std::min(
             (odb::uint) max_columns,
@@ -535,10 +535,10 @@ void SRoute::createSrouteWires(
         int64_t row = 0;
         int64_t col = 0;
         if (rows % 2 == 1) {
-          row = (pdn_wire->yMin() + pdn_wire->yMax()) / 2
+          row = (cms_wire->yMin() + cms_wire->yMax()) / 2
                 - centerY * (via_width + cut_pitch_y) - via_width / 2;
         } else {
-          row = (pdn_wire->yMin() + pdn_wire->yMax()) / 2
+          row = (cms_wire->yMin() + cms_wire->yMax()) / 2
                 - centerY * (via_width) -cut_pitch_y / 2;
         }
         for (int r = 0; r < rows; r++) {
@@ -659,7 +659,7 @@ void SRoute::createSrouteWires(
 
 std::vector<VoltageDomain*> SRoute::getDomains() const
 {
-  return pdngen_->getDomains();
+  return clockmesh_->getDomains();
 }
 
-}  // namespace pdn
+}  // namespace cms

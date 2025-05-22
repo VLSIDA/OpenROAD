@@ -12,7 +12,7 @@
 #include "techlayer.h"
 #include "utl/Logger.h"
 
-namespace pdn {
+namespace cms {
 
 Rings::Rings(Grid* grid, const std::array<Layer, 2>& layers)
     : GridComponent(grid), layers_(layers)
@@ -53,7 +53,7 @@ void Rings::checkDieArea() const
   if (!die_area.contains(ring_outline)) {
     if (allow_outside_die_) {
       getLogger()->warn(
-          utl::PDN, 239, "Ring shape falls outside the die bounds.");
+          utl::CMS, 239, "Ring shape falls outside the die bounds.");
     } else {
       const double dbus = getBlock()->getDbUnitsPerMicron();
 
@@ -68,9 +68,9 @@ void Rings::checkDieArea() const
         ybounds = 0;
       }
       getLogger()->error(
-          utl::PDN,
+          utl::CMS,
           351,
-          "PDN rings do not fit inside the die area by {} um in X and {} um in "
+          "CMS rings do not fit inside the die area by {} um in X and {} um in "
           "Y. Either reduce the ring area or increase the core to die spacing "
           "to accommodate. Use -allow_out_of_die if this is intentional.",
           xbounds / dbus,
@@ -131,7 +131,7 @@ void Rings::setPadOffset(const std::array<int, 4>& offset)
   }
 
   if (core == pads_inner) {
-    getLogger()->warn(utl::PDN,
+    getLogger()->warn(utl::CMS,
                       105,
                       "Unable to determine location of pad offset, using die "
                       "boundary instead.");
@@ -143,13 +143,13 @@ void Rings::setPadOffset(const std::array<int, 4>& offset)
   getTotalWidth(hor_width, ver_width);
 
   debugPrint(getLogger(),
-             utl::PDN,
+             utl::CMS,
              "PadOffset",
              1,
              "Core area: {}",
              Shape::getRectText(core, getBlock()->getDbUnitsPerMicron()));
   debugPrint(getLogger(),
-             utl::PDN,
+             utl::CMS,
              "PadOffset",
              1,
              "Pads inner: {}",
@@ -195,7 +195,7 @@ odb::Rect Rings::getInnerRingOutline() const
 void Rings::makeShapes(const Shape::ShapeTreeMap& other_shapes)
 {
   debugPrint(getLogger(),
-             utl::PDN,
+             utl::CMS,
              "Make",
              1,
              "Ring start of make shapes on layers {} and {}",
@@ -351,4 +351,4 @@ void Rings::report() const
   }
 }
 
-}  // namespace pdn
+}  // namespace cms

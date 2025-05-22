@@ -12,7 +12,7 @@
 
 #include "utl/Logger.h"
 
-namespace pdn {
+namespace cms {
 
 TechLayer::TechLayer(odb::dbTechLayer* layer) : layer_(layer), grid_({})
 {
@@ -161,7 +161,7 @@ bool TechLayer::checkIfManufacturingGrid(int value,
   auto* tech = layer_->getTech();
   if (!checkIfManufacturingGrid(tech, value)) {
     logger->error(
-        utl::PDN,
+        utl::CMS,
         191,
         "{} of {:.4f} um does not fit the manufacturing grid of {:.4f} um.",
         type,
@@ -273,4 +273,4 @@ odb::Rect TechLayer::adjustToMinArea(const odb::Rect& rect) const
   return new_rect;
 }
 
-}  // namespace pdn
+}  // namespace cms

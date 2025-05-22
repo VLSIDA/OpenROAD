@@ -22,7 +22,7 @@
 #include "techlayer.h"
 #include "utl/Logger.h"
 
-namespace pdn {
+namespace cms {
 
 Enclosure::Enclosure() : x_(0), y_(0), allow_swap_(false)
 {
@@ -1040,7 +1040,7 @@ DbVia::ViaLayerShape DbGenerateStackedVia::generate(
           }
           const TechLayer tech_layer(*layers_.front());
           logger->warn(
-              utl::PDN,
+              utl::CMS,
               227,
               "Removing between {} and {} at ({:.4f} um, {:.4f} um) for {}",
               layers_.front()->getName(),
@@ -1118,7 +1118,7 @@ DbVia::ViaLayerShape DbGenerateDummyVia::generate(
 
   odb::Rect via_area = shape_;
   xfm.apply(via_area);
-  logger->warn(utl::PDN,
+  logger->warn(utl::CMS,
                110,
                "No via inserted between {} and {} at {} on {}",
                bottom_->getName(),
@@ -1191,7 +1191,7 @@ bool ViaGenerator::isPreferredOver(const ViaGenerator* other) const
   }
 
   debugPrint(logger_,
-             utl::PDN,
+             utl::CMS,
              "ViaPreference",
              1,
              "Comparing {} and {}",
@@ -1201,7 +1201,7 @@ bool ViaGenerator::isPreferredOver(const ViaGenerator* other) const
   if (getCutArea() > other->getCutArea()) {
     const int cut_area_diff = getCutArea() - other->getCutArea();
     debugPrint(logger_,
-               utl::PDN,
+               utl::CMS,
                "ViaPreference",
                2,
                "Comparing {} has more area by {}",
@@ -1235,7 +1235,7 @@ bool ViaGenerator::isPreferredOver(const ViaGenerator* other) const
   const int top_non_prefered = top_is_hor ? top_width_diff : top_height_diff;
 
   debugPrint(logger_,
-             utl::PDN,
+             utl::CMS,
              "ViaPreference",
              2,
              "Bottom via diff ({}, {}, {}) and top diff ({}, {}, {})",
@@ -1371,7 +1371,7 @@ bool ViaGenerator::recheckConstraints(const odb::Rect& rect, bool bottom)
     upper_rect_ = saved_rect;
   }
 
-  debugPrint(logger_, utl::PDN, "Via", 2, "Recheck: {}", pass);
+  debugPrint(logger_, utl::CMS, "Via", 2, "Recheck: {}", pass);
 
   return pass;
 }
@@ -1382,7 +1382,7 @@ bool ViaGenerator::checkConstraints(bool check_cuts,
 {
   if (check_cuts && getTotalCuts() == 0) {
     debugPrint(logger_,
-               utl::PDN,
+               utl::CMS,
                "Via",
                2,
                "Does not generate any vias: {}",
@@ -1393,7 +1393,7 @@ bool ViaGenerator::checkConstraints(bool check_cuts,
 
   if (check_min_cut && !checkMinCuts()) {
     debugPrint(logger_,
-               utl::PDN,
+               utl::CMS,
                "Via",
                2,
                "Violates minimum cut rules: {}",
@@ -1405,7 +1405,7 @@ bool ViaGenerator::checkConstraints(bool check_cuts,
   if (check_enclosure && !checkMinEnclosure()) {
     const double dbu_microns = getTech()->getLefUnits();
     debugPrint(logger_,
-               utl::PDN,
+               utl::CMS,
                "Via",
                2,
                "Violates minimum enclosure rules: {} ({:.4f} {:.4f}) width "
@@ -1476,7 +1476,7 @@ bool ViaGenerator::checkMinCuts(odb::dbTechLayer* layer, int width) const
   }
 
   debugPrint(logger_,
-             utl::PDN,
+             utl::CMS,
              "MinCut",
              1,
              "Layer {} of width {:.4f} has {} min cut rules.",
@@ -1495,7 +1495,7 @@ bool ViaGenerator::checkMinCuts(odb::dbTechLayer* layer, int width) const
 
     debugPrint(
         logger_,
-        utl::PDN,
+        utl::CMS,
         "MinCut",
         2,
         "Rule width {:.4f} above ({}) or below ({}) requires {} vias: {}.",
@@ -1521,7 +1521,7 @@ bool ViaGenerator::checkMinEnclosure() const
 
   const bool bottom_has_rules = !bottom_rules.empty();
   debugPrint(logger_,
-             utl::PDN,
+             utl::CMS,
              "ViaEnclosure",
              1,
              "Bottom layer {} with width {:.4f} has {} rules and enclosures of "
@@ -1536,7 +1536,7 @@ bool ViaGenerator::checkMinEnclosure() const
     const bool pass
         = rule.check(bottom_enclosure_->getX(), bottom_enclosure_->getY());
     debugPrint(logger_,
-               utl::PDN,
+               utl::CMS,
                "ViaEnclosure",
                2,
                "Bottom rule enclosures {:4f} and {:4f} -> {}.",
@@ -1548,7 +1548,7 @@ bool ViaGenerator::checkMinEnclosure() const
 
   const bool top_has_rules = !top_rules.empty();
   debugPrint(logger_,
-             utl::PDN,
+             utl::CMS,
              "ViaEnclosure",
              1,
              "Top layer {} with width {:.4f} has {} rules and enclosures of "
@@ -1563,7 +1563,7 @@ bool ViaGenerator::checkMinEnclosure() const
     const bool pass
         = rule.check(top_enclosure_->getX(), top_enclosure_->getY());
     debugPrint(logger_,
-               utl::PDN,
+               utl::CMS,
                "ViaEnclosure",
                2,
                "Top rule enclosures {:4f} and {:4f} -> {}.",
@@ -1798,7 +1798,7 @@ void ViaGenerator::determineRowsAndColumns(
 
   debugPrint(
       logger_,
-      utl::PDN,
+      utl::CMS,
       "ViaEnclosure",
       1,
       "Bottom layer {} with width {:.4f} minimum enclosures {:.4f} and {:.4f}.",
@@ -1808,7 +1808,7 @@ void ViaGenerator::determineRowsAndColumns(
       bottom_min_enclosure.getY() / dbu_to_microns);
   debugPrint(
       logger_,
-      utl::PDN,
+      utl::CMS,
       "ViaEnclosure",
       2,
       "Bottom constraints: use_minimum {}, must_fix_x {}, must_fit_y {}.",
@@ -1817,7 +1817,7 @@ void ViaGenerator::determineRowsAndColumns(
       lower_constraint_.must_fit_y);
   debugPrint(
       logger_,
-      utl::PDN,
+      utl::CMS,
       "ViaEnclosure",
       1,
       "Top layer {} with width {:.4f} minimum enclosures {:.4f} and {:.4f}.",
@@ -1826,7 +1826,7 @@ void ViaGenerator::determineRowsAndColumns(
       top_min_enclosure.getX() / dbu_to_microns,
       top_min_enclosure.getY() / dbu_to_microns);
   debugPrint(logger_,
-             utl::PDN,
+             utl::CMS,
              "ViaEnclosure",
              2,
              "Top constraints: use_minimum {}, must_fix_x {}, must_fit_y {}.",
@@ -1874,7 +1874,7 @@ void ViaGenerator::determineRowsAndColumns(
   }
 
   debugPrint(logger_,
-             utl::PDN,
+             utl::CMS,
              "Via",
              2,
              "Initial via setup for {} {}: Cut size {:.4f}x{:.4f} on {} with "
@@ -2150,7 +2150,7 @@ ViaGenerator::getCutMinimumEnclosureRules(int width, bool above) const
   for (auto& [min_width, width_rules] : rules_map) {
     debugPrint(
         logger_,
-        utl::PDN,
+        utl::CMS,
         "ViaEnclosure",
         3,
         "Enclosures for minimum width {:.4f} on {} from {}: {}",
@@ -2728,7 +2728,7 @@ void TechViaGenerator::getMinimumEnclosures(std::vector<Enclosure>& bottom,
   const odb::Rect enc_top_rect = via.getViaRect(true, false, false, true);
 
   debugPrint(getLogger(),
-             utl::PDN,
+             utl::CMS,
              "ViaEnclosure",
              3,
              "Tech via: {}, via rect {}, enc bottom rect {}, enc top rect {}",
@@ -2921,7 +2921,7 @@ void Via::writeToDb(odb::dbSWire* wire,
 
       debugPrint(
           getLogger(),
-          utl::PDN,
+          utl::CMS,
           "Via",
           3,
           "{} shape changed {}: {} -> {}",
@@ -3002,7 +3002,7 @@ void Via::writeToDb(odb::dbSWire* wire,
       ripup_count = 1;
     }
     getLogger()->warn(
-        utl::PDN,
+        utl::CMS,
         195,
         "Removing {} via(s) between {} and {} at ({:.4f} um, {:.4f} um) for {}",
         ripup_count,
@@ -3074,4 +3074,4 @@ Via::ViaTree Via::convertVectorToTree(std::vector<ViaPtr>& vec)
   return tree;
 }
 
-}  // namespace pdn
+}  // namespace cms

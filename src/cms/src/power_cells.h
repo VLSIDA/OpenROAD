@@ -12,14 +12,14 @@
 
 #include "odb/db.h"
 #include "odb/dbTypes.h"
-#include "pdn/PdnGen.hh"
+#include "cms/ClockMesh.hh"
 #include "shape.h"
 
 namespace utl {
 class Logger;
 }
 
-namespace pdn {
+namespace cms {
 class Grid;
 class Straps;
 
@@ -151,4 +151,4 @@ class GridSwitchedPower
   static constexpr const char* inst_prefix_ = "PSW_";
 };
 
-}  // namespace pdn
+}  // namespace cms

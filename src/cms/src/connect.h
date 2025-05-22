@@ -14,7 +14,7 @@
 #include "shape.h"
 #include "via.h"
 
-namespace pdn {
+namespace cms {
 
 class Connect
 {
@@ -153,4 +153,4 @@ class Connect
   int getMaxEnclosureFromCutLayer(odb::dbTechLayer* layer, int min_width) const;
 };
 
-}  // namespace pdn
+}  // namespace cms

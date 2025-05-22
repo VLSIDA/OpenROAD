@@ -18,13 +18,13 @@
 #include "techlayer.h"
 #include "utl/Logger.h"
 
-namespace pdn {
+namespace cms {
 
 Connect::Connect(Grid* grid, odb::dbTechLayer* layer0, odb::dbTechLayer* layer1)
     : grid_(grid), layer0_(layer0), layer1_(layer1)
 {
   if (layer0 == layer1) {
-    grid_->getLogger()->error(utl::PDN,
+    grid_->getLogger()->error(utl::CMS,
                               3,
                               "Layers must be different in connect rule: {}",
                               layer0->getName());
@@ -32,11 +32,11 @@ Connect::Connect(Grid* grid, odb::dbTechLayer* layer0, odb::dbTechLayer* layer1)
 
   if (layer0_->getRoutingLevel() == 0) {
     grid_->getLogger()->error(
-        utl::PDN, 4, "{} must be a routing layer", layer0->getName());
+        utl::CMS, 4, "{} must be a routing layer", layer0->getName());
   }
   if (layer1_->getRoutingLevel() == 0) {
     grid_->getLogger()->error(
-        utl::PDN, 5, "{} must be a routing layer", layer1->getName());
+        utl::CMS, 5, "{} must be a routing layer", layer1->getName());
   }
 
   if (layer0_->getRoutingLevel() > layer1_->getRoutingLevel()) {
@@ -458,7 +458,7 @@ void Connect::makeVia(odb::dbSWire* wire,
     std::vector<ViaLayerRects> stack_rects;
     if (isComplexStackedVia(lower_rect, upper_rect)) {
       debugPrint(grid_->getLogger(),
-                 utl::PDN,
+                 utl::CMS,
                  "Via",
                  2,
                  "Tapered via required between {} and {} at ({:.4f}, {:.4f}).",
@@ -563,7 +563,7 @@ DbVia* Connect::generateDbVia(
     via->setMaxColumns(max_columns_);
 
     debugPrint(grid_->getLogger(),
-               utl::PDN,
+               utl::CMS,
                "Via",
                1,
                "Cut class {} : {} - {}",
@@ -584,7 +584,7 @@ DbVia* Connect::generateDbVia(
     const bool upper_is_internal = via->getTopLayer() != layer1_;
     if (!via->build(lower_is_internal, upper_is_internal)) {
       debugPrint(grid_->getLogger(),
-                 utl::PDN,
+                 utl::CMS,
                  "Via",
                  2,
                  "{} was not buildable.",
@@ -592,7 +592,7 @@ DbVia* Connect::generateDbVia(
       continue;
     }
     debugPrint(grid_->getLogger(),
-               utl::PDN,
+               utl::CMS,
                "Via",
                2,
                "{} was buildable.",
@@ -602,7 +602,7 @@ DbVia* Connect::generateDbVia(
   }
 
   debugPrint(grid_->getLogger(),
-             utl::PDN,
+             utl::CMS,
              "Via",
              3,
              "Vias possible: {} from {} generators",
@@ -637,7 +637,7 @@ DbVia* Connect::makeSingleLayerVia(
     const ViaGenerator::Constraint& upper_constraint) const
 {
   debugPrint(grid_->getLogger(),
-             utl::PDN,
+             utl::CMS,
              "Via",
              1,
              "Making via between {} and {}",
@@ -658,7 +658,7 @@ DbVia* Connect::makeSingleLayerVia(
 
         if (!rule->isSetupValid(lower, upper)) {
           debugPrint(grid_->getLogger(),
-                     utl::PDN,
+                     utl::CMS,
                      "Via",
                      3,
                      "Generate via rule deemed not valid: {}",
@@ -671,7 +671,7 @@ DbVia* Connect::makeSingleLayerVia(
     }
   }
   debugPrint(grid_->getLogger(),
-             utl::PDN,
+             utl::CMS,
              "Via",
              2,
              "Generate via rules available: {} from {}",
@@ -700,7 +700,7 @@ DbVia* Connect::makeSingleLayerVia(
 
         if (!rule->isSetupValid(lower, upper)) {
           debugPrint(grid_->getLogger(),
-                     utl::PDN,
+                     utl::CMS,
                      "Via",
                      3,
                      "Tech via rule deemed not valid: {}",
@@ -713,7 +713,7 @@ DbVia* Connect::makeSingleLayerVia(
     }
   }
   debugPrint(grid_->getLogger(),
-             utl::PDN,
+             utl::CMS,
              "Via",
              2,
              "Tech vias available: {} from {}",
@@ -751,14 +751,14 @@ void Connect::populateGenerateRules()
   }
 
   debugPrint(grid_->getLogger(),
-             utl::PDN,
+             utl::CMS,
              "Via",
              2,
              "Generate via rules: {}",
              generate_via_rules_.size());
   for (auto* via : generate_via_rules_) {
     debugPrint(grid_->getLogger(),
-               utl::PDN,
+               utl::CMS,
                "Via",
                3,
                "Generate rule: {}",
@@ -794,14 +794,14 @@ void Connect::populateTechVias()
   }
 
   debugPrint(grid_->getLogger(),
-             utl::PDN,
+             utl::CMS,
              "Via",
              2,
              "Tech via rules: {}",
              tech_vias_.size());
   for (auto* via : tech_vias_) {
     debugPrint(
-        grid_->getLogger(), utl::PDN, "Via", 3, "Tech via: {}", via->getName());
+        grid_->getLogger(), utl::CMS, "Via", 3, "Tech via: {}", via->getName());
   }
 }
 
@@ -872,7 +872,7 @@ void Connect::printViaReport() const
   auto* logger = getGrid()->getLogger();
 
   // check if debug is enabled
-  if (!logger->debugCheck(utl::PDN, "Write", 0)) {
+  if (!logger->debugCheck(utl::CMS, "Write", 0)) {
     return;
   }
 
@@ -887,7 +887,7 @@ void Connect::printViaReport() const
   }
 
   debugPrint(logger,
-             utl::PDN,
+             utl::CMS,
              "Write",
              1,
              "Vias ({}) from {} -> {}: {} types",
@@ -897,7 +897,7 @@ void Connect::printViaReport() const
              report.size());
 
   for (const auto& [via_name, count] : report) {
-    debugPrint(logger, utl::PDN, "Write", 2, "Via \"{}\": {}", via_name, count);
+    debugPrint(logger, utl::CMS, "Write", 2, "Via \"{}\": {}", via_name, count);
   }
 }
 
@@ -915,10 +915,10 @@ void Connect::recordFailedVias() const
   }
 
   odb::dbMarkerCategory* tool_category
-      = grid_->getBlock()->findMarkerCategory("PDN");
+      = grid_->getBlock()->findMarkerCategory("CMS");
   if (tool_category == nullptr) {
-    tool_category = odb::dbMarkerCategory::create(grid_->getBlock(), "PDN");
-    tool_category->setSource("PDN");
+    tool_category = odb::dbMarkerCategory::create(grid_->getBlock(), "CMS");
+    tool_category->setSource("CMS");
   }
 
   for (const auto& [reason, shapes] : failed_vias_) {
@@ -962,4 +962,4 @@ void Connect::recordFailedVias() const
   }
 }
 
-}  // namespace pdn
+}  // namespace cms
