@@ -52,6 +52,8 @@ namespace cms {
 using utl::Logger;
 
 using odb::Point;
+using odb::dbMaster;
+using odb::dbInst;
 
 using sta::Instance;
 using sta::LibertyCell;
