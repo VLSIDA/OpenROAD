@@ -77,6 +77,7 @@ public:
   int set_value(int value);
   void addBuffer();
   void createGrid();
+  void makeGrid();
 
 private:
   std::string makeUniqueInstName(const char* base_name, bool underscore);
@@ -97,6 +98,7 @@ private:
   int buffer_ptr_;
   LibertyCellSeq buffer_cells_;
   int unique_inst_index_ = 1;
+  int dbu_ = 0;
 };
 
 } //  namespace cms

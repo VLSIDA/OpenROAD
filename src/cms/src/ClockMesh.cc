@@ -37,6 +37,7 @@ ClockMesh::ClockMesh()
   this->value_ = 0;
   this->buffer_ptr_ = 0;
   this->buffers_ = nullptr;
+  this->dbu_ = db_->getTech()->getDbUnitsPerMicron();
 }
 
 ClockMesh::~ClockMesh()
