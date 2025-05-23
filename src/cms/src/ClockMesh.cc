@@ -109,7 +109,7 @@ ClockMesh::addBuffer()
   buffers_[buffer_ptr_] = network_->makeInstance(buffer_cells_[0],
                           buffer_name.c_str(),
                           nullptr);
-  db_inst* db_inst = resizer_->getDbNetwork()->staToDb(buffers_[buffer_ptr_]);
+  dbInst* db_inst = resizer_->getDbNetwork()->staToDb(buffers_[buffer_ptr_]);
   //set the location
   setLocation(point_p[buffer_ptr_]);
   //call legalizer later
