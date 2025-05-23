@@ -113,7 +113,7 @@ ClockMesh::addBuffer()
                           nullptr);
   dbInst* db_inst = resizer_->getDbNetwork()->staToDb(buffers_[buffer_ptr_]);
   //set the location
-  setLocation(point_[buffer_ptr_]);
+  setLocation(db_inst, point_[buffer_ptr_]);
   //call legalizer later
   //incremenet area of the design
   resizer_->designAreaIncr(area(db_inst->getMaster()));
