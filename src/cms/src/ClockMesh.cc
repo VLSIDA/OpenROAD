@@ -178,6 +178,21 @@ ClockMesh::createGrid()
   addBuffer();
 }
 
+void
+ClockMesh::makeGrid()
+{
+  debugPrint(logger_, utl::CMS, "Make", 1, "Build - begin");
+  auto* block = db_->getChip()->getBlock();
+  resetShapes();
+
+
+  // Make Ring shape
+  
+  // Add straps to ring
+  // Add connects
+  // Return connects
+}
+
 bool
 ClockMesh::isLinkCell(LibertyCell* cell) const
 {
