@@ -81,6 +81,9 @@ private:
   int createBufferArray(int amount);
   bool isLinkCell(LibertyCell* cell) const;
   float bufferDriveResistance(const LibertyCell* buffer) const;
+  double area(dbMaster* master);
+  double dbuToMeters(int dist) const;
+  void setLocation(dbInst* db_inst, const Point& pt);
   sta::Instance** buffers_ = nullptr; 
   odb::dbDatabase *db_ = nullptr;
   Point* point_ = nullptr;

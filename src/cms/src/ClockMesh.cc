@@ -102,12 +102,20 @@ ClockMesh::createBufferArray(int amount)
 void
 ClockMesh::addBuffer()
 {
+  resizer_->initBlock();
   this->point_[buffer_ptr_].setX(buffer_ptr_);
   this->point_[buffer_ptr_].setY(buffer_ptr_);
   const string buffer_name = makeUniqueInstName("clock_mesh_buffer",true);
   buffers_[buffer_ptr_] = network_->makeInstance(buffer_cells_[0],
                           buffer_name.c_str(),
                           nullptr);
+  db_inst* db_inst = resizer_->getDbNetwork()->staToDb(buffers_[buffer_ptr_]);
+  //set the location
+  setLocation(point_p[buffer_ptr_]);
+  //call legalizer later
+  //incremenet area of the design
+  resizer_->designAreaIncr(area(db_inst->getMaster()));
+
   logger_->info(CMS, 95, "CMS added buffer: {} at point X: {} Y: {}",buffer_name, point_[buffer_ptr_].getX(),point_[buffer_ptr_].getY());
   buffer_ptr_++;
 }
@@ -166,6 +174,8 @@ void
 ClockMesh::createGrid()
 {
   findBuffers();
+  //add one buffer for now
+  addBuffer();
 }
 
 bool
@@ -174,4 +184,28 @@ ClockMesh::isLinkCell(LibertyCell* cell) const
   return network_->findLibertyCell(cell->name()) == cell;
 }
 
+double
+ClockMesh::area(dbMaster* master)
+{
+  if (!master->isCoreAutoPlaceable()) {
+    return 0;
+  }
+  return dbuToMeters(master->getWidth()) * dbuToMeters(master->getHeight());
+}
+
+double
+ClockMesh::dbuToMeters(int dist) const
+{
+  return dist / (dbu_ * 1e+6);
+}
+
+void
+ClockMesh::setLocation(dbInst* db_inst, const Point& pt)
+{
+  int x = pt.x();
+  int y = pt.y();
+  //do proper placement later
+  db_inst->setPlacementStatus(dbPlacementStatus::PLACED);
+  db_inst->setLocation(x, y);
+}
 } // namespace cms
