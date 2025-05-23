@@ -22,6 +22,8 @@ swig_lib(NAME      cms
          NAMESPACE cms
          I_FILE    src/ClockMesh.i
          SWIG_INCLUDES ${ODB_HOME}/src/include
+                       ${ODB_HOME}/src/swig/common
+                       ${ODB_HOME}/src/swig/tcl
          SCRIPTS   src/ClockMesh.tcl
 )
 
@@ -29,6 +31,20 @@ target_sources(cms
   PRIVATE
   src/MakeClockMesh.cc
   src/ClockMesh.cc
+
+  src/techlayer.cpp
+  src/domain.cpp
+  src/power_cells.cpp
+  src/grid.cpp
+  src/grid_component.cpp
+  src/rings.cpp
+  src/straps.cpp
+  src/shape.cpp
+  src/via.cpp
+  src/connect.cpp
+  src/renderer.cpp
+  src/sroute.cpp
+  src/via_repair.cpp
 )
 
 target_include_directories(cms
@@ -42,6 +58,8 @@ target_link_libraries(cms
     rsz_lib
     utl_lib
     dbSta_lib
+    gui
+    Boost::boost
 )
 
 messages(
