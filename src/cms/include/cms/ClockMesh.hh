@@ -55,6 +55,19 @@ enum ExtensionMode
   FIXED
 };
 
+enum StartsWith
+{
+  GRID,
+  POWER,
+  GROUND
+};
+
+enum PowerSwitchNetworkType
+{
+  STAR,
+  DAISY
+};
+
 namespace cms {
 
 using utl::Logger;
@@ -215,7 +228,7 @@ public:
                          std::vector<int> metalspaces,
                          const std::vector<odb::dbInst*>& insts);
 
-  PDNRenderer* getDebugRenderer() const { return debug_renderer_.get(); }
+  CMSRenderer* getDebugRenderer() const { return debug_renderer_.get(); }
 private:
   std::string makeUniqueInstName(const char* base_name, bool underscore);
   void findBuffers();
