@@ -47,6 +47,14 @@ class Graph;
 }  // namespace sta
 
 
+enum ExtensionMode
+{
+  CORE,
+  RINGS,
+  BOUNDARY,
+  FIXED
+};
+
 namespace cms {
 
 using utl::Logger;
@@ -62,6 +70,11 @@ using sta::LibertyCellSeq;
 using sta::LibertyLibrary;
 using sta::LibertyLibrarySeq;
 
+class VoltageDomain;
+class Grid;
+class PowerCell;
+class CMSRenderer;
+class SRoute;
 
 class ClockMesh
 {

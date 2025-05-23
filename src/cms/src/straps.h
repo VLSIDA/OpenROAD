@@ -14,6 +14,8 @@
 #include "cms/ClockMesh.hh"
 
 namespace cms {
+
+
 class Grid;
 
 class Straps : public GridComponent
