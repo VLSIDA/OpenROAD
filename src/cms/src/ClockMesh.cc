@@ -28,6 +28,7 @@ using std::string;
 using sta::LibertyLibrary;
 using sta::LibertyLibrarySeq;
 using sta::LibertyPort;
+using odb::dbPlacementStatus;
 
 // Tcl files encoded into strings.
 extern const char *cms_tcl_inits[];
@@ -112,7 +113,7 @@ ClockMesh::addBuffer()
                           nullptr);
   dbInst* db_inst = resizer_->getDbNetwork()->staToDb(buffers_[buffer_ptr_]);
   //set the location
-  setLocation(point_p[buffer_ptr_]);
+  setLocation(db_inst, point_[buffer_ptr_]);
   //call legalizer later
   //incremenet area of the design
   resizer_->designAreaIncr(area(db_inst->getMaster()));
@@ -177,17 +178,6 @@ ClockMesh::createGrid()
   findBuffers();
   //add one buffer for now
   addBuffer();
-}
-
-void
-ClockMesh::makeGrid()
-{
-  debugPrint(logger_, utl::CMS, "Make", 1, "Build - begin");
-
-  // Make Ring shape  
-  // Add straps to ring
-  // Add connects
-  // Return connects
 }
 
 bool
