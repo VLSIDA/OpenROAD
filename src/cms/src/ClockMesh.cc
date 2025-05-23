@@ -180,6 +180,14 @@ ClockMesh::createGrid()
   addBuffer();
 }
 
+void 
+ClockMesh::makeGrid()
+{
+  debugPrint(logger_, utl::PDN, "Make", 1, "Build - begin");
+  auto* block = db_->getChip()->getBlock();
+
+}
+
 bool
 ClockMesh::isLinkCell(LibertyCell* cell) const
 {
