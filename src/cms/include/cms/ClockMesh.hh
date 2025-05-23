@@ -54,6 +54,7 @@ using utl::Logger;
 using odb::Point;
 using odb::dbMaster;
 using odb::dbInst;
+using odb::dbPlacementStatus;
 
 using sta::Instance;
 using sta::LibertyCell;

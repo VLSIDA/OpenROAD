@@ -182,9 +182,6 @@ void
 ClockMesh::makeGrid()
 {
   debugPrint(logger_, utl::CMS, "Make", 1, "Build - begin");
-  auto* block = db_->getChip()->getBlock();
-  resetShapes();
-
 
   // Make Ring shape  
   // Add straps to ring
