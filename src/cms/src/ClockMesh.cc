@@ -39,6 +39,9 @@ ClockMesh::ClockMesh()
   this->buffer_ptr_ = 0;
   this->buffers_ = nullptr;
   this->dbu_ = db_->getTech()->getDbUnitsPerMicron();
+  this->sroute_ = std::make_unique<SRoute>(this, db, logger_);
+  this->core_domain_ = nullptr;
+  this->debug_renderer_ = nullptr;
 }
 
 ClockMesh::~ClockMesh()
