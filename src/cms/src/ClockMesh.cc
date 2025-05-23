@@ -28,6 +28,7 @@ using std::string;
 using sta::LibertyLibrary;
 using sta::LibertyLibrarySeq;
 using sta::LibertyPort;
+using odb::dbPlacementStatus;
 
 // Tcl files encoded into strings.
 extern const char *cms_tcl_inits[];
