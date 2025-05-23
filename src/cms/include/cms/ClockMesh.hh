@@ -268,11 +268,8 @@ private:
   bool importUPF(VoltageDomain* domain);
   bool importUPF(Grid* grid, PowerSwitchNetworkType type) const;
 
-  odb::dbDatabase* db_;
-  utl::Logger* logger_;
-
   std::unique_ptr<SRoute> sroute_;
-  std::unique_ptr<PDNRenderer> debug_renderer_;
+  std::unique_ptr<CMSRenderer> debug_renderer_;
 
   std::unique_ptr<VoltageDomain> core_domain_;
   std::vector<std::unique_ptr<VoltageDomain>> domains_;
