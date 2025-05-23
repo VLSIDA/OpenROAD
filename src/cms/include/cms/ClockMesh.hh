@@ -54,6 +54,7 @@ using utl::Logger;
 using odb::Point;
 using odb::dbMaster;
 using odb::dbInst;
+using odb::dbPlacementStatus;
 
 using sta::Instance;
 using sta::LibertyCell;
@@ -76,6 +77,7 @@ public:
   int set_value(int value);
   void addBuffer();
   void createGrid();
+  void makeGrid();
 
 private:
   std::string makeUniqueInstName(const char* base_name, bool underscore);
