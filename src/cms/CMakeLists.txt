@@ -29,9 +29,6 @@ swig_lib(NAME      cms
 
 target_sources(cms
   PRIVATE
-  src/MakeClockMesh.cc
-  src/ClockMesh.cc
-
   src/techlayer.cpp
   src/domain.cpp
   src/power_cells.cpp
@@ -45,6 +42,9 @@ target_sources(cms
   src/renderer.cpp
   src/sroute.cpp
   src/via_repair.cpp
+  
+  src/MakeClockMesh.cc
+  src/ClockMesh.cc
 )
 
 target_include_directories(cms
