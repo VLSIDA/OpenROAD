@@ -21,6 +21,11 @@ class Straps
          int pitch,
          int spacing = 0,
          int number_of_straps = 0);
+
+  Straps(int width,
+         int pitch,
+         int spacing = 0,
+         int number_of_straps = 0);
   
   // void makeStraps(int x_start,
   //                 int y_start,

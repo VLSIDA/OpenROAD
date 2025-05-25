@@ -187,8 +187,8 @@ ClockMesh::makeGrid()
 {
   debugPrint(logger_, utl::CMS, "Make", 1, "Build - begin");
   auto* block = db_->getChip()->getBlock();
-  dbSet<dbTrackGrid> tgs = block->getTrackGrids();
-  // Straps straps_(db_->getChip()->getBlock()->);
+  // dbSet<dbTrackGrid> tgs = block->getTrackGrids();
+  Straps straps_(0, 0);
 }
 
 bool

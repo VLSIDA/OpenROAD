@@ -31,6 +31,18 @@ Straps::Straps(odb::dbTechLayer* layer,
   
 }
 
+Straps::Straps(int width,
+               int pitch,
+               int spacing,
+               int number_of_straps)
+    : width_(width),
+      spacing_(spacing),
+      pitch_(pitch),
+      number_of_straps_(number_of_straps)
+{
+  
+}
+
 // void Straps::makeStraps(int x_start,
 //                         int y_start,
 //                         int x_end,
