@@ -11,6 +11,8 @@
 
 namespace cms {
 
+using odb::dbTechLayer;
+
 class Straps
 {
  public:
