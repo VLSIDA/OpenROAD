@@ -9,9 +9,9 @@
 #include <string>
 #include <vector>
 
-namespace cms {
+#include "odb/odb.h"
 
-using odb::dbTechLayer;
+namespace cms {
 
 class Straps
 {
