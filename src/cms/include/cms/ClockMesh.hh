@@ -46,28 +46,6 @@ class Vertex;
 class Graph;
 }  // namespace sta
 
-
-enum ExtensionMode
-{
-  CORE,
-  RINGS,
-  BOUNDARY,
-  FIXED
-};
-
-enum StartsWith
-{
-  GRID,
-  POWER,
-  GROUND
-};
-
-enum PowerSwitchNetworkType
-{
-  STAR,
-  DAISY
-};
-
 namespace cms {
 
 using utl::Logger;
@@ -82,12 +60,6 @@ using sta::LibertyCell;
 using sta::LibertyCellSeq;
 using sta::LibertyLibrary;
 using sta::LibertyLibrarySeq;
-
-class VoltageDomain;
-class Grid;
-class PowerCell;
-class CMSRenderer;
-class SRoute;
 
 class ClockMesh
 {
