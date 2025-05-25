@@ -15,6 +15,8 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include "cms/ClockMesh.hh"
+
+#include "straps.h"
 #include "sta/StaMain.hh"
 
 extern "C" {
