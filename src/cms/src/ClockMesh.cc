@@ -66,7 +66,6 @@ ClockMesh::init(Tcl_Interp* tcl_interp,
   logger_ = logger;
   network_ = network;
   resizer_ = resizer;
-  this->sroute_ = std::make_unique<SRoute>(this, db_, logger_);
   // Define swig TCL commands.
   Cms_Init(tcl_interp);
   // Eval encoded cms TCL sources.
