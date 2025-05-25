@@ -9,7 +9,7 @@
 #include <string>
 #include <vector>
 
-#include "odb/odb.h"
+#include "odb/db.h"
 
 namespace cms {
 
