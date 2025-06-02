@@ -54,7 +54,6 @@ using odb::Point;
 using odb::dbMaster;
 using odb::dbInst;
 using odb::dbPlacementStatus;
-using odb::dbBlock;
 
 using sta::Instance;
 using sta::LibertyCell;
