@@ -92,5 +92,16 @@ void Straps::makeStraps(int x_start,
   //            layer.dbuToMicron(abs_end));
 
   int next_minimum_track = std::numeric_limits<int>::lowest();
+  for (pos += offset_; pos <= pos_end; pos += pitch_) {
+    int group_pos = pos;
+    
+    
+    
+    strap_count++;
+    if (number_of_straps_ != 0 && strap_count == number_of_straps_) {
+      // if number of straps is met, stop adding
+      return;
+    }
+  }
 }
 }  // namespace cms
