@@ -70,7 +70,7 @@ void Straps::makeStraps(int x_start,
   int pos = is_delta_x ? x_start : y_start;
   const int pos_end = is_delta_x ? x_end : y_end;
 
-  // const auto nets = getNets();
+  const auto nets = getNets();
 
   const int group_pitch = spacing_ + width_;
 
