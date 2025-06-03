@@ -138,15 +138,15 @@ void Straps::makeStraps(int x_start,
       //   continue;
       // }
 
-      // if (is_delta_x) {
-      //   if (strap_rect.xMin() < abs_start || strap_rect.xMax() > abs_end) {
-      //     continue;
-      //   }
-      // } else {
-      //   if (strap_rect.yMin() < abs_start || strap_rect.yMax() > abs_end) {
-      //     continue;
-      //   }
-      // }
+      if (is_delta_x) {
+        if (strap_rect.xMin() < abs_start || strap_rect.xMax() > abs_end) {
+          continue;
+        }
+      } else {
+        if (strap_rect.yMin() < abs_start || strap_rect.yMax() > abs_end) {
+          continue;
+        }
+      }
 
       // addShape(
       //     new Shape(layer_, net, strap_rect, odb::dbWireShapeType::STRIPE));
