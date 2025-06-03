@@ -21,7 +21,6 @@
 #include "db_sta/dbNetwork.hh"
 #include "db_sta/dbSta.hh"
 #include "odb/db.h"
-#include "rsz/Resizer.hh"
 #include "sta/Sdc.hh"
 #include "sta/Liberty.hh"
 #include "sta/Network.hh"
@@ -31,11 +30,7 @@
 
 namespace utl {
 class Logger;
-}
-
-namespace rsz {
-class Resizer;
-} // namespace rsz
+} //  namespace utl
 
 namespace sta {
 class dbSta;
@@ -71,7 +66,6 @@ public:
   void init(Tcl_Interp *tcl_interp,
 	    odb::dbDatabase *db,
       sta::dbNetwork* network,
-      rsz::Resizer* resizer,
       utl::Logger* logger);
   int dump_value();
   int set_value(int value);
@@ -91,7 +85,6 @@ private:
   sta::Instance** buffers_ = nullptr; 
   odb::dbDatabase *db_ = nullptr;
   Point* point_ = nullptr;
-  rsz::Resizer* resizer_ = nullptr;
   sta::dbNetwork* network_ = nullptr;
   utl::Logger* logger_ = nullptr;
   int value_;

@@ -59,13 +59,11 @@ void
 ClockMesh::init(Tcl_Interp* tcl_interp,
 	   odb::dbDatabase* db,
      sta::dbNetwork* network,
-     rsz::Resizer* resizer,
      utl::Logger* logger)
 {
   db_ = db;
   logger_ = logger;
   network_ = network;
-  resizer_ = resizer;
   // Define swig TCL commands.
   Cms_Init(tcl_interp);
   // Eval encoded cms TCL sources.
@@ -104,7 +102,6 @@ ClockMesh::createBufferArray(int amount)
 void
 ClockMesh::addBuffer()
 {
-  resizer_->initBlock();
   this->point_[buffer_ptr_].setX(buffer_ptr_);
   this->point_[buffer_ptr_].setY(buffer_ptr_);
   const string buffer_name = makeUniqueInstName("clock_mesh_buffer",true);
@@ -116,8 +113,6 @@ ClockMesh::addBuffer()
   setLocation(db_inst, point_[buffer_ptr_]);
   //call legalizer later
   //incremenet area of the design
-  resizer_->designAreaIncr(area(db_inst->getMaster()));
-
   logger_->info(CMS, 95, "CMS added buffer: {} at point X: {} Y: {}",buffer_name, point_[buffer_ptr_].getX(),point_[buffer_ptr_].getY());
   buffer_ptr_++;
 }
@@ -175,6 +170,8 @@ ClockMesh::bufferDriveResistance(const LibertyCell* buffer) const
 void
 ClockMesh::createGrid()
 {
+  //get length of grid intersection vector
+  //getIntersectionVector();
   findBuffers();
   //add one buffer for now
   addBuffer();
@@ -218,4 +215,5 @@ ClockMesh::setLocation(dbInst* db_inst, const Point& pt)
   db_inst->setPlacementStatus(dbPlacementStatus::PLACED);
   db_inst->setLocation(x, y);
 }
+
 } // namespace cms
