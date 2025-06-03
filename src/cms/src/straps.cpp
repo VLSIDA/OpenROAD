@@ -71,7 +71,7 @@ void Straps::makeStraps(int x_start,
   const int pos_end = is_delta_x ? x_end : y_end;
 
   const std::vector<odb::dbNet*> nets;
-  // getting nets logic
+  // TODO: getting nets logic
 
 
   const int group_pitch = spacing_ + width_;
@@ -98,7 +98,6 @@ void Straps::makeStraps(int x_start,
   for (pos += offset_; pos <= pos_end; pos += pitch_) {
     int group_pos = pos;
     
-    // nets logic
     for (auto* net : nets) {
       // snap to grid if needed
       const int org_group_pos = group_pos;
@@ -125,7 +124,7 @@ void Straps::makeStraps(int x_start,
         return;
       }
 
-      // odb::Rect strap_rect;
+      odb::Rect strap_rect;
       // if (is_delta_x) {
       //   strap_rect = odb::Rect(strap_start, y_start, strap_end, y_end);
       // } else {
