@@ -110,7 +110,7 @@ ClockMesh::addBuffer()
   buffers_[buffer_ptr_] = network_->makeInstance(buffer_cells_[0],
                           buffer_name.c_str(),
                           nullptr);
-  dbInst* db_inst = resizer_->getDbNetwork()->staToDb(buffers_[buffer_ptr_]);
+  dbInst* db_inst =  network_->staToDb(buffers_[buffer_ptr_]);
   //set the location
   setLocation(db_inst, point_[buffer_ptr_]);
   //call legalizer later
@@ -127,7 +127,7 @@ ClockMesh::findBuffers()
     while (lib_iter->hasNext()) {
       LibertyLibrary* lib = lib_iter->next();
       for (LibertyCell* buffer : *lib->buffers()) {
-        if (!resizer_->dontUse(buffer) && isLinkCell(buffer)) {
+        if (isLinkCell(buffer)) {
           buffer_cells_.emplace_back(buffer);
         }
       }

@@ -71,6 +71,7 @@ public:
   void createGrid();
   void makeGrid();
 private:
+  //functions
   std::string makeUniqueInstName(const char* base_name, bool underscore);
   void findBuffers();
   int createBufferArray(int amount);
@@ -79,6 +80,7 @@ private:
   double area(dbMaster* master);
   double dbuToMeters(int dist) const;
   void setLocation(dbInst* db_inst, const Point& pt);
+  //attritubes
   sta::Instance** buffers_ = nullptr; 
   odb::dbDatabase *db_ = nullptr;
   Point* point_ = nullptr;
