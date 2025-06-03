@@ -125,13 +125,13 @@ void Straps::makeStraps(int x_start,
       }
 
       odb::Rect strap_rect;
-      // if (is_delta_x) {
-      //   strap_rect = odb::Rect(strap_start, y_start, strap_end, y_end);
-      // } else {
-      //   strap_rect = odb::Rect(x_start, strap_start, x_end, strap_end);
-      // }
-      // group_pos += group_pitch;
-      // next_minimum_track = group_pos;
+      if (is_delta_x) {
+        strap_rect = odb::Rect(strap_start, y_start, strap_end, y_end);
+      } else {
+        strap_rect = odb::Rect(x_start, strap_start, x_end, strap_end);
+      }
+      group_pos += group_pitch;
+      next_minimum_track = group_pos;
 
       // if (avoid.qbegin(bgi::intersects(strap_rect)) != avoid.qend()) {
       //   // dont add this strap as it intersects an avoidance
