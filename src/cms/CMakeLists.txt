@@ -31,19 +31,7 @@ target_sources(cms
   PRIVATE
   src/MakeClockMesh.cc
   src/ClockMesh.cc
-  src/techlayer.cpp
-  src/domain.cpp
-  src/power_cells.cpp
-  src/grid.cpp
-  src/grid_component.cpp
-  src/rings.cpp
   src/straps.cpp
-  src/shape.cpp
-  src/via.cpp
-  src/connect.cpp
-  src/renderer.cpp
-  src/sroute.cpp
-  src/via_repair.cpp
 )
 
 target_include_directories(cms

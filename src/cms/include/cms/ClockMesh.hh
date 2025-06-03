@@ -41,7 +41,6 @@ class Vertex;
 class Graph;
 }  // namespace sta
 
-
 namespace cms {
 
 using utl::Logger;
@@ -57,7 +56,6 @@ using sta::LibertyCellSeq;
 using sta::LibertyLibrary;
 using sta::LibertyLibrarySeq;
 
-
 class ClockMesh
 {
 public:
@@ -72,7 +70,6 @@ public:
   void addBuffer();
   void createGrid();
   void makeGrid();
-
 private:
   std::string makeUniqueInstName(const char* base_name, bool underscore);
   void findBuffers();

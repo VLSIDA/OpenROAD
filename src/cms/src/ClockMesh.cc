@@ -15,6 +15,8 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include "cms/ClockMesh.hh"
+
+#include "straps.h"
 #include "sta/StaMain.hh"
 
 extern "C" {
@@ -180,9 +182,11 @@ ClockMesh::createGrid()
 void 
 ClockMesh::makeGrid()
 {
-  debugPrint(logger_, utl::PDN, "Make", 1, "Build - begin");
+  debugPrint(logger_, utl::CMS, "Make", 1, "Build - begin");
   auto* block = db_->getChip()->getBlock();
-
+  // dbSet<dbTrackGrid> tgs = block->getTrackGrids();
+  Straps straps_(0, 0);
+  straps_.makeStraps(0, 0, 0, 0, 0, 0, true);
 }
 
 bool
