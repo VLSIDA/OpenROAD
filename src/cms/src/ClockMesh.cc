@@ -87,8 +87,8 @@ ClockMesh::set_value(int value)
 void
 ClockMesh::addBuffer()
 {
-  points_[buffer_ptr_].setX(buffer_ptr_);
-  points_[buffer_ptr_].setY(buffer_ptr_);
+  points_[buffer_ptr_]->setX(buffer_ptr_);
+  points_[buffer_ptr_]->setY(buffer_ptr_);
   const string buffer_name = makeUniqueInstName("clock_mesh_buffer",true);
   Instance* buffer_inst = network_->makeInstance(buffer_cells_[0],
                           buffer_name.c_str(),
@@ -96,10 +96,10 @@ ClockMesh::addBuffer()
   dbInst* db_inst =  network_->staToDb(buffer_inst);
   buffers_.push_back(buffer_inst);
   //set the location
-  setLocation(db_inst, points_[buffer_ptr_]);
+  setLocation(db_inst, *points_[buffer_ptr_]);
   //call legalizer later
   //incremenet area of the design
-  logger_->info(CMS, 95, "CMS added buffer: {} at point X: {} Y: {}",buffer_name, point_[buffer_ptr_].getX(),point_[buffer_ptr_].getY());
+  logger_->info(CMS, 95, "CMS added buffer: {} at point X: {} Y: {}",buffer_name, points_[buffer_ptr_]->getX(),points_[buffer_ptr_]->getY());
   buffer_ptr_++;
 }
 
