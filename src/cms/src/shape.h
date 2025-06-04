@@ -28,7 +28,7 @@ class Shape
     //   obs_ = odb::Rect(0, 0, 0, 0);
     // };
 
-    Shape::Shape(odb::dbTechLayer* layer,
+    Shape(odb::dbTechLayer* layer,
              odb::dbNet* net,
              const odb::Rect& rect,
              const odb::dbWireShapeType& type)
