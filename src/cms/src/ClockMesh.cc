@@ -43,17 +43,15 @@ ClockMesh::ClockMesh()
 
 ClockMesh::~ClockMesh()
 {
-  if (this->buffers_ != nullptr) {
-    for (Instance* instance : buffers_) {
-      network_->deleteInstance(instance);
-    }
-    buffers_.clear();
-    for (Point* point : points_) {
-      delete point;
-      point = nullptr;
-    }
-    points_.clear();
+  for (Instance* instance : buffers_) {
+    network_->deleteInstance(instance);
   }
+  buffers_.clear();
+  for (Point* point : points_) {
+    delete point;
+    point = nullptr;
+  }
+  points_.clear();
 }
 
 void
