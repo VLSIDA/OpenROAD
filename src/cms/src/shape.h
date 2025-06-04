@@ -24,12 +24,28 @@ namespace bgi = boost::geometry::index;
 class Shape
 {
   public:
-    Shape(){
-      obs_ = odb::Rect(0, 0, 0, 0);
-    };
+    // Shape(){
+    //   obs_ = odb::Rect(0, 0, 0, 0);
+    // };
+
+    Shape::Shape(odb::dbTechLayer* layer,
+             odb::dbNet* net,
+             const odb::Rect& rect,
+             const odb::dbWireShapeType& type)
+    : layer_(layer),
+      net_(net),
+      rect_(rect),
+      type_(type),
+      obs_(rect_)
+    {
+    }
     
     const odb::Rect& getObstruction() const { return obs_; }
   private:
+    odb::dbTechLayer* layer_;
+    odb::dbNet* net_;
+    odb::Rect rect_;
+    odb::dbWireShapeType type_;
     odb::Rect obs_;
 };
 
