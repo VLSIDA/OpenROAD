@@ -22,8 +22,6 @@
 #include "shape.h"
 namespace cms {
 
-namespace bgi = boost::geometry::index;
-
 class Shape; 
 
 class Straps

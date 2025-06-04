@@ -19,6 +19,10 @@
 
 namespace cms {
 
+namespace bgi = boost::geometry::index;
+
+class Shape;
+
 using ShapePtr = std::shared_ptr<Shape>;
 
 struct ObstructionIndexableGetter
