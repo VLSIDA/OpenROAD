@@ -19,13 +19,11 @@ sta::define_cmd_args "create_mesh" {}
 # Put helper functions in a separate namespace so they are not visible
 # too users in the global namespace.
 
-proc report_cms { args } {
-  sta::parse_key_args "report_cms" args
+proc report_cms { } {
   return [cms::report_cms]
 }
 
-proc create_mesh { args } {
-  sta::parse_key_args "create_mesh" args
+proc create_mesh { } {
   return [cms::create_mesh]
 }
 
