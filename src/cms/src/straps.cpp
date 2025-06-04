@@ -136,10 +136,10 @@ void Straps::makeStraps(int x_start,
       group_pos += group_pitch;
       next_minimum_track = group_pos;
 
-      // if (avoid.qbegin(bgi::intersects(strap_rect)) != avoid.qend()) {
-      //   // dont add this strap as it intersects an avoidance
-      //   continue;
-      // }
+      if (avoid.qbegin(bgi::intersects(strap_rect)) != avoid.qend()) {
+        // dont add this strap as it intersects an avoidance
+        continue;
+      }
 
       if (is_delta_x) {
         if (strap_rect.xMin() < abs_start || strap_rect.xMax() > abs_end) {
