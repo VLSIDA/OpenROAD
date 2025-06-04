@@ -74,6 +74,9 @@ ClockMesh::report_cms()
 {
   logger_->info(CMS, 189, "Added {} buffers", this->buffer_count);
   logger_->info(CMS, 190, "Added {} straps", this->strap_count);
+  for (int i = 0; i < buffer_ptr_; i++) {
+    logger_->info(CMS, 192, "CMS added buffer #{}: at point X: {} Y: {}", i, points_[i]->getX(),points_[i]->getY());
+  }
   return this->buffer_count;
 }
 

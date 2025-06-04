@@ -1,10 +1,6 @@
-#!/bin/sh
-# The next line is executed by /bin/sh, but not Tcl \
-exec tclsh $0 ${1+"$@"}
-
 # Copyright (c) 2021, The Regents of the University of California
 # All rights reserved.
-#
+# 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
@@ -18,19 +14,40 @@ exec tclsh $0 ${1+"$@"}
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-# Usage: regression [test1 [test2...]]
-# Where test1 is all or the name of a tcl script in /test
-# Wildcard matching with '*' and '?' in test names is supported.
+include("openroad")
 
-# Directory containing tests.
-set test_dir [file dirname [file normalize [info script]]]
-set openroad_dir [file dirname [file dirname [file dirname $test_dir]]]
+project(cms)
 
-source [file join $openroad_dir "test" "regression.tcl"]
-source [file join $test_dir "CMSTests.tcl"]
+swig_lib(NAME      cms
+         NAMESPACE cms
+         I_FILE    ClockMesh.i
+         SWIG_INCLUDES ${ODB_HOME}/src/include
+                       ${ODB_HOME}/src/swig/common
+                       ${ODB_HOME}/src/swig/tcl
+         SCRIPTS   ClockMesh.tcl
+)
 
-regression_main
+target_sources(cms
+  PRIVATE
+  MakeClockMesh.cc
+  ClockMesh.cc
+  straps.cpp
+)
 
-# Local Variables:
-# mode:tcl
-# End:
+target_include_directories(cms
+  PUBLIC
+    ../include
+)
+
+target_link_libraries(cms
+    OpenSTA
+    odb
+    utl_lib
+    dbSta_lib
+    gui
+    Boost::boost
+)
+
+messages(
+  TARGET cms
+)
