@@ -46,6 +46,8 @@ class Straps
                   int abs_end,
                   bool is_delta_x);
 
+  int getNumberOfStraps();
+
  private:
   odb::dbTechLayer* layer_;
   int width_;
