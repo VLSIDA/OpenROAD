@@ -37,7 +37,8 @@ extern const char *cms_tcl_inits[];
 
 ClockMesh::ClockMesh()
 {
-  this->value_ = 0;
+  this->buffer_count = 0;
+  this->strap_count = 0;
 }
 
 ClockMesh::~ClockMesh()
@@ -69,18 +70,11 @@ ClockMesh::init(Tcl_Interp* tcl_interp,
 }
 
 int
-ClockMesh::dump_value()
+ClockMesh::report_cms()
 {
-  return this->value_;
-  logger_->info(CMS, 189, "Dumping ClockMesh Value of {}",value_);
-}
-
-int
-ClockMesh::set_value(int value)
-{
-  this->value_ = std::abs(value);
-  logger_->info(CMS, 151, "Set ClockMesh Value to {}", value);
-  return this->value_;
+  logger_->info(CMS, 189, "Added {} buffers", this->buffer_count);
+  logger_->info(CMS, 190, "Added {} straps", this->strap_count);
+  return this->buffer_count;
 }
 
 void
@@ -100,6 +94,7 @@ ClockMesh::addBuffer()
   //incremenet area of the design
   logger_->info(CMS, 95, "CMS added buffer: {} at point X: {} Y: {}",buffer_name, points_[buffer_ptr_]->getX(),points_[buffer_ptr_]->getY());
   buffer_ptr_++;
+  this->buffer_count++;
 }
 
 void
@@ -157,7 +152,6 @@ ClockMesh::createMesh()
 {
   //get length of grid intersection vector
   //getIntersectionVector();
-  set_value(10);
   findBuffers();
   //add one buffer for now
   addBuffer();

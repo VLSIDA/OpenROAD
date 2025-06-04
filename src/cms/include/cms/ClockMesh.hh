@@ -65,8 +65,7 @@ public:
 	    odb::dbDatabase *db,
       sta::dbNetwork* network,
       utl::Logger* logger);
-  int dump_value();
-  int set_value(int value);
+  int report_cms();
   void createMesh();
 private:
   //functions
@@ -86,7 +85,8 @@ private:
   utl::Logger* logger_ = nullptr;
   std::vector<sta::Instance*> buffers_;
   std::vector<Point*> points_;
-  int value_;
+  int buffer_count = 0;
+  int strap_count = 0;
   int buffer_ptr_ = 0;
   LibertyCellSeq buffer_cells_;
   int unique_inst_index_ = 1;

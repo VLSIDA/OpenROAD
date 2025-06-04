@@ -14,20 +14,18 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-sta::define_cmd_args "set_cms_value" {[-value value]}
-
+sta::define_cmd_args "report_cms" {}
+sta::define_cmd_args "create_mesh" {}
 # Put helper functions in a separate namespace so they are not visible
 # too users in the global namespace.
 
-proc set_cms_value { args } {
-  sta::parse_key_args "set_cms_value" args \
-  keys {-value }
-
-  if { [info exists keys(-value)]} {
-    set value $keys(-value)
-    cms::set_value $value
-  }
-  return [cms::dump_value]
+proc report_cms { args } {
+  sta::parse_key_args "report_cms" args
+  return [cms::report_cms]
 }
 
+proc create_mesh { args } {
+  sta::parse_key_args "create_mesh" args
+  return [cms::create_mesh]
+}
 

@@ -37,16 +37,15 @@ namespace ord {
 
 namespace cms {
 int
-dump_value()
+report_cms()
 {
-  return getCMS()->dump_value();
+  return getCMS()->report_cms();
 }
 
-
-int
-set_value(int value)
+void
+create_mesh()
 {
-  return getCMS()->set_value(value);
+  return getCMS()->createMesh();
 }
 } // namespace
 %} // inline
