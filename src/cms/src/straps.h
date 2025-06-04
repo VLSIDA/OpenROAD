@@ -38,16 +38,6 @@ class Straps
          int spacing = 0,
          int number_of_straps = 0);
   
-  // void makeStraps(int x_start,
-  //                 int y_start,
-  //                 int x_end,
-  //                 int y_end,
-  //                 int abs_start,
-  //                 int abs_end,
-  //                 bool is_delta_x,
-  //                 const TechLayer& layer,
-  //                 const Shape::ObstructionTree& avoid);
-  
   void makeStraps(int x_start,
                   int y_start,
                   int x_end,
@@ -55,7 +45,6 @@ class Straps
                   int abs_start,
                   int abs_end,
                   bool is_delta_x,
-                  const TechLayer& layer,
                   const ObstructionTree& avoid);
 
   int getNumberOfStraps();
