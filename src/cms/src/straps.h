@@ -23,6 +23,19 @@ namespace cms {
 
 namespace bgi = boost::geometry::index;
 
+struct ObstructionIndexableGetter
+{
+  using result_type = odb::Rect;
+  odb::Rect operator()(const ShapePtr& t) const
+  {
+    return t->getObstruction();
+  }
+};
+
+using ObstructionTree = bgi::
+    rtree<ShapePtr, bgi::quadratic<16>, ObstructionIndexableGetter>;
+
+using ObstructionTreeMap = std::map<odb::dbTechLayer*, ObstructionTree>;
 class Straps
 {
  public:
