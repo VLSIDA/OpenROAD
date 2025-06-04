@@ -74,7 +74,7 @@ void Straps::makeStraps(int x_start,
   // TODO: getting nets logic
 
 
-  
+
   const std::vector<odb::dbNet*> nets(nets_.begin(), nets_.end());
   const int group_pitch = spacing_ + width_;
 
@@ -162,6 +162,6 @@ void Straps::makeStraps(int x_start,
 }
 
 int Straps::getNumberOfStraps() {
-  return number_of_straps;
+  return number_of_straps_;
 }
 }  // namespace cms

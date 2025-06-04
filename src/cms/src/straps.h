@@ -3,6 +3,10 @@
 
 #pragma once
 
+#include <boost/geometry.hpp>
+#include <boost/geometry/index/rtree.hpp>
+#include <functional>
+#include <memory>
 #include <array>
 #include <map>
 #include <set>
@@ -10,9 +14,14 @@
 #include <vector>
 
 #include "odb/db.h"
+#include "odb/dbTypes.h"
+#include "odb/geom.h"
+#include "odb/geom_boost.h"
 // #include "odb/dbBlock.h"
 
 namespace cms {
+
+namespace bgi = boost::geometry::index;
 
 class Straps
 {
