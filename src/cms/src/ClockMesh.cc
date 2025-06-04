@@ -158,7 +158,7 @@ ClockMesh::createMesh()
 {
   //get length of grid intersection vector
   //getIntersectionVector();
-  set_value(10)
+  set_value(10);
   findBuffers();
   //add one buffer for now
   addBuffer();
