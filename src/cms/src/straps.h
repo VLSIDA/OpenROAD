@@ -55,6 +55,7 @@ class Straps
                   int abs_start,
                   int abs_end,
                   bool is_delta_x,
+                  const TechLayer& layer,
                   const ObstructionTree& avoid);
 
   int getNumberOfStraps();

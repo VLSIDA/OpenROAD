@@ -63,6 +63,7 @@ void Straps::makeStraps(int x_start,
                         int abs_start,
                         int abs_end,
                         bool is_delta_x,
+                        const TechLayer& layer,
                         const ObstructionTree& avoid)
 {
   const int half_width = width_ / 2;
@@ -150,7 +151,7 @@ void Straps::makeStraps(int x_start,
           continue;
         }
       }
-
+      // TODO: create shape constructor for this.
       // addShape(
       //     new Shape(layer_, net, strap_rect, odb::dbWireShapeType::STRIPE));
     }
