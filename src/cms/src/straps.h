@@ -55,7 +55,7 @@ class Straps
                   int abs_start,
                   int abs_end,
                   bool is_delta_x,
-                  const Shape::ObstructionTree& avoid);
+                  const ObstructionTree& avoid);
 
   int getNumberOfStraps();
 
