@@ -62,9 +62,9 @@ void Straps::makeStraps(int x_start,
                         int y_end,
                         int abs_start,
                         int abs_end,
-                        bool is_delta_x)
+                        bool is_delta_x,
+                        const Shape::ObstructionTree& avoid)
 {
-  const ObstructionTree& avoid;
   const int half_width = width_ / 2;
   int strap_count = 0;
 

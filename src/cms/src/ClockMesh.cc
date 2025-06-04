@@ -189,7 +189,7 @@ ClockMesh::makeGrid()
   auto* block = db_->getChip()->getBlock();
   // dbSet<dbTrackGrid> tgs = block->getTrackGrids();
   Straps straps_(0, 0);
-  straps_.makeStraps(0, 0, 0, 0, 0, 0, true);
+  // straps_.makeStraps(0, 0, 0, 0, 0, 0, true);
 }
 
 bool
