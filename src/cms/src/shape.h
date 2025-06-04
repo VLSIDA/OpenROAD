@@ -21,6 +21,18 @@ namespace cms {
 
 namespace bgi = boost::geometry::index;
 
+class Shape
+{
+  public:
+    Shape(){
+      obs_ = odb::Rect(0, 0, 0, 0);
+    };
+    
+    const odb::Rect& getObstruction() const { return obs_; }
+  private:
+    odb::Rect obs_;
+};
+
 class Shape;
 
 using ShapePtr = std::shared_ptr<Shape>;
@@ -39,16 +51,5 @@ using ObstructionTree = bgi::
 
 using ObstructionTreeMap = std::map<odb::dbTechLayer*, ObstructionTree>;
 
-class Shape
-{
-  public:
-    Shape(){
-      obs_ = odb::Rect(0, 0, 0, 0);
-    };
-    
-    const odb::Rect& getObstruction() const { return obs_; }
-  private:
-    odb::Rect obs_;
-};
 
 } // namespace cms
