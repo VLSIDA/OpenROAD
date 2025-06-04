@@ -38,7 +38,6 @@ extern const char *cms_tcl_inits[];
 ClockMesh::ClockMesh()
 {
   this->value_ = 0;
-  createMesh();
 }
 
 ClockMesh::~ClockMesh()
