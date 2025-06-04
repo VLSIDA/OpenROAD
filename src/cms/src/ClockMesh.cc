@@ -38,22 +38,22 @@ extern const char *cms_tcl_inits[];
 ClockMesh::ClockMesh()
 {
   this->value_ = 0;
-  this->buffer_ptr_ = 0;
-  this->buffers_ = nullptr;
+  createMesh();
 }
 
 ClockMesh::~ClockMesh()
 {
   if (this->buffers_ != nullptr) {
-    for (int i = 0; i < value_; i++) {
-      network_->deleteInstance(buffers_[i]);
+    for (Instance* instance : buffers_) {
+      network_->deleteInstance(instance);
     }
-    delete[] this->buffers_;
-    this->buffers_ = nullptr;
-    delete point_;
-    this->point_ = nullptr;
+    buffers_.clear();
+    for (Point* point : points_) {
+      delete point;
+      point = nullptr;
+    }
+    points_.clear();
   }
-  
 }
 
 void
@@ -86,32 +86,19 @@ ClockMesh::set_value(int value)
   return this->value_;
 }
 
-int
-ClockMesh::createBufferArray(int amount)
-{
-  if (amount == 0) {
-    logger_->error(CMS, 409, "Need to set CMS Buffer Amount to non zero");
-    return 1;
-  } else {
-    this->buffers_ = new sta::Instance*[amount];
-    this->point_ = new Point[amount];
-    logger_->info(CMS, 125, "CMS Buffer and Point arrays initialized!");
-    return 0;
-  }
-}
-
 void
 ClockMesh::addBuffer()
 {
-  this->point_[buffer_ptr_].setX(buffer_ptr_);
-  this->point_[buffer_ptr_].setY(buffer_ptr_);
+  point_.at(buffer_ptr_).setX(buffer_ptr_);
+  point_.at(buffer_ptr_).setY(buffer_ptr_);
   const string buffer_name = makeUniqueInstName("clock_mesh_buffer",true);
-  buffers_[buffer_ptr_] = network_->makeInstance(buffer_cells_[0],
+  Instance* buffer_inst = network_->makeInstance(buffer_cells_[0],
                           buffer_name.c_str(),
                           nullptr);
-  dbInst* db_inst =  network_->staToDb(buffers_[buffer_ptr_]);
+  dbInst* db_inst =  network_->staToDb(buffer_inst);
+  buffers_.push_back(buffer_inst);
   //set the location
-  setLocation(db_inst, point_[buffer_ptr_]);
+  setLocation(db_inst, point_.at(buffer_ptr_));
   //call legalizer later
   //incremenet area of the design
   logger_->info(CMS, 95, "CMS added buffer: {} at point X: {} Y: {}",buffer_name, point_[buffer_ptr_].getX(),point_[buffer_ptr_].getY());
@@ -169,10 +156,11 @@ ClockMesh::bufferDriveResistance(const LibertyCell* buffer) const
 
 
 void
-ClockMesh::createGrid()
+ClockMesh::createMesh()
 {
   //get length of grid intersection vector
   //getIntersectionVector();
+  set_value(10)
   findBuffers();
   //add one buffer for now
   addBuffer();
@@ -217,6 +205,7 @@ ClockMesh::setLocation(dbInst* db_inst, const Point& pt)
   //do proper placement later
   db_inst->setPlacementStatus(dbPlacementStatus::PLACED);
   db_inst->setLocation(x, y);
+  logger_->info(CMS, 695, "Placement of buffer at X: {} Y: {}",x,y);
 }
 
 } // namespace cms

@@ -67,12 +67,12 @@ public:
       utl::Logger* logger);
   int dump_value();
   int set_value(int value);
-  void addBuffer();
-  void createGrid();
-  void makeGrid();
+  void createMesh();
 private:
   //functions
   std::string makeUniqueInstName(const char* base_name, bool underscore);
+  void makeGrid();
+  void addBuffer();
   void findBuffers();
   int createBufferArray(int amount);
   bool isLinkCell(LibertyCell* cell) const;
@@ -81,13 +81,13 @@ private:
   double dbuToMeters(int dist) const;
   void setLocation(dbInst* db_inst, const Point& pt);
   //attritubes
-  sta::Instance** buffers_ = nullptr; 
   odb::dbDatabase *db_ = nullptr;
-  Point* point_ = nullptr;
   sta::dbNetwork* network_ = nullptr;
   utl::Logger* logger_ = nullptr;
+  std::vector<sta::Instance*> buffers_;
+  std::vector<Point*> points_;
   int value_;
-  int buffer_ptr_;
+  int buffer_ptr_ = 0;
   LibertyCellSeq buffer_cells_;
   int unique_inst_index_ = 1;
   int dbu_ = 0;
