@@ -72,7 +72,7 @@ ClockMesh::init(Tcl_Interp* tcl_interp,
 int
 ClockMesh::report_cms()
 {
-  std::string filename = options_->getMetricsFile();
+  std::string filename = getMetricsFile();
 
   if (!filename.empty()) {
     std::ofstream file(filename.c_str());

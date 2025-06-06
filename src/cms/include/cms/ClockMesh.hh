@@ -67,6 +67,15 @@ public:
       utl::Logger* logger);
   int report_cms();
   void createMesh();
+  std::string metricFile_ = "";
+  void setMetricsFile(const std::string& metricFile)
+  {
+    metricFile_ = metricFile;
+  }
+  const std::string getMetricsFile()
+  {
+    return metricFile_;
+  }
 private:
   //functions
   std::string makeUniqueInstName(const char* base_name, bool underscore);
@@ -91,11 +100,6 @@ private:
   LibertyCellSeq buffer_cells_;
   int unique_inst_index_ = 1;
   int dbu_ = 0;
-  std::string metricFile_ = "";
-  void setMetricsFile(const std::string& metricFile)
-  {
-    metricFile_ = metricFile;
-  }
 };
 
 } //  namespace cms

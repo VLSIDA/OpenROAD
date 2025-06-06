@@ -41,6 +41,11 @@ report_cms()
 {
   return getCMS()->report_cms();
 }
+void
+set_metric_output(const char* file)
+{
+  getCMS()->setMetricsFile(file);
+}
 
 void
 create_mesh()
