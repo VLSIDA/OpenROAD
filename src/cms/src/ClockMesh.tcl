@@ -14,12 +14,18 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-sta::define_cmd_args "report_cms" {}
+sta::define_cmd_args "report_cms" {[-out_file file]}
 sta::define_cmd_args "create_mesh" {}
 # Put helper functions in a separate namespace so they are not visible
 # too users in the global namespace.
 
-proc report_cms { } {
+proc report_cms { args } {
+  sta::parse_key_args "report_cms" args \
+    keys {-out_file} flags {}
+  if { [info exists keys(-out_file)] } {
+    set outFile $keys(-out_file)
+    cms::set_metric_output $outFile
+  }
   return [cms::report_cms]
 }
 

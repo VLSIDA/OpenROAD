@@ -72,10 +72,27 @@ ClockMesh::init(Tcl_Interp* tcl_interp,
 int
 ClockMesh::report_cms()
 {
-  logger_->info(CMS, 189, "Added {} buffers", this->buffer_count);
-  logger_->info(CMS, 190, "Added {} straps", this->strap_count);
-  for (int i = 0; i < buffer_ptr_; i++) {
-    logger_->info(CMS, 192, "CMS added buffer #{}: at point X: {} Y: {}", i, points_[i]->getX(),points_[i]->getY());
+  std::string filename = options_->getMetricsFile();
+
+  if (!filename.empty()) {
+    std::ofstream file(filename.c_str());
+
+    if (!file.is_open()) {
+      logger_->error(
+          CMS, 87, "Could not open output metric file {}.", filename.c_str());
+    }
+    file << "Added " << this->buffer_count << " buffers";
+    file << "Added " << this->strap_count << " straps";
+    for (int i = 0; i < buffer_ptr_; i++) {
+      file << "CMS added buffer #" << i << ": at point X: "<< points_[i]->getX() << " Y: " << points_[i]->getY();
+    }
+    file.close();
+  } else {
+    logger_->info(CMS, 189, "Added {} buffers", this->buffer_count);
+    logger_->info(CMS, 190, "Added {} straps", this->strap_count);
+    for (int i = 0; i < buffer_ptr_; i++) {
+      logger_->info(CMS, 192, "CMS added buffer #{}: at point X: {} Y: {}", i, points_[i]->getX(),points_[i]->getY());
+    }
   }
   return this->buffer_count;
 }

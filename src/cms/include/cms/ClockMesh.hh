@@ -91,6 +91,11 @@ private:
   LibertyCellSeq buffer_cells_;
   int unique_inst_index_ = 1;
   int dbu_ = 0;
+  std::string metricFile_ = "";
+  void setMetricsFile(const std::string& metricFile)
+  {
+    metricFile_ = metricFile;
+  }
 };
 
 } //  namespace cms

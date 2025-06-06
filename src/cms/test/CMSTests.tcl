@@ -1,7 +1,14 @@
-# constant propgation thru registers
 source "helpers.tcl"
-read_liberty Nangate45/Nangate45_typ.lib
 read_lef Nangate45/Nangate45.lef
-read_verilog constant1.v
-link_design top
+read_liberty Nangate45/Nangate45_typ.lib
+read_def "16sinks.def"
+
+create_clock -period 5 clk
+
+set_wire_rc -clock -layer metal3
+
 report_cms
+
+set def_file [make_result_file simple_test_out.def]
+write_def $def_file
+diff_files simple_test_out.defok $def_file
