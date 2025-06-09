@@ -185,7 +185,7 @@ ClockMesh::createGrid()
 void 
 ClockMesh::makeGrid()
 {
-  odb::dbTech* tech = db->getTech();
+  odb::dbTech* tech = db_->getTech();
   odb::dbTechLayer* layer = tech->findLayer("M1");
   // debugPrint(logger_, utl::CMS, "Make", 1, "Build - begin");
   // auto* block = db_->getChip()->getBlock();
