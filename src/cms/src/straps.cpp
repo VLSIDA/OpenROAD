@@ -137,7 +137,7 @@ void Straps::makeStraps(int x_start,
           continue;
         }
       }
-      // TODO: create shape constructor, addShape method for this. Should be this->layer_
+      // TODO: create addShape method for this. Should be this->layer_
       // addShape(
       //     new Shape(layer_, net, strap_rect, odb::dbWireShapeType::STRIPE));
     }
