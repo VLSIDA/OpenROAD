@@ -43,7 +43,7 @@ Straps::Straps(int width,
   
 }
 
-void Straps::makeStraps(int x_start,
+std::vector<Point> Straps::makeStraps(int x_start,
                         int y_start,
                         int x_end,
                         int y_end,
@@ -52,6 +52,8 @@ void Straps::makeStraps(int x_start,
                         bool is_delta_x,
                         const ObstructionTree& avoid)
 {
+  std::vector<Point> buffer_pts;
+
   const int half_width = width_ / 2;
   int strap_count = 0;
 
@@ -144,7 +146,12 @@ void Straps::makeStraps(int x_start,
     strap_count++;
     if (number_of_straps_ != 0 && strap_count == number_of_straps_) {
       // if number of straps is met, stop adding
-      return;
+      // create arbitrary buffer grid intersection points and return
+      buffer_pts.push_back({0, 0});
+      buffer_pts.push_back({0, 1});
+      buffer_pts.push_back({1, 0});
+      buffer_pts.push_back({1, 1});
+      return buffer_pts;
     }
   }
 }

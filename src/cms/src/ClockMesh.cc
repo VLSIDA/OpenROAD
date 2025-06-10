@@ -185,8 +185,6 @@ ClockMesh::createGrid()
 void 
 ClockMesh::makeGrid()
 {
-  std::vector<Point> buffer_pts;
-  
   // Getting dbTechLayer
   odb::dbTech* tech = db_->getTech();
   odb::dbTechLayer* layer = tech->findLayer("M1");
