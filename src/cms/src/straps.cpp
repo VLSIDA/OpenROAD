@@ -154,6 +154,7 @@ std::vector<Point> Straps::makeStraps(int x_start,
       return buffer_pts;
     }
   }
+  return buffer_pts;
 }
 
 int Straps::getNumberOfStraps() {
