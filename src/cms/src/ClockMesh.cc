@@ -185,28 +185,19 @@ ClockMesh::createGrid()
 void 
 ClockMesh::makeGrid()
 {
+  std::vector<Point> buffer_pts;
+  
   // Getting dbTechLayer
   odb::dbTech* tech = db_->getTech();
   odb::dbTechLayer* layer = tech->findLayer("M1");
 
   // Getting ObstructionTree
   ObstructionTree obs_tree;
-
-  std::vector<ShapePtr> shapes;
+  
   auto* block = db_->getChip()->getBlock();
-  for (odb::dbBlockage* blockage : block->getBlockages()) {
-      odb::dbTechLayer* layer = blockage->getLayer();
-      odb::dbNet* net = blockage->getNet();  // May be nullptr
-      odb::Rect rect;
-      blockage->getBBox()->getBox(rect);
-
-      // Choose an appropriate type — assuming OBS for obstructions
-      odb::dbWireShapeType type = odb::dbWireShapeType::NONE;
-
-      ShapePtr shape = std::make_shared<Shape>(layer, net, rect, type);
-      shapes.push_back(shape);
+  for (odb::dbInst* inst : block->getInsts()) {
+    
   }
-
 
   Straps straps_(layer, 0, 0);
   // straps_.makeStraps(0, 0, 0, 0, 0, 0, true);

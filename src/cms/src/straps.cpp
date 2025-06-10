@@ -139,7 +139,7 @@ void Straps::makeStraps(int x_start,
       }
       // TODO: create addShape method for this. Should be this->layer_
       // addShape(
-      //     new Shape(layer_, net, strap_rect, odb::dbWireShapeType::STRIPE));
+      //     new Shape(layer_, net, strap_rect, odb::dbWireShapeType::BLOCKWIRE));
     }
     strap_count++;
     if (number_of_straps_ != 0 && strap_count == number_of_straps_) {
