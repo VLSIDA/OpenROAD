@@ -40,7 +40,6 @@ ClockMesh::ClockMesh()
   this->value_ = 0;
   this->buffer_ptr_ = 0;
   this->buffers_ = nullptr;
-  this->dbu_ = db_->getTech()->getDbUnitsPerMicron();
 }
 
 ClockMesh::~ClockMesh()
@@ -219,6 +218,7 @@ ClockMesh::area(dbMaster* master)
 double
 ClockMesh::dbuToMeters(int dist) const
 {
+  int dbu_ = db_->getTech()->getDbUnitsPerMicron();
   return dist / (dbu_ * 1e+6);
 }
 

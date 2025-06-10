@@ -95,7 +95,6 @@ private:
   int buffer_ptr_;
   LibertyCellSeq buffer_cells_;
   int unique_inst_index_ = 1;
-  int dbu_ = 0;
 };
 
 } //  namespace cms
