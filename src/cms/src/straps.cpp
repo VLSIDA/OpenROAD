@@ -109,11 +109,11 @@ std::vector<Point> Straps::makeStraps(int x_start,
 
       if (strap_start >= pos_end) {
         // no portion of the strap is inside the limit
-        return;
+        return buffer_pts;
       }
       if (group_pos > pos_end) {
         // strap center is outside of alotted area
-        return;
+        return buffer_pts;
       }
 
       odb::Rect strap_rect;
