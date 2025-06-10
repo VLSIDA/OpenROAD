@@ -14,22 +14,40 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-sta::define_cmd_args "report_cms" {[-out_file file]}
-sta::define_cmd_args "create_mesh" {}
-# Put helper functions in a separate namespace so they are not visible
-# too users in the global namespace.
+include("openroad")
 
-proc report_cms { args } {
-  sta::parse_key_args "report_cms" args \
-    keys {-out_file} flags {}
-  if { [info exists keys(-out_file)] } {
-    set outFile $keys(-out_file)
-    cms::set_metric_output $outFile
-  }
-  return [cms::report_cms]
-}
+project(cms)
 
-proc create_mesh { } {
-  return [cms::create_mesh]
-}
+swig_lib(NAME      cms
+         NAMESPACE cms
+         I_FILE    ClockMesh.i
+         SWIG_INCLUDES ${ODB_HOME}/src/include
+                       ${ODB_HOME}/src/swig/common
+                       ${ODB_HOME}/src/swig/tcl
+         SCRIPTS   ClockMesh.tcl
+)
 
+target_sources(cms
+  PRIVATE
+  MakeClockMesh.cc
+  ClockMesh.cc
+  straps.cpp
+)
+
+target_include_directories(cms
+  PUBLIC
+    ../include
+)
+
+target_link_libraries(cms
+    OpenSTA
+    odb
+    utl_lib
+    dbSta_lib
+    gui
+    Boost::boost
+)
+
+messages(
+  TARGET cms
+)

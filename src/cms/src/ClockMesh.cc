@@ -37,36 +37,32 @@ extern const char *cms_tcl_inits[];
 
 ClockMesh::ClockMesh()
 {
-  this->value_ = 0;
-  this->buffer_ptr_ = 0;
-  this->buffers_ = nullptr;
+  this->buffer_count = 0;
+  this->strap_count = 0;
 }
 
 ClockMesh::~ClockMesh()
 {
-  if (this->buffers_ != nullptr) {
-    for (int i = 0; i < value_; i++) {
-      network_->deleteInstance(buffers_[i]);
-    }
-    delete[] this->buffers_;
-    this->buffers_ = nullptr;
-    delete point_;
-    this->point_ = nullptr;
+  for (Instance* instance : buffers_) {
+    network_->deleteInstance(instance);
   }
-  
+  buffers_.clear();
+  for (Point* point : points_) {
+    delete point;
+    point = nullptr;
+  }
+  points_.clear();
 }
 
 void
 ClockMesh::init(Tcl_Interp* tcl_interp,
 	   odb::dbDatabase* db,
      sta::dbNetwork* network,
-     rsz::Resizer* resizer,
      utl::Logger* logger)
 {
   db_ = db;
   logger_ = logger;
   network_ = network;
-  resizer_ = resizer;
   // Define swig TCL commands.
   Cms_Init(tcl_interp);
   // Eval encoded cms TCL sources.
@@ -74,53 +70,51 @@ ClockMesh::init(Tcl_Interp* tcl_interp,
 }
 
 int
-ClockMesh::dump_value()
+ClockMesh::report_cms()
 {
-  return this->value_;
-  logger_->info(CMS, 189, "Dumping ClockMesh Value of {}",value_);
-}
+  std::string filename = getMetricsFile();
 
-int
-ClockMesh::set_value(int value)
-{
-  this->value_ = std::abs(value);
-  logger_->info(CMS, 151, "Set ClockMesh Value to {}", value);
-  return this->value_;
-}
+  if (!filename.empty()) {
+    std::ofstream file(filename.c_str());
 
-int
-ClockMesh::createBufferArray(int amount)
-{
-  if (amount == 0) {
-    logger_->error(CMS, 409, "Need to set CMS Buffer Amount to non zero");
-    return 1;
+    if (!file.is_open()) {
+      logger_->error(
+          CMS, 87, "Could not open output metric file {}.", filename.c_str());
+    }
+    file << "Added " << this->buffer_count << " buffers";
+    file << "Added " << this->strap_count << " straps";
+    for (int i = 0; i < buffer_ptr_; i++) {
+      file << "CMS added buffer #" << i << ": at point X: "<< points_[i]->getX() << " Y: " << points_[i]->getY();
+    }
+    file.close();
   } else {
-    this->buffers_ = new sta::Instance*[amount];
-    this->point_ = new Point[amount];
-    logger_->info(CMS, 125, "CMS Buffer and Point arrays initialized!");
-    return 0;
+    logger_->info(CMS, 189, "Added {} buffers", this->buffer_count);
+    logger_->info(CMS, 190, "Added {} straps", this->strap_count);
+    for (int i = 0; i < buffer_ptr_; i++) {
+      logger_->info(CMS, 192, "CMS added buffer #{}: at point X: {} Y: {}", i, points_[i]->getX(),points_[i]->getY());
+    }
   }
+  return this->buffer_count;
 }
 
 void
 ClockMesh::addBuffer()
 {
-  resizer_->initBlock();
-  this->point_[buffer_ptr_].setX(buffer_ptr_);
-  this->point_[buffer_ptr_].setY(buffer_ptr_);
+  points_[buffer_ptr_]->setX(buffer_ptr_);
+  points_[buffer_ptr_]->setY(buffer_ptr_);
   const string buffer_name = makeUniqueInstName("clock_mesh_buffer",true);
-  buffers_[buffer_ptr_] = network_->makeInstance(buffer_cells_[0],
+  Instance* buffer_inst = network_->makeInstance(buffer_cells_[0],
                           buffer_name.c_str(),
                           nullptr);
-  dbInst* db_inst = resizer_->getDbNetwork()->staToDb(buffers_[buffer_ptr_]);
+  dbInst* db_inst =  network_->staToDb(buffer_inst);
+  buffers_.push_back(buffer_inst);
   //set the location
-  setLocation(db_inst, point_[buffer_ptr_]);
+  setLocation(db_inst, *points_[buffer_ptr_]);
   //call legalizer later
   //incremenet area of the design
-  resizer_->designAreaIncr(area(db_inst->getMaster()));
-
-  logger_->info(CMS, 95, "CMS added buffer: {} at point X: {} Y: {}",buffer_name, point_[buffer_ptr_].getX(),point_[buffer_ptr_].getY());
+  logger_->info(CMS, 95, "CMS added buffer: {} at point X: {} Y: {}",buffer_name, points_[buffer_ptr_]->getX(),points_[buffer_ptr_]->getY());
   buffer_ptr_++;
+  this->buffer_count++;
 }
 
 void
@@ -131,7 +125,7 @@ ClockMesh::findBuffers()
     while (lib_iter->hasNext()) {
       LibertyLibrary* lib = lib_iter->next();
       for (LibertyCell* buffer : *lib->buffers()) {
-        if (!resizer_->dontUse(buffer) && isLinkCell(buffer)) {
+        if (isLinkCell(buffer)) {
           buffer_cells_.emplace_back(buffer);
         }
       }
@@ -174,8 +168,10 @@ ClockMesh::bufferDriveResistance(const LibertyCell* buffer) const
 
 
 void
-ClockMesh::createGrid()
+ClockMesh::createMesh()
 {
+  //get length of grid intersection vector
+  //getIntersectionVector();
   findBuffers();
   //add one buffer for now
   addBuffer();
@@ -230,5 +226,7 @@ ClockMesh::setLocation(dbInst* db_inst, const Point& pt)
   //do proper placement later
   db_inst->setPlacementStatus(dbPlacementStatus::PLACED);
   db_inst->setLocation(x, y);
+  logger_->info(CMS, 695, "Placement of buffer at X: {} Y: {}",x,y);
 }
+
 } // namespace cms

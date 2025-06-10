@@ -348,6 +348,7 @@ _installUbuntuPackages() {
         flex \
         g++ \
         gcc \
+        gdb \
         git \
         groff \
         lcov \

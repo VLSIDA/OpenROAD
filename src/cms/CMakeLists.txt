@@ -14,43 +14,5 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-include("openroad")
-
-project(cms)
-
-swig_lib(NAME      cms
-         NAMESPACE cms
-         I_FILE    src/ClockMesh.i
-         SWIG_INCLUDES ${ODB_HOME}/src/include
-                       ${ODB_HOME}/src/swig/common
-                       ${ODB_HOME}/src/swig/tcl
-         SCRIPTS   src/ClockMesh.tcl
-)
-
-target_sources(cms
-  PRIVATE
-  
-  src/straps.cpp
-  
-  src/MakeClockMesh.cc
-  src/ClockMesh.cc
-)
-
-target_include_directories(cms
-  PUBLIC
-    include
-)
-
-target_link_libraries(cms
-    OpenSTA
-    odb
-    rsz_lib
-    utl_lib
-    dbSta_lib
-    gui
-    Boost::boost
-)
-
-messages(
-  TARGET cms
-)
+add_subdirectory(src)
+add_subdirectory(test)

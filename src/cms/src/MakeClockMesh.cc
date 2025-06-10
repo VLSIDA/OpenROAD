@@ -54,7 +54,6 @@ initClockMesh(OpenRoad *openroad)
   openroad->getCMS()->init(interp,
 			    openroad->getDb(),
           openroad->getDbNetwork(),
-          openroad->getResizer(),
           openroad->getLogger());
 }
 

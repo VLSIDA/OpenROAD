@@ -21,7 +21,6 @@
 #include "db_sta/dbNetwork.hh"
 #include "db_sta/dbSta.hh"
 #include "odb/db.h"
-#include "rsz/Resizer.hh"
 #include "sta/Sdc.hh"
 #include "sta/Liberty.hh"
 #include "sta/Network.hh"
@@ -31,11 +30,7 @@
 
 namespace utl {
 class Logger;
-}
-
-namespace rsz {
-class Resizer;
-} // namespace rsz
+} //  namespace utl
 
 namespace sta {
 class dbSta;
@@ -69,15 +64,23 @@ public:
   void init(Tcl_Interp *tcl_interp,
 	    odb::dbDatabase *db,
       sta::dbNetwork* network,
-      rsz::Resizer* resizer,
       utl::Logger* logger);
-  int dump_value();
-  int set_value(int value);
-  void addBuffer();
-  void createGrid();
-  void makeGrid();
+  int report_cms();
+  void createMesh();
+  std::string metricFile_ = "";
+  void setMetricsFile(const std::string& metricFile)
+  {
+    metricFile_ = metricFile;
+  }
+  const std::string getMetricsFile()
+  {
+    return metricFile_;
+  }
 private:
+  //functions
   std::string makeUniqueInstName(const char* base_name, bool underscore);
+  void makeGrid();
+  void addBuffer();
   void findBuffers();
   int createBufferArray(int amount);
   bool isLinkCell(LibertyCell* cell) const;
@@ -85,14 +88,15 @@ private:
   double area(dbMaster* master);
   double dbuToMeters(int dist) const;
   void setLocation(dbInst* db_inst, const Point& pt);
-  sta::Instance** buffers_ = nullptr; 
+  //attritubes
   odb::dbDatabase *db_ = nullptr;
-  Point* point_ = nullptr;
-  rsz::Resizer* resizer_ = nullptr;
   sta::dbNetwork* network_ = nullptr;
   utl::Logger* logger_ = nullptr;
-  int value_;
-  int buffer_ptr_;
+  std::vector<sta::Instance*> buffers_;
+  std::vector<Point*> points_;
+  int buffer_count = 0;
+  int strap_count = 0;
+  int buffer_ptr_ = 0;
   LibertyCellSeq buffer_cells_;
   int unique_inst_index_ = 1;
 };
