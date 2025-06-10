@@ -1,5 +1,5 @@
 or_integration_tests(
   "cms"
   TESTS
-    CMSTests
+    simple_test
 )

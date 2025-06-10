@@ -7,6 +7,8 @@ create_clock -period 5 clk
 
 set_wire_rc -clock -layer metal3
 
-report_cms -out_file results/CMSTestsOut
+report_cms
 
-diff_files results/CMSTestsOut CMSTests.ok
+set def_file [make_result_file simple_test_out.def]
+write_def $def_file
+diff_files simple_test_out.defok $def_file
