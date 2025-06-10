@@ -198,7 +198,7 @@ ClockMesh::makeGrid()
   }
 
   Straps straps_(layer, 0, 0);
-  // straps_.makeStraps(0, 0, 0, 0, 0, 0, true);
+  straps_.makeStraps(0, 0, 0, 0, 0, 0, true, obs_tree);
 }
 
 bool
