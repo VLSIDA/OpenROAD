@@ -22,6 +22,7 @@
 #include "shape.h"
 namespace cms {
 
+using odb::Point;
 class Shape; 
 
 class Straps
