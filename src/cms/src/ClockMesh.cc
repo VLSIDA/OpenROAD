@@ -180,11 +180,20 @@ ClockMesh::createMesh()
 void 
 ClockMesh::makeGrid()
 {
-  debugPrint(logger_, utl::CMS, "Make", 1, "Build - begin");
+  // Getting dbTechLayer
+  odb::dbTech* tech = db_->getTech();
+  odb::dbTechLayer* layer = tech->findLayer("M1");
+
+  // Getting ObstructionTree
+  ObstructionTree obs_tree;
+  
   auto* block = db_->getChip()->getBlock();
-  // dbSet<dbTrackGrid> tgs = block->getTrackGrids();
-  Straps straps_(0, 0);
-  straps_.makeStraps(0, 0, 0, 0, 0, 0, true);
+  for (odb::dbInst* inst : block->getInsts()) {
+    
+  }
+
+  Straps straps_(layer, 0, 0);
+  straps_.makeStraps(0, 0, 0, 0, 0, 0, true, obs_tree);
 }
 
 bool
@@ -205,6 +214,7 @@ ClockMesh::area(dbMaster* master)
 double
 ClockMesh::dbuToMeters(int dist) const
 {
+  int dbu_ = db_->getTech()->getDbUnitsPerMicron();
   return dist / (dbu_ * 1e+6);
 }
 

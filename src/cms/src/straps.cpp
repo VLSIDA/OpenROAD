@@ -43,37 +43,29 @@ Straps::Straps(int width,
   
 }
 
-// void Straps::makeStraps(int x_start,
-//                         int y_start,
-//                         int x_end,
-//                         int y_end,
-//                         int abs_start,
-//                         int abs_end,
-//                         bool is_delta_x,
-//                         const TechLayer& layer,
-//                         const Shape::ObstructionTree& avoid)
-// {
-
-// }
-
-void Straps::makeStraps(int x_start,
+std::vector<Point> Straps::makeStraps(int x_start,
                         int y_start,
                         int x_end,
                         int y_end,
                         int abs_start,
                         int abs_end,
-                        bool is_delta_x)
+                        bool is_delta_x,
+                        const ObstructionTree& avoid)
 {
+  std::vector<Point> buffer_pts;
+
   const int half_width = width_ / 2;
   int strap_count = 0;
 
   int pos = is_delta_x ? x_start : y_start;
   const int pos_end = is_delta_x ? x_end : y_end;
 
-  const std::vector<odb::dbNet*> nets;
+  std::set<odb::dbNet*> nets_;
   // TODO: getting nets logic
 
 
+
+  const std::vector<odb::dbNet*> nets(nets_.begin(), nets_.end());
   const int group_pitch = spacing_ + width_;
 
   // debugPrint(getLogger(),
@@ -117,11 +109,11 @@ void Straps::makeStraps(int x_start,
 
       if (strap_start >= pos_end) {
         // no portion of the strap is inside the limit
-        return;
+        return buffer_pts;
       }
       if (group_pos > pos_end) {
         // strap center is outside of alotted area
-        return;
+        return buffer_pts;
       }
 
       odb::Rect strap_rect;
@@ -133,10 +125,10 @@ void Straps::makeStraps(int x_start,
       group_pos += group_pitch;
       next_minimum_track = group_pos;
 
-      // if (avoid.qbegin(bgi::intersects(strap_rect)) != avoid.qend()) {
-      //   // dont add this strap as it intersects an avoidance
-      //   continue;
-      // }
+      if (avoid.qbegin(bgi::intersects(strap_rect)) != avoid.qend()) {
+        // dont add this strap as it intersects an avoidance
+        continue;
+      }
 
       if (is_delta_x) {
         if (strap_rect.xMin() < abs_start || strap_rect.xMax() > abs_end) {
@@ -147,15 +139,25 @@ void Straps::makeStraps(int x_start,
           continue;
         }
       }
-
+      // TODO: create addShape method for this. Should be this->layer_
       // addShape(
-      //     new Shape(layer_, net, strap_rect, odb::dbWireShapeType::STRIPE));
+      //     new Shape(layer_, net, strap_rect, odb::dbWireShapeType::BLOCKWIRE));
     }
     strap_count++;
     if (number_of_straps_ != 0 && strap_count == number_of_straps_) {
       // if number of straps is met, stop adding
-      return;
+      // create arbitrary buffer grid intersection points and return
+      buffer_pts.push_back({0, 0});
+      buffer_pts.push_back({0, 1});
+      buffer_pts.push_back({1, 0});
+      buffer_pts.push_back({1, 1});
+      return buffer_pts;
     }
   }
+  return buffer_pts;
+}
+
+int Straps::getNumberOfStraps() {
+  return number_of_straps_;
 }
 }  // namespace cms

@@ -3,6 +3,10 @@
 
 #pragma once
 
+#include <boost/geometry.hpp>
+#include <boost/geometry/index/rtree.hpp>
+#include <functional>
+#include <memory>
 #include <array>
 #include <map>
 #include <set>
@@ -10,9 +14,16 @@
 #include <vector>
 
 #include "odb/db.h"
+#include "odb/dbTypes.h"
+#include "odb/geom.h"
+#include "odb/geom_boost.h"
 // #include "odb/dbBlock.h"
 
+#include "shape.h"
 namespace cms {
+
+using odb::Point;
+class Shape; 
 
 class Straps
 {
@@ -28,23 +39,16 @@ class Straps
          int spacing = 0,
          int number_of_straps = 0);
   
-  // void makeStraps(int x_start,
-  //                 int y_start,
-  //                 int x_end,
-  //                 int y_end,
-  //                 int abs_start,
-  //                 int abs_end,
-  //                 bool is_delta_x,
-  //                 const TechLayer& layer,
-  //                 const Shape::ObstructionTree& avoid);
-  
-  void makeStraps(int x_start,
+  std::vector<Point> makeStraps(int x_start,
                   int y_start,
                   int x_end,
                   int y_end,
                   int abs_start,
                   int abs_end,
-                  bool is_delta_x);
+                  bool is_delta_x,
+                  const ObstructionTree& avoid);
+
+  int getNumberOfStraps();
 
  private:
   odb::dbTechLayer* layer_;
