@@ -31,6 +31,7 @@ using sta::LibertyLibrary;
 using sta::LibertyLibrarySeq;
 using sta::LibertyPort;
 using odb::dbPlacementStatus;
+using sta::dbStaState;
 
 // Tcl files encoded into strings.
 extern const char *cms_tcl_inits[];
@@ -44,7 +45,7 @@ ClockMesh::ClockMesh()
 ClockMesh::~ClockMesh()
 {
   for (Instance* instance : buffers_) {
-    network_->deleteInstance(instance);
+    db_network_->deleteInstance(instance);
   }
   buffers_.clear();
   for (Point* point : points_) {
@@ -57,12 +58,14 @@ ClockMesh::~ClockMesh()
 void
 ClockMesh::init(Tcl_Interp* tcl_interp,
 	   odb::dbDatabase* db,
-     sta::dbNetwork* network,
+     sta::dbNetwork* db_network,
+     sta::dbSta* sta,
      utl::Logger* logger)
 {
   db_ = db;
   logger_ = logger;
-  network_ = network;
+  db_network_ = db_network;
+  sta::dbStaState::init(sta);
   // Define swig TCL commands.
   Cms_Init(tcl_interp);
   // Eval encoded cms TCL sources.
@@ -103,10 +106,10 @@ ClockMesh::addBuffer()
   points_[buffer_ptr_]->setX(buffer_ptr_);
   points_[buffer_ptr_]->setY(buffer_ptr_);
   const string buffer_name = makeUniqueInstName("clock_mesh_buffer",true);
-  Instance* buffer_inst = network_->makeInstance(buffer_cells_[0],
+  Instance* buffer_inst = db_network_->makeInstance(buffer_cells_[0],
                           buffer_name.c_str(),
                           nullptr);
-  dbInst* db_inst =  network_->staToDb(buffer_inst);
+  dbInst* db_inst =  db_network_->staToDb(buffer_inst);
   buffers_.push_back(buffer_inst);
   //set the location
   setLocation(db_inst, *points_[buffer_ptr_]);

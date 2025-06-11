@@ -55,8 +55,10 @@ using sta::LibertyCell;
 using sta::LibertyCellSeq;
 using sta::LibertyLibrary;
 using sta::LibertyLibrarySeq;
+using sta::Network;
+using sta::dbStaState;
 
-class ClockMesh
+class ClockMesh : public sta::dbStaState
 {
 public:
   ClockMesh();
@@ -64,6 +66,7 @@ public:
   void init(Tcl_Interp *tcl_interp,
 	    odb::dbDatabase *db,
       sta::dbNetwork* network,
+      sta::dbSta* sta,
       utl::Logger* logger);
   int report_cms();
   void createMesh();
@@ -90,7 +93,7 @@ private:
   void setLocation(dbInst* db_inst, const Point& pt);
   //attritubes
   odb::dbDatabase *db_ = nullptr;
-  sta::dbNetwork* network_ = nullptr;
+  sta::dbNetwork* db_network_ = nullptr;
   utl::Logger* logger_ = nullptr;
   std::vector<sta::Instance*> buffers_;
   std::vector<Point*> points_;
