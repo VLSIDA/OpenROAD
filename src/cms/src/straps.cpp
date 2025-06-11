@@ -88,6 +88,9 @@ std::vector<Point> Straps::makeStraps(int x_start,
 
   int next_minimum_track = std::numeric_limits<int>::lowest();
   for (pos += offset_; pos <= pos_end; pos += pitch_) {
+    if (pitch_ == 0) {
+      break;
+    }
     int group_pos = pos;
     
     for (auto* net : nets) {

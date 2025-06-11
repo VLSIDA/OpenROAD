@@ -178,8 +178,8 @@ ClockMesh::createMesh()
   //getIntersectionVector();
   Point* new_point = new Point(0,0);
   points_.emplace_back(new_point);
+  makeGrid();
   findBuffers();
-  //add one buffer for now
   addBuffer();
 }
 
@@ -199,7 +199,11 @@ ClockMesh::makeGrid()
   }
 
   Straps straps_(layer, 0, 0);
-  straps_.makeStraps(0, 0, 0, 0, 0, 0, true, obs_tree);
+  std::vector<odb::Point> strap_points = straps_.makeStraps(0, 0, 0, 0, 0, 0, true, obs_tree);
+  // for (int i = 0; i < strap_points.size(); i++) {
+  //   points_[i] = std::copy(strap_points[i]);
+  // }
+  this->strap_count += points_.size();
 }
 
 bool
