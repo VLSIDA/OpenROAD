@@ -106,13 +106,14 @@ ClockMesh::addBuffer()
   points_[buffer_ptr_]->setX(buffer_ptr_);
   points_[buffer_ptr_]->setY(buffer_ptr_);
   const string buffer_name = makeUniqueInstName("clock_mesh_buffer",true);
+  Instance* parent = db_network_->topInstance();
   Instance* buffer_inst = db_network_->makeInstance(buffer_cells_[0],
                           buffer_name.c_str(),
-                          nullptr);
+                          parent);
   dbInst* db_inst =  db_network_->staToDb(buffer_inst);
   buffers_.push_back(buffer_inst);
   //set the location
-  setLocation(db_inst, *points_[buffer_ptr_]);
+  setLocation(db_inst, points_[buffer_ptr_]);
   //call legalizer later
   //incremenet area of the design
   logger_->info(CMS, 95, "CMS added buffer: {} at point X: {} Y: {}",buffer_name, points_[buffer_ptr_]->getX(),points_[buffer_ptr_]->getY());
@@ -175,6 +176,8 @@ ClockMesh::createMesh()
 {
   //get length of grid intersection vector
   //getIntersectionVector();
+  Point* new_point = new Point(0,0);
+  points_.emplace_back(new_point);
   findBuffers();
   //add one buffer for now
   addBuffer();
@@ -222,13 +225,13 @@ ClockMesh::dbuToMeters(int dist) const
 }
 
 void
-ClockMesh::setLocation(dbInst* db_inst, const Point& pt)
+ClockMesh::setLocation(dbInst* db_inst, const Point* pt)
 {
-  int x = pt.x();
-  int y = pt.y();
+  int x = pt->x();
+  int y = pt->y();
   //do proper placement later
-  db_inst->setPlacementStatus(dbPlacementStatus::PLACED);
   db_inst->setLocation(x, y);
+  db_inst->setPlacementStatus(dbPlacementStatus::PLACED);
   logger_->info(CMS, 695, "Placement of buffer at X: {} Y: {}",x,y);
 }
 

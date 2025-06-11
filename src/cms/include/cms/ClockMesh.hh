@@ -90,7 +90,7 @@ private:
   float bufferDriveResistance(const LibertyCell* buffer) const;
   double area(dbMaster* master);
   double dbuToMeters(int dist) const;
-  void setLocation(dbInst* db_inst, const Point& pt);
+  void setLocation(dbInst* db_inst, const Point* pt);
   //attritubes
   odb::dbDatabase *db_ = nullptr;
   sta::dbNetwork* db_network_ = nullptr;
