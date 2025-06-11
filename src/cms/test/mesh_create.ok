@@ -1,0 +1,12 @@
+[INFO ODB-0227] LEF file: Nangate45/Nangate45.lef, created 22 layers, 27 vias, 135 library cells
+[INFO ODB-0128] Design: test_16_sinks
+[INFO ODB-0130]     Created 1 pins.
+[INFO ODB-0131]     Created 16 components and 96 component-terminals.
+[INFO ODB-0133]     Created 1 nets and 16 connections.
+[INFO CMS-0695] Placement of buffer at X: 0 Y: 0
+[INFO CMS-0095] CMS added buffer: clock_mesh_buffer_1 at point X: 0 Y: 0
+[INFO CMS-0189] Added 1 buffers
+[INFO CMS-0190] Added 1 straps
+[INFO CMS-0192] CMS added buffer #0: at point X: 0 Y: 0
+No differences found.
+[CRITICAL ORD-2016] instance is not Inst or ModInst
