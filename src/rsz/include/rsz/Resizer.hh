@@ -112,6 +112,7 @@ class RepairHold;
 class Rebuffer;
 class ResizerObserver;
 class ConcreteSwapArithModules;
+class ViolatorCollector;
 
 class CloneMove;
 class BufferMove;
@@ -710,6 +711,7 @@ class Resizer : public dbStaState, public dbNetworkObserver
   std::unique_ptr<ConcreteSwapArithModules> swap_arith_modules_;
   std::unique_ptr<AbstractSteinerRenderer> steiner_renderer_;
   std::unique_ptr<Rebuffer> rebuffer_;
+  std::unique_ptr<ViolatorCollector> violator_collector_;
 
   // Layer RC per wire length indexed by layer->getNumber(), corner->index
   std::vector<std::vector<double>> layer_res_;  // ohms/meter
@@ -849,6 +851,7 @@ class Resizer : public dbStaState, public dbNetworkObserver
   friend class IncrementalParasiticsGuard;
   friend class Rebuffer;
   friend class OdbCallBack;
+  friend class ViolatorCollector;
 };
 
 class IncrementalParasiticsGuard

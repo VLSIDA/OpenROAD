@@ -32,6 +32,7 @@
 #include "SplitLoadMove.hh"
 #include "SwapPinsMove.hh"
 #include "UnbufferMove.hh"
+#include "ViolatorCollector.hh"
 #include "boost/multi_array.hpp"
 #include "db_sta/dbNetwork.hh"
 #include "sta/ArcDelayCalc.hh"
@@ -168,6 +169,8 @@ void Resizer::init(Logger* logger,
   split_load_move_ = std::make_unique<SplitLoadMove>(this);
   swap_pins_move_ = std::make_unique<SwapPinsMove>(this);
   unbuffer_move_ = std::make_unique<UnbufferMove>(this);
+
+  violator_collector_ = std::make_unique<ViolatorCollector>(this);
 }
 
 ////////////////////////////////////////////////////////////////
@@ -3690,6 +3693,15 @@ bool Resizer::repairSetup(double setup_margin,
                           bool skip_buffer_removal,
                           bool skip_last_gasp)
 {
+  violator_collector_->init();
+  violator_collector_->collectBySlack();
+  // violator_collector_->printViolators(100);
+  violator_collector_->printHistogram();
+
+  violator_collector_->collectByPaths();
+  // violator_collector_->printViolators(100);
+  violator_collector_->printHistogram();
+
   utl::SetAndRestore set_match_footprint(match_cell_footprint_,
                                          match_cell_footprint);
   resizePreamble();
