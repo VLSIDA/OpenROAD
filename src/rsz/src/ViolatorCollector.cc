@@ -272,10 +272,10 @@ set<const Pin*> ViolatorCollector::collectPinsByPathEndpoint(
   set<const Pin*> viol_pins;
 
   // 1. Define the single endpoint for the path search.
-  sta::PinSet to_pins(network_);
-  to_pins.insert(endpoint_pin);
+  sta::PinSet* to_pins = new sta::PinSet(network_);
+  to_pins->insert(endpoint_pin);
   // The ExceptionTo object will be owned and deleted by the SDC.
-  sta::ExceptionTo* to = sdc_->makeExceptionTo(&to_pins,
+  sta::ExceptionTo* to = sdc_->makeExceptionTo(to_pins,
                                                nullptr,
                                                nullptr,
                                                sta::RiseFallBoth::riseFall(),
