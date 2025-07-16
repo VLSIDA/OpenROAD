@@ -208,27 +208,28 @@ bool CloneMove::doMove(const Path* drvr_path,
 
   while (inst_pin_iter->hasNext()) {
     Pin* pin = inst_pin_iter->next();
-    if (network_->direction(pin)->isInput()) {
-      // Connect to all the inputs of the original cell.
-      auto libPort = network_->libertyPort(
-          pin);  // get the liberty port of the original inst/pin
-      // Hierarchy fix: make sure modnet on input supported
-      dbNet* dbnet = db_network_->flatNet(pin);
-      odb::dbModNet* modnet = db_network_->hierNet(pin);
-      // get the iterm
-      Pin* clone_pin = db_network_->findPin(clone_inst, libPort->name());
-      dbITerm* iterm = db_network_->flatPin(clone_pin);
+    if (!network_->direction(pin)->isInput()) {
+      continue;
+    }
+    // Connect to all the inputs of the original cell.
+    auto libPort = network_->libertyPort(
+        pin);  // get the liberty port of the original inst/pin
+    // Hierarchy fix: make sure modnet on input supported
+    dbNet* dbnet = db_network_->flatNet(pin);
+    odb::dbModNet* modnet = db_network_->hierNet(pin);
+    // get the iterm
+    Pin* clone_pin = db_network_->findPin(clone_inst, libPort->name());
+    dbITerm* iterm = db_network_->flatPin(clone_pin);
 
-      sta_->connectPin(
-          clone_inst,
-          libPort,
-          db_network_->dbToSta(
-              dbnet));  // connect the same liberty port of the new instance
+    sta_->connectPin(
+        clone_inst,
+        libPort,
+        db_network_->dbToSta(
+            dbnet));  // connect the same liberty port of the new instance
 
-      // Hierarchy fix
-      if (modnet) {
-        iterm->connect(modnet);
-      }
+    // Hierarchy fix
+    if (modnet) {
+      iterm->connect(modnet);
     }
   }
 
@@ -264,23 +265,25 @@ bool CloneMove::doMove(const Path* drvr_path,
 
     // Leave top level ports connected to original net so verilog port names are
     // preserved.
-    if (!network_->isTopLevelPort(load_pin)) {
-      auto* load_port = network_->port(load_pin);
-      Instance* load = network_->instance(load_pin);
-      Instance* load_parent_inst
-          = db_network_->getOwningInstanceParent(load_pin);
+    if (network_->isTopLevelPort(load_pin)) {
+      continue;
+    }
 
-      // disconnects everything
-      sta_->disconnectPin(load_pin);
-      // hierarchy fix: if load and clone in different modules
-      // do the cross module wiring.
-      if (load_parent_inst != parent) {
-        std::string unique_connection_name = resizer_->makeUniqueNetName();
-        db_network_->hierarchicalConnect(
-            clone_output_iterm, load_iterm, unique_connection_name.c_str());
-      } else {
-        sta_->connectPin(load, load_port, out_net);
-      }
+    auto* load_port = network_->port(load_pin);
+    Instance* load = network_->instance(load_pin);
+    Instance* load_parent_inst
+        = db_network_->getOwningInstanceParent(load_pin);
+
+    // disconnects everything
+    sta_->disconnectPin(load_pin);
+    // hierarchy fix: if load and clone in different modules
+    // do the cross module wiring.
+    if (load_parent_inst != parent) {
+      std::string unique_connection_name = resizer_->makeUniqueNetName();
+      db_network_->hierarchicalConnect(
+          clone_output_iterm, load_iterm, unique_connection_name.c_str());
+    } else {
+      sta_->connectPin(load, load_port, out_net);
     }
   }
   return true;
