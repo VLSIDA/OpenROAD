@@ -64,23 +64,8 @@ bool BufferMove::doMove(const Path* drvr_path,
   }
 
   const int rebuffer_count = rebuffer(drvr_pin);
-  if (rebuffer_count > 0) {
-    debugPrint(logger_,
-               RSZ,
-               "repair_setup",
-               3,
-               "rebuffer {} inserted {}",
-               network_->pathName(drvr_pin),
-               rebuffer_count);
-    debugPrint(logger_,
-               RSZ,
-               "opt_moves",
-               1,
-               "ACCEPT buffer {} inserted {}",
-               network_->pathName(drvr_pin),
-               rebuffer_count);
-    addMove(drvr_inst, rebuffer_count);
-  } else {
+
+  if (rebuffer_count == 0) {
     debugPrint(logger_,
                RSZ,
                "opt_moves",
@@ -88,8 +73,25 @@ bool BufferMove::doMove(const Path* drvr_path,
                "REJECT buffer {} inserted {}",
                network_->pathName(drvr_pin),
                rebuffer_count);
+    return false;
   }
-  return rebuffer_count > 0;
+
+  debugPrint(logger_,
+             RSZ,
+             "repair_setup",
+             3,
+             "rebuffer {} inserted {}",
+             network_->pathName(drvr_pin),
+             rebuffer_count);
+  debugPrint(logger_,
+             RSZ,
+             "opt_moves",
+             1,
+             "ACCEPT buffer {} inserted {}",
+             network_->pathName(drvr_pin),
+             rebuffer_count);
+  addMove(drvr_inst, rebuffer_count);
+  return true;
 }
 
 void BufferMove::debugCheckMultipleBuffers(Path* path, PathExpanded* expanded)
