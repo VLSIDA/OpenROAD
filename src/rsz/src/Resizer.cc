@@ -32,7 +32,6 @@
 #include "SplitLoadMove.hh"
 #include "SwapPinsMove.hh"
 #include "UnbufferMove.hh"
-#include "ViolatorCollector.hh"
 #include "boost/multi_array.hpp"
 #include "db_sta/dbNetwork.hh"
 #include "sta/ArcDelayCalc.hh"
@@ -50,9 +49,7 @@
 #include "sta/PortDirection.hh"
 #include "sta/Sdc.hh"
 #include "sta/Search.hh"
-#include "sta/StaMain.hh"
 #include "sta/TimingArc.hh"
-#include "sta/TimingModel.hh"
 #include "sta/Units.hh"
 #include "utl/Logger.h"
 #include "utl/scope.h"
@@ -169,8 +166,6 @@ void Resizer::init(Logger* logger,
   split_load_move_ = std::make_unique<SplitLoadMove>(this);
   swap_pins_move_ = std::make_unique<SwapPinsMove>(this);
   unbuffer_move_ = std::make_unique<UnbufferMove>(this);
-
-  violator_collector_ = std::make_unique<ViolatorCollector>(this);
 }
 
 ////////////////////////////////////////////////////////////////
@@ -3693,15 +3688,6 @@ bool Resizer::repairSetup(double setup_margin,
                           bool skip_buffer_removal,
                           bool skip_last_gasp)
 {
-  violator_collector_->init();
-  violator_collector_->collectBySlack();
-  // violator_collector_->printViolators(100);
-  violator_collector_->printHistogram();
-
-  violator_collector_->collectByPaths();
-  // violator_collector_->printViolators(100);
-  violator_collector_->printHistogram();
-
   utl::SetAndRestore set_match_footprint(match_cell_footprint_,
                                          match_cell_footprint);
   resizePreamble();
@@ -3709,18 +3695,18 @@ bool Resizer::repairSetup(double setup_margin,
       || parasitics_src_ == ParasiticsSrc::detailed_routing) {
     opendp_->initMacrosAndGrid();
   }
-  return repair_setup_->repairSetup(setup_margin,
-                                    repair_tns_end_percent,
-                                    max_passes,
-                                    max_repairs_per_pass,
-                                    verbose,
-                                    sequence,
-                                    skip_pin_swap,
-                                    skip_gate_cloning,
-                                    skip_size_down,
-                                    skip_buffering,
-                                    skip_buffer_removal,
-                                    skip_last_gasp);
+  return repair_setup_->repairSetup2(setup_margin,
+                                     repair_tns_end_percent,
+                                     max_passes,
+                                     max_repairs_per_pass,
+                                     verbose,
+                                     sequence,
+                                     skip_pin_swap,
+                                     skip_gate_cloning,
+                                     skip_size_down,
+                                     skip_buffering,
+                                     skip_buffer_removal,
+                                     skip_last_gasp);
 }
 
 void Resizer::reportSwappablePins()

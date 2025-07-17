@@ -3,13 +3,11 @@
 
 #pragma once
 #include <boost/functional/hash.hpp>
-#include <unordered_set>
 #include <vector>
 
 #include "db_sta/dbNetwork.hh"
 #include "db_sta/dbSta.hh"
 #include "rsz/Resizer.hh"
-#include "sta/FuncExpr.hh"
 #include "sta/MinMax.hh"
 #include "sta/StaState.hh"
 #include "utl/Logger.h"
@@ -23,6 +21,7 @@ namespace rsz {
 class Resizer;
 class RemoveBuffer;
 class BaseMove;
+class ViolatorCollector;
 
 using odb::Point;
 using utl::Logger;
@@ -81,6 +80,20 @@ class RepairSetup : public sta::dbStaState
                    bool skip_buffering,
                    bool skip_buffer_removal,
                    bool skip_last_gasp);
+  bool repairSetup2(float setup_slack_margin,
+                    // Percent of violating ends to repair to
+                    // reduce tns (0.0-1.0).
+                    double repair_tns_end_percent,
+                    int max_passes,
+                    int max_repairs_per_pass,
+                    bool verbose,
+                    const std::vector<MoveType>& sequence,
+                    bool skip_pin_swap,
+                    bool skip_gate_cloning,
+                    bool skip_size_down,
+                    bool skip_buffering,
+                    bool skip_buffer_removal,
+                    bool skip_last_gasp);
   // For testing.
   void repairSetup(const Pin* end_pin);
   // For testing.
@@ -90,7 +103,15 @@ class RepairSetup : public sta::dbStaState
 
  private:
   void init();
+  void setupMoveSequence(const std::vector<MoveType>& sequence,
+                         bool skip_pin_swap,
+                         bool skip_gate_cloning,
+                         bool skip_size_down,
+                         bool skip_buffering,
+                         bool skip_buffer_removal);
+  bool repairSetupPostlog(float setup_slack_margin);
   bool repairPath(Path* path, Slack path_slack, float setup_slack_margin);
+  bool repairPins(std::vector<const Pin*>& pins, float setup_slack_margin);
   int fanout(Vertex* vertex);
   bool hasTopLevelOutputPort(Net* net);
 
@@ -110,6 +131,8 @@ class RepairSetup : public sta::dbStaState
   Logger* logger_ = nullptr;
   dbNetwork* db_network_ = nullptr;
   Resizer* resizer_;
+
+  std::unique_ptr<ViolatorCollector> violator_collector_;
 
   bool fallback_ = false;
   float min_viol_ = 0.0;
