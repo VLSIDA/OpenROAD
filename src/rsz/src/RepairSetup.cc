@@ -831,109 +831,62 @@ int RepairSetup::fanout(Vertex* vertex)
   return fanout;
 }
 
-bool RepairSetup::repairPins(std::vector<const Pin*> pins,
+bool RepairSetup::repairPins(std::vector<const Pin*>& pins,
                              const float setup_slack_margin)
 {
-  PathExpanded expanded(path, sta_);
   int changed = 0;
 
-  if (expanded.size() > 1) {
-    const int path_length = expanded.size();
-    vector<pair<int, Delay>> load_delays;
-    const int start_index = expanded.startIndex();
-    const DcalcAnalysisPt* dcalc_ap = path->dcalcAnalysisPt(sta_);
-    const int lib_ap = dcalc_ap->libertyIndex();
-    // Find load delay for each gate in the path.
-    for (int i = start_index; i < path_length; i++) {
-      const Path* path = expanded.path(i);
-      Vertex* path_vertex = path->vertex(sta_);
-      const Pin* path_pin = path->pin(sta_);
-      if (i > 0 && network_->isDriver(path_pin)
-          && !network_->isTopLevelPort(path_pin)) {
-        const TimingArc* prev_arc = path->prevArc(sta_);
-        const TimingArc* corner_arc = prev_arc->cornerArc(lib_ap);
-        Edge* prev_edge = path->prevEdge(sta_);
-        const Delay load_delay
-            = graph_->arcDelay(prev_edge, prev_arc, dcalc_ap->index())
-              // Remove intrinsic delay to find load dependent delay.
-              - corner_arc->intrinsicDelay();
-        load_delays.emplace_back(i, load_delay);
-        debugPrint(logger_,
-                   RSZ,
-                   "repair_setup",
-                   3,
-                   "{} load_delay = {} intrinsic_delay = {}",
-                   path_vertex->name(network_),
-                   delayAsString(load_delay, sta_, 3),
-                   delayAsString(corner_arc->intrinsicDelay(), sta_, 3));
-      }
+  if (pins.size() == 0) {
+    return false;
+  }
+  int repairs_per_pass = 10;
+  if (fallback_) {
+    repairs_per_pass = 1;
+  }
+  for (const auto& drvr_pin : pins) {
+    if (changed >= repairs_per_pass) {
+      break;
     }
-
-    // Attack gates with largest load delays first.
-    int repairs_per_pass = 10;
-    if (fallback_) {
-      repairs_per_pass = 1;
-    }
+    Vertex* drvr_vertex = graph_->pinDrvrVertex(drvr_pin);
+    LibertyPort* drvr_port = network_->libertyPort(drvr_pin);
+    LibertyCell* drvr_cell = drvr_port ? drvr_port->libertyCell() : nullptr;
+    const int fanout = this->fanout(drvr_vertex);
     debugPrint(logger_,
                RSZ,
                "repair_setup",
                3,
-               "Path slack: {}, repairs: {}, load_delays: {}",
-               delayAsString(path_slack, sta_, 3),
-               repairs_per_pass,
-               load_delays.size());
-    for (const auto& [drvr_index, ignored] : load_delays) {
-      if (changed >= repairs_per_pass) {
-        break;
-      }
-      const Path* drvr_path = expanded.path(drvr_index);
-      Vertex* drvr_vertex = drvr_path->vertex(sta_);
-      const Pin* drvr_pin = drvr_vertex->pin();
-      LibertyPort* drvr_port = network_->libertyPort(drvr_pin);
-      LibertyCell* drvr_cell = drvr_port ? drvr_port->libertyCell() : nullptr;
-      const int fanout = this->fanout(drvr_vertex);
+               "{} {} fanout = {} ",
+               network_->pathName(drvr_pin),
+               drvr_cell ? drvr_cell->name() : "none",
+               fanout);
+
+    for (BaseMove* move : move_sequence) {
       debugPrint(logger_,
                  RSZ,
                  "repair_setup",
-                 3,
-                 "{} {} fanout = {} drvr_index = {}",
-                 network_->pathName(drvr_pin),
-                 drvr_cell ? drvr_cell->name() : "none",
-                 fanout,
-                 drvr_index);
+                 1,
+                 "Considering {} for {}",
+                 move->name(),
+                 network_->pathName(drvr_pin));
 
-      for (BaseMove* move : move_sequence) {
-        debugPrint(logger_,
-                   RSZ,
-                   "repair_setup",
-                   1,
-                   "Considering {} for {}",
-                   move->name(),
-                   network_->pathName(drvr_pin));
-
-        if (move->doMove(drvr_path,
-                         drvr_index,
-                         path_slack,
-                         &expanded,
-                         setup_slack_margin)) {
-          if (move == resizer_->unbuffer_move_.get()) {
-            // Only allow one unbuffer move per pass to
-            // prevent the use-after-free error of multiple buffer removals.
-            changed += repairs_per_pass;
-          } else {
-            changed++;
-          }
-          // Move on to the next gate
-          break;
+      if (move->doMove(drvr_pin, setup_slack_margin)) {
+        if (move == resizer_->unbuffer_move_.get()) {
+          // Only allow one unbuffer move per pass to
+          // prevent the use-after-free error of multiple buffer removals.
+          changed += repairs_per_pass;
+        } else {
+          changed++;
         }
-        debugPrint(logger_,
-                   RSZ,
-                   "repair_setup",
-                   2,
-                   "Move {} failed for {}",
-                   move->name(),
-                   network_->pathName(drvr_pin));
+        // Move on to the next gate
+        break;
       }
+      debugPrint(logger_,
+                 RSZ,
+                 "repair_setup",
+                 2,
+                 "Move {} failed for {}",
+                 move->name(),
+                 network_->pathName(drvr_pin));
     }
   }
   return changed > 0;
@@ -1050,9 +1003,7 @@ bool RepairSetup::repairPath(Path* path,
                    move->name(),
                    network_->pathName(drvr_pin));
 
-        if (move->doMove(drvr_path,
-                         path_slack,
-                         setup_slack_margin)) {
+        if (move->doMove(drvr_path, path_slack, setup_slack_margin)) {
           if (move == resizer_->unbuffer_move_.get()) {
             // Only allow one unbuffer move per pass to
             // prevent the use-after-free error of multiple buffer removals.
