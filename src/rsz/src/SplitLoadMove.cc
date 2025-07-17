@@ -92,20 +92,21 @@ bool SplitLoadMove::doMove(const Path* drvr_path,
   while (edge_iter.hasNext()) {
     Edge* edge = edge_iter.next();
     // Watch out for problematic asap7 output->output timing arcs.
-    if (edge->isWire()) {
-      Vertex* fanout_vertex = edge->to(graph_);
-      const Slack fanout_slack
-          = sta_->vertexSlack(fanout_vertex, rf, resizer_->max_);
-      const Slack slack_margin = fanout_slack - drvr_slack;
-      debugPrint(logger_,
-                 RSZ,
-                 "split_load",
-                 4,
-                 " fanin {} slack_margin = {}",
-                 network_->pathName(fanout_vertex->pin()),
-                 delayAsString(slack_margin, sta_, 3));
-      fanout_slacks.emplace_back(fanout_vertex, slack_margin);
+    if (!edge->isWire()) {
+      continue;
     }
+    Vertex* fanout_vertex = edge->to(graph_);
+    const Slack fanout_slack
+        = sta_->vertexSlack(fanout_vertex, rf, resizer_->max_);
+    const Slack slack_margin = fanout_slack - drvr_slack;
+    debugPrint(logger_,
+               RSZ,
+               "split_load",
+               4,
+               " fanin {} slack_margin = {}",
+               network_->pathName(fanout_vertex->pin()),
+               delayAsString(slack_margin, sta_, 3));
+    fanout_slacks.emplace_back(fanout_vertex, slack_margin);
   }
 
   sort(fanout_slacks.begin(),
@@ -208,46 +209,46 @@ bool SplitLoadMove::doMove(const Path* drvr_path,
 
     // Leave ports connected to original net so verilog port names are
     // preserved.
-    if (!network_->isTopLevelPort(load_pin)) {
-      LibertyPort* load_port = network_->libertyPort(load_pin);
-      Instance* load = network_->instance(load_pin);
-      (void) (load_port);
-      (void) (load);
+    if (network_->isTopLevelPort(load_pin)) {
+      continue;
+    }
 
-      // stash the modnet,if any,  for the load
-      odb::dbModNet* db_mod_load_net = db_network_->hierNet(load_pin);
+    LibertyPort* load_port = network_->libertyPort(load_pin);
+    Instance* load = network_->instance(load_pin);
+    (void) (load_port);
+    (void) (load);
 
-      // This will kill both the flat (dbNet) and hier (modnet) connection
-      load_iterm->disconnect();
+    // stash the modnet,if any,  for the load
+    odb::dbModNet* db_mod_load_net = db_network_->hierNet(load_pin);
 
-      // Flat connection to dbNet
-      load_iterm->connect(db_network_->staToDb(out_net));
+    // This will kill both the flat (dbNet) and hier (modnet) connection
+    load_iterm->disconnect();
 
-      //
-      // H-Fix. Support connecting across hierachy.
-      //
-      Instance* load_parent = db_network_->getOwningInstanceParent(load_pin);
+    // Flat connection to dbNet
+    load_iterm->connect(db_network_->staToDb(out_net));
 
-      if (load_parent != parent) {
-        std::string unique_connection_name = resizer_->makeUniqueNetName();
-        odb::dbITerm* buffer_op_pin_iterm = db_network_->flatPin(buffer_op_pin);
-        odb::dbITerm* load_pin_iterm = db_network_->flatPin(load_pin);
-        if (load_pin_iterm && buffer_op_pin_iterm) {
-          db_network_->hierarchicalConnect(buffer_op_pin_iterm,
-                                           load_pin_iterm,
-                                           unique_connection_name.c_str());
-        }
-      } else {
-        if (load_iterm && db_mod_load_net) {
-          // For hierarchical case, we simultaneously connect the
-          // hierarchical net and the modnet to make sure they
-          // get reassociated. (so all modnet pins refer to flat net).
-          load_iterm->disconnect();
-          db_network_->connectPin(
-              load_pin, (Net*) out_net, (Net*) db_mod_load_net);
-          //          iterm->connect(db_mod_load_net);
-        }
+    //
+    // H-Fix. Support connecting across hierachy.
+    //
+    Instance* load_parent = db_network_->getOwningInstanceParent(load_pin);
+
+    if (load_parent != parent) {
+      std::string unique_connection_name = resizer_->makeUniqueNetName();
+      odb::dbITerm* buffer_op_pin_iterm = db_network_->flatPin(buffer_op_pin);
+      odb::dbITerm* load_pin_iterm = db_network_->flatPin(load_pin);
+      if (load_pin_iterm && buffer_op_pin_iterm) {
+        db_network_->hierarchicalConnect(buffer_op_pin_iterm,
+                                         load_pin_iterm,
+                                         unique_connection_name.c_str());
       }
+    } else if (load_iterm && db_mod_load_net) {
+      // For hierarchical case, we simultaneously connect the
+      // hierarchical net and the modnet to make sure they
+      // get reassociated. (so all modnet pins refer to flat net).
+      load_iterm->disconnect();
+      db_network_->connectPin(
+          load_pin, (Net*) out_net, (Net*) db_mod_load_net);
+      //          iterm->connect(db_mod_load_net);
     }
   }
 
