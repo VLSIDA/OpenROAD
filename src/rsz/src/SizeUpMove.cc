@@ -45,55 +45,54 @@ bool SizeUpMove::doMove(const Path* drvr_path,
 
   // We always size the cloned gates for some reason, but it would be good if we
   // also down-sized here instead since we might want smaller original.
-  if (!resizer_->dontTouch(drvr)
-      || resizer_->clone_move_->hasPendingMoves(drvr)) {
-    float prev_drive;
-    if (drvr_index >= 2) {
-      const int prev_drvr_index = drvr_index - 2;
-      const Path* prev_drvr_path = expanded->path(prev_drvr_index);
-      Pin* prev_drvr_pin = prev_drvr_path->pin(sta_);
-      prev_drive = 0.0;
-      LibertyPort* prev_drvr_port = network_->libertyPort(prev_drvr_pin);
-      if (prev_drvr_port) {
-        prev_drive = prev_drvr_port->driveResistance();
-      }
-    } else {
-      prev_drive = 0.0;
+  if (resizer_->dontTouch(drvr) && !resizer_->clone_move_->hasPendingMoves(drvr)) {
+    return false;
+  }
+  float prev_drive;
+  if (drvr_index >= 2) {
+    const int prev_drvr_index = drvr_index - 2;
+    const Path* prev_drvr_path = expanded->path(prev_drvr_index);
+    Pin* prev_drvr_pin = prev_drvr_path->pin(sta_);
+    prev_drive = 0.0;
+    LibertyPort* prev_drvr_port = network_->libertyPort(prev_drvr_pin);
+    if (prev_drvr_port) {
+      prev_drive = prev_drvr_port->driveResistance();
     }
+  } else {
+    prev_drive = 0.0;
+  }
 
-    LibertyPort* drvr_port = network_->libertyPort(drvr_pin);
-    LibertyCell* upsize
-        = upsizeCell(in_port, drvr_port, load_cap, prev_drive, dcalc_ap);
+  LibertyPort* drvr_port = network_->libertyPort(drvr_pin);
+  LibertyCell* upsize
+      = upsizeCell(in_port, drvr_port, load_cap, prev_drive, dcalc_ap);
 
-    if (upsize && !resizer_->dontTouch(drvr) && replaceCell(drvr, upsize)) {
-      debugPrint(logger_,
-                 RSZ,
-                 "opt_moves",
-                 1,
-                 "ACCEPT size_up {} {} -> {}",
-                 network_->pathName(drvr_pin),
-                 drvr_port->libertyCell()->name(),
-                 upsize->name());
-      debugPrint(logger_,
-                 RSZ,
-                 "repair_setup",
-                 3,
-                 "size_up {} {} -> {}",
-                 network_->pathName(drvr_pin),
-                 drvr_port->libertyCell()->name(),
-                 upsize->name());
-      addMove(drvr);
-      return true;
-    }
+  if (upsize && !resizer_->dontTouch(drvr) && replaceCell(drvr, upsize)) {
     debugPrint(logger_,
                RSZ,
                "opt_moves",
-               3,
-               "REJECT size_up {} {}",
+               1,
+               "ACCEPT size_up {} {} -> {}",
                network_->pathName(drvr_pin),
-               drvr_port->libertyCell()->name());
+               drvr_port->libertyCell()->name(),
+               upsize->name());
+    debugPrint(logger_,
+               RSZ,
+               "repair_setup",
+               3,
+               "size_up {} {} -> {}",
+               network_->pathName(drvr_pin),
+               drvr_port->libertyCell()->name(),
+               upsize->name());
+    addMove(drvr);
+    return true;
   }
-
+  debugPrint(logger_,
+             RSZ,
+             "opt_moves",
+             3,
+             "REJECT size_up {} {}",
+             network_->pathName(drvr_pin),
+             drvr_port->libertyCell()->name());
   return false;
 }
 
