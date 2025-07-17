@@ -26,7 +26,6 @@ using sta::LibertyPort;
 using sta::LoadPinIndexMap;
 using sta::NetConnectedPinIterator;
 using sta::Path;
-using sta::PathExpanded;
 using sta::Pin;
 using sta::Slack;
 using sta::Slew;
@@ -34,25 +33,19 @@ using sta::Vertex;
 using sta::VertexOutEdgeIterator;
 
 bool SizeDownMove::doMove(const Path* drvr_path,
-                          int drvr_index,
                           Slack drvr_slack,
-                          PathExpanded* expanded,
                           float setup_slack_margin)
 {
   Pin* drvr_pin = drvr_path->pin(this);
   Vertex* drvr_vertex = drvr_path->vertex(sta_);
-  const Path* load_path = expanded->path(drvr_index + 1);
-  Vertex* load_vertex = load_path->vertex(sta_);
-  Pin* load_pin = load_vertex->pin();
 
   // Divide and conquer.
   debugPrint(logger_,
              RSZ,
              "size_down",
              2,
-             "sizing down crit fanout {} -> {}",
-             network_->pathName(drvr_pin),
-             network_->pathName(load_pin));
+             "sizing down {}",
+             network_->pathName(drvr_pin));
 
   const DcalcAnalysisPt* dcalc_ap = drvr_path->dcalcAnalysisPt(sta_);
   LibertyPort* drvr_port = network_->libertyPort(drvr_pin);
@@ -70,18 +63,18 @@ bool SizeDownMove::doMove(const Path* drvr_path,
     Vertex* fanout_vertex = edge->to(graph_);
     const Slack fanout_slack
         = sta_->vertexSlack(fanout_vertex, resizer_->max_);
-    Pin* load_pin = load_vertex->pin();
-    Instance* load_inst = network_->instance(load_pin);
+    Pin* fanout_pin = fanout_vertex->pin();
+    Instance* fanout_inst = network_->instance(fanout_pin);
     debugPrint(logger_,
                RSZ,
                "size_down",
                3,
                " unsorted {} slack: {} drvr slack: {}",
-               network_->pathName(fanout_vertex->pin()),
+               network_->pathName(fanout_pin),
                delayAsString(fanout_slack, sta_, 3),
                delayAsString(drvr_slack, sta_, 3));
         // If we already have a move on the load, don't try to size down
-    if (!hasMoves(load_inst)) {
+    if (!hasMoves(fanout_inst)) {
       fanout_slacks.emplace_back(fanout_vertex, fanout_slack);
     }
   }

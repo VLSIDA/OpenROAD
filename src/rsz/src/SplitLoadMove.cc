@@ -29,7 +29,6 @@ using sta::LoadPinIndexMap;
 using sta::Net;
 using sta::NetConnectedPinIterator;
 using sta::Path;
-using sta::PathExpanded;
 using sta::Pin;
 using sta::RiseFall;
 using sta::Slack;
@@ -38,16 +37,11 @@ using sta::Vertex;
 using sta::VertexOutEdgeIterator;
 
 bool SplitLoadMove::doMove(const Path* drvr_path,
-                           int drvr_index,
                            Slack drvr_slack,
-                           PathExpanded* expanded,
                            float setup_slack_margin)
 {
   Pin* drvr_pin = drvr_path->pin(this);
   Vertex* drvr_vertex = drvr_path->vertex(sta_);
-  const Path* load_path = expanded->path(drvr_index + 1);
-  Vertex* load_vertex = load_path->vertex(sta_);
-  Pin* load_pin = load_vertex->pin();
 
   const int fanout = this->fanout(drvr_vertex);
   // Don't split loads on low fanout nets.
@@ -72,17 +66,14 @@ bool SplitLoadMove::doMove(const Path* drvr_path,
              RSZ,
              "repair_setup",
              3,
-             "split loads {} -> {}",
-             network_->pathName(drvr_pin),
-             network_->pathName(load_pin));
-
+             "split loads of {}",
+             network_->pathName(drvr_pin));
   debugPrint(logger_,
              RSZ,
              "split_load",
              3,
-             "split loads {} -> {}",
-             network_->pathName(drvr_pin),
-             network_->pathName(load_pin));
+             "split loads of {}",
+             network_->pathName(drvr_pin));
 
   const RiseFall* rf = drvr_path->transition(sta_);
   // Sort fanouts of the drvr on the critical path by slack margin

@@ -677,9 +677,7 @@ bool RepairSetup::repairPath(Path* path,
                    network_->pathName(drvr_pin));
 
         if (move->doMove(drvr_path,
-                         drvr_index,
                          path_slack,
-                         &expanded,
                          setup_slack_margin)) {
           if (move == resizer_->unbuffer_move_.get()) {
             // Only allow one unbuffer move per pass to
