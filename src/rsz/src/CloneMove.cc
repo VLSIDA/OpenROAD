@@ -29,7 +29,6 @@ using sta::LoadPinIndexMap;
 using sta::Net;
 using sta::NetConnectedPinIterator;
 using sta::Path;
-using sta::PathExpanded;
 using sta::Pin;
 using sta::RiseFall;
 using sta::Slack;
@@ -59,16 +58,11 @@ Point CloneMove::computeCloneGateLocation(
 }
 
 bool CloneMove::doMove(const Path* drvr_path,
-                       int drvr_index,
                        Slack drvr_slack,
-                       PathExpanded* expanded,
                        float setup_slack_margin)
 {
   Pin* drvr_pin = drvr_path->pin(this);
   Vertex* drvr_vertex = drvr_path->vertex(sta_);
-  const Path* load_path = expanded->path(drvr_index + 1);
-  Vertex* load_vertex = load_path->vertex(sta_);
-  Pin* load_pin = load_vertex->pin();
 
   const int fanout = this->fanout(drvr_vertex);
   if (fanout <= split_load_min_fanout_) {
@@ -99,16 +93,14 @@ bool CloneMove::doMove(const Path* drvr_path,
              RSZ,
              "clone",
              3,
-             "clone driver {} -> {}",
-             network_->pathName(drvr_pin),
-             network_->pathName(load_pin));
+             "clone driver {}",
+             network_->pathName(drvr_pin));
   debugPrint(logger_,
              RSZ,
              "repair_setup",
              3,
-             "clone driver {} -> {}",
-             network_->pathName(drvr_pin),
-             network_->pathName(load_pin));
+             "clone driver {}",
+             network_->pathName(drvr_pin));
 
   const RiseFall* rf = drvr_path->transition(sta_);
   // Sort fanouts of the drvr on the critical path by slack margin
@@ -153,7 +145,7 @@ bool CloneMove::doMove(const Path* drvr_path,
     return false;
   }
 
-  const string buffer_name = resizer_->makeUniqueInstName("clone");
+  const string clone_name = resizer_->makeUniqueInstName("clone");
 
   // Hierarchy fix
   Instance* parent = db_network_->getOwningInstanceParent(drvr_pin);
@@ -172,7 +164,7 @@ bool CloneMove::doMove(const Path* drvr_path,
 
   Point drvr_loc = computeCloneGateLocation(drvr_pin, fanout_slacks);
   Instance* clone_inst = resizer_->makeInstance(
-      clone_cell, buffer_name.c_str(), parent, drvr_loc);
+      clone_cell, clone_name.c_str(), parent, drvr_loc);
 
   debugPrint(logger_,
              RSZ,

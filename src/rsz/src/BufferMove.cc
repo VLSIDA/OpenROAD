@@ -33,9 +33,7 @@ BufferMove::BufferMove(Resizer* resizer) : BaseMove(resizer)
 }
 
 bool BufferMove::doMove(const Path* drvr_path,
-                        int drvr_index,
                         Slack drvr_slack,
-                        PathExpanded* expanded,
                         float setup_slack_margin)
 {
   Vertex* drvr_vertex = drvr_path->vertex(sta_);

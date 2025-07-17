@@ -33,7 +33,6 @@ using sta::LoadPinIndexMap;
 using sta::Net;
 using sta::NetConnectedPinIterator;
 using sta::Path;
-using sta::PathExpanded;
 using sta::Pin;
 using sta::RiseFall;
 using sta::Slack;
@@ -43,9 +42,7 @@ using sta::TimingArcSet;
 using sta::Vertex;
 
 bool SwapPinsMove::doMove(const Path* drvr_path,
-                          int drvr_index,
                           Slack drvr_slack,
-                          PathExpanded* expanded,
                           float setup_slack_margin)
 {
   Pin* drvr_pin = drvr_path->pin(this);
@@ -65,8 +62,7 @@ bool SwapPinsMove::doMove(const Path* drvr_path,
   const DcalcAnalysisPt* dcalc_ap = drvr_path->dcalcAnalysisPt(sta_);
   // int lib_ap = dcalc_ap->libertyIndex(); : check cornerPort
   const float load_cap = graph_delay_calc_->loadCap(drvr_pin, dcalc_ap);
-  const int in_index = drvr_index - 1;
-  const Path* in_path = expanded->path(in_index);
+  const Path* in_path = drvr_path->prevPath();
   Pin* in_pin = in_path->pin(sta_);
 
   if (resizer_->dontTouch(drvr)) {

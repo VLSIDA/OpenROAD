@@ -34,7 +34,6 @@ using sta::LoadPinIndexMap;
 using sta::Net;
 using sta::NetConnectedPinIterator;
 using sta::Path;
-using sta::PathExpanded;
 using sta::Pin;
 using sta::RiseFall;
 using sta::Slack;
@@ -47,9 +46,7 @@ using sta::Vertex;
 // 3) it doesn't create new max cap violations
 // 4) it doesn't worsen slack
 bool UnbufferMove::doMove(const Path* drvr_path,
-                          int drvr_index,
                           Slack drvr_slack,
-                          PathExpanded* expanded,
                           float setup_slack_margin)
 {
   Vertex* drvr_vertex = drvr_path->vertex(sta_);
@@ -94,7 +91,8 @@ bool UnbufferMove::doMove(const Path* drvr_path,
   }
 
   // Don't remove buffer if new max fanout violations are created
-  const Path* prev_drvr_path = expanded->path(drvr_index - 2);
+  const Path* drvr_input_path = drvr_path->prevPath();
+  const Path* prev_drvr_path = drvr_input_path->prevPath();
   Vertex* prev_drvr_vertex = prev_drvr_path->vertex(sta_);
   Pin* prev_drvr_pin = prev_drvr_vertex->pin();
   float curr_fanout, max_fanout, fanout_slack;
@@ -168,7 +166,6 @@ bool UnbufferMove::doMove(const Path* drvr_path,
     }
   }
 
-  const Path* drvr_input_path = expanded->path(drvr_index - 1);
   Vertex* drvr_input_vertex = drvr_input_path->vertex(sta_);
   SlackEstimatorParams params(setup_slack_margin, corner);
   params.driver_pin = drvr_pin;
