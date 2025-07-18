@@ -91,8 +91,6 @@ struct SlackEstimatorParams
   Pin* prev_driver_pin{nullptr};
   Pin* driver_input_pin{nullptr};
   Instance* driver{nullptr};
-  const Path* driver_path{nullptr};
-  const Path* prev_driver_path{nullptr};
   LibertyCell* driver_cell{nullptr};
   const float setup_slack_margin;
   const Corner* corner;

@@ -168,12 +168,10 @@ bool UnbufferMove::doMove(const Path* drvr_path,
 
   Vertex* drvr_input_vertex = drvr_input_path->vertex(sta_);
   SlackEstimatorParams params(setup_slack_margin, corner);
-  params.driver_pin = drvr_pin;
+  params.driver_pin = drvr_vertex->pin();
   params.prev_driver_pin = prev_drvr_pin;
-  params.driver_input_pin = drvr_input_vertex->pin();
+  params.driver_input_pin = drvr_input_pin;
   params.driver = drvr;
-  params.driver_path = drvr_path;
-  params.prev_driver_path = prev_drvr_path;
   params.driver_cell = drvr_cell;
   if (!estimatedSlackOK(params)) {
     return false;

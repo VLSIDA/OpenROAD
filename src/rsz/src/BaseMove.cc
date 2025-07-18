@@ -406,7 +406,6 @@ bool BaseMove::estimatedSlackOK(const SlackEstimatorParams& params)
   }
   LibertyPort *buffer_input_port, *buffer_output_port;
   params.driver_cell->bufferPorts(buffer_input_port, buffer_output_port);
-  const RiseFall* prev_driver_rf = params.prev_driver_path->transition(sta_);
 
   // Compute delay degradation at prev driver due to increased load cap
   resizer_->annotateInputSlews(network_->instance(params.prev_driver_pin),
@@ -419,10 +418,10 @@ bool BaseMove::estimatedSlackOK(const SlackEstimatorParams& params)
                   - resizer_->portCapacitance(buffer_input_port, params.corner);
   resizer_->gateDelays(prev_drvr_port, new_cap, dcalc_ap, new_delay, new_slew);
   float delay_degrad
-      = new_delay[prev_driver_rf->index()] - old_delay[prev_driver_rf->index()];
+      = *std::max_element(new_delay, new_delay + RiseFall::index_count)
+        - *std::max_element(old_delay, old_delay + RiseFall::index_count);
   float delay_imp
       = resizer_->bufferDelay(params.driver_cell,
-                              params.driver_path->transition(sta_),
                               dcalc->loadCap(params.driver_pin, dcalc_ap),
                               dcalc_ap);
   resizer_->resetInputSlews();
