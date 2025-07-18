@@ -32,12 +32,11 @@ BufferMove::BufferMove(Resizer* resizer) : BaseMove(resizer)
 {
 }
 
-bool BufferMove::doMove(const Path* drvr_path,
+bool BufferMove::doMove(const Pin* drvr_pin,
                         Slack drvr_slack,
                         float setup_slack_margin)
 {
-  Vertex* drvr_vertex = drvr_path->vertex(sta_);
-  const Pin* drvr_pin = drvr_vertex->pin();
+  Vertex* drvr_vertex = graph_->pinDrvrVertex(drvr_pin);
   Instance* drvr_inst = network_->instance(drvr_pin);
 
   const int fanout = this->fanout(drvr_vertex);

@@ -45,12 +45,11 @@ using sta::Vertex;
 // 2) it doesn't create new max fanout violations
 // 3) it doesn't create new max cap violations
 // 4) it doesn't worsen slack
-bool UnbufferMove::doMove(const Path* drvr_path,
+bool UnbufferMove::doMove(const Pin* drvr_pin,
                           Slack drvr_slack,
                           float setup_slack_margin)
 {
-  Vertex* drvr_vertex = drvr_path->vertex(sta_);
-  Pin* drvr_pin = drvr_vertex->pin();
+  Vertex* drvr_vertex = graph_->pinDrvrVertex(drvr_pin);
   LibertyPort* drvr_port = network_->libertyPort(drvr_pin);
   LibertyCell* drvr_cell = drvr_port ? drvr_port->libertyCell() : nullptr;
 
@@ -91,10 +90,10 @@ bool UnbufferMove::doMove(const Path* drvr_path,
   }
 
   // Don't remove buffer if new max fanout violations are created
-  const Path* drvr_input_path = drvr_path->prevPath();
-  const Path* prev_drvr_path = drvr_input_path->prevPath();
-  Vertex* prev_drvr_vertex = prev_drvr_path->vertex(sta_);
-  Pin* prev_drvr_pin = prev_drvr_vertex->pin();
+  Pin* prev_drvr_pin;
+  Pin* drvr_input_pin;
+  Pin* load_pin;
+  getPrevNextPins(drvr_pin, prev_drvr_pin, drvr_input_pin, load_pin);
   float curr_fanout, max_fanout, fanout_slack;
   sta_->checkFanout(
       prev_drvr_pin, resizer_->max_, curr_fanout, max_fanout, fanout_slack);
@@ -150,8 +149,8 @@ bool UnbufferMove::doMove(const Path* drvr_path,
     float drvr_cap = dcalc->loadCap(drvr_pin, dcalc_ap);
     LibertyPort *buffer_input_port, *buffer_output_port;
     drvr_cell->bufferPorts(buffer_input_port, buffer_output_port);
-    float new_cap = cap + drvr_cap
-                    - resizer_->portCapacitance(buffer_input_port, corner);
+    float new_cap
+        = cap + drvr_cap - resizer_->portCapacitance(buffer_input_port, corner);
     if (new_cap > max_cap) {
       debugPrint(
           logger_,
@@ -166,7 +165,6 @@ bool UnbufferMove::doMove(const Path* drvr_path,
     }
   }
 
-  Vertex* drvr_input_vertex = drvr_input_path->vertex(sta_);
   SlackEstimatorParams params(setup_slack_margin, corner);
   params.driver_pin = drvr_vertex->pin();
   params.prev_driver_pin = prev_drvr_pin;

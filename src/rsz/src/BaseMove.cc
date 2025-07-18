@@ -149,6 +149,53 @@ double BaseMove::dbuToMeters(int dist) const
   return dist / (dbu_ * 1e+6);
 }
 
+void BaseMove::getPrevNextPins(const Pin* drvr_pin,
+                               // Return values
+                               Pin*& prev_drvr_pin,
+                               Pin*& input_pin,
+                               Pin*& load_pin)
+{
+  Vertex* drvr_vertex = graph_->vertex(network_->vertexId(drvr_pin));
+  // Find the worst slack vertex of all fanouts
+  // IMPROVE ME: We can add different policies of picking the path
+  Vertex* load_vertex = nullptr;
+  Slack load_slack = sta::INF;
+  VertexOutEdgeIterator edge_iter(drvr_vertex, graph_);
+  while (edge_iter.hasNext()) {
+    Edge* edge = edge_iter.next();
+    Vertex* fanout_vertex = edge->to(graph_);
+    Slack fanout_slack = sta_->vertexSlack(fanout_vertex, resizer_->max_);
+    if (fanout_slack < load_slack) {
+      load_vertex = fanout_vertex;
+      load_slack = fanout_slack;
+    }
+  }
+  // Get the worst slack path of this fanout vertex
+  Path* load_path = sta_->vertexWorstSlackPath(load_vertex, resizer_->max_);
+  Path* drvr_path;
+  Path* input_path;
+  Path* prev_drvr_path;
+  if (load_path) {
+    drvr_path = load_path->prevPath();
+  } else {
+    drvr_path = nullptr;
+  }
+  if (drvr_path) {
+    input_path = drvr_path->prevPath();
+  } else {
+    input_path = nullptr;
+  }
+  if (input_path) {
+    prev_drvr_path = input_path->prevPath();
+  } else {
+    prev_drvr_path = nullptr;
+  }
+  // Set the return values
+  load_pin = load_path ? load_path->pin(sta_) : nullptr;
+  input_pin = input_path ? input_path->pin(sta_) : nullptr;
+  prev_drvr_pin = prev_drvr_path ? prev_drvr_path->pin(sta_) : nullptr;
+}
+
 // Rise/fall delays across all timing arcs into drvr_port.
 // Uses target slew for input slew.
 void BaseMove::gateDelays(const LibertyPort* drvr_port,

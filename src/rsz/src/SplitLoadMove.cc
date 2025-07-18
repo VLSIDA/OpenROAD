@@ -36,12 +36,11 @@ using sta::Slew;
 using sta::Vertex;
 using sta::VertexOutEdgeIterator;
 
-bool SplitLoadMove::doMove(const Path* drvr_path,
+bool SplitLoadMove::doMove(const Pin* drvr_pin,
                            Slack drvr_slack,
                            float setup_slack_margin)
 {
-  Pin* drvr_pin = drvr_path->pin(this);
-  Vertex* drvr_vertex = drvr_path->vertex(sta_);
+  Vertex* drvr_vertex = graph_->pinDrvrVertex(drvr_pin);
 
   const int fanout = this->fanout(drvr_vertex);
   // Don't split loads on low fanout nets.
@@ -75,7 +74,6 @@ bool SplitLoadMove::doMove(const Path* drvr_path,
              "split loads of {}",
              network_->pathName(drvr_pin));
 
-  const RiseFall* rf = drvr_path->transition(sta_);
   // Sort fanouts of the drvr on the critical path by slack margin
   // wrt the critical path slack.
   vector<pair<Vertex*, Slack>> fanout_slacks;
@@ -87,8 +85,7 @@ bool SplitLoadMove::doMove(const Path* drvr_path,
       continue;
     }
     Vertex* fanout_vertex = edge->to(graph_);
-    const Slack fanout_slack
-        = sta_->vertexSlack(fanout_vertex, rf, resizer_->max_);
+    const Slack fanout_slack = sta_->vertexSlack(fanout_vertex, resizer_->max_);
     const Slack slack_margin = fanout_slack - drvr_slack;
     debugPrint(logger_,
                RSZ,
@@ -118,7 +115,7 @@ bool SplitLoadMove::doMove(const Path* drvr_path,
   const string buffer_name = resizer_->makeUniqueInstName("split");
 
   // H-Fix Use driver parent for hierarchy, not the top instance
-  Instance* parent = db_network_->getOwningInstanceParent(drvr_pin);
+  Instance* parent = db_network_->getOwningInstanceParent(drvr_vertex->pin());
 
   LibertyCell* buffer_cell = resizer_->buffer_lowest_drive_;
   const Point drvr_loc = db_network_->location(drvr_pin);
@@ -237,8 +234,7 @@ bool SplitLoadMove::doMove(const Path* drvr_path,
       // hierarchical net and the modnet to make sure they
       // get reassociated. (so all modnet pins refer to flat net).
       load_iterm->disconnect();
-      db_network_->connectPin(
-          load_pin, (Net*) out_net, (Net*) db_mod_load_net);
+      db_network_->connectPin(load_pin, (Net*) out_net, (Net*) db_mod_load_net);
       //          iterm->connect(db_mod_load_net);
     }
   }

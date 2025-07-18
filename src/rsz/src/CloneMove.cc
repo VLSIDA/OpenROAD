@@ -57,12 +57,11 @@ Point CloneMove::computeCloneGateLocation(
   return {centroid_x / count, centroid_y / count};
 }
 
-bool CloneMove::doMove(const Path* drvr_path,
+bool CloneMove::doMove(const Pin* drvr_pin,
                        Slack drvr_slack,
                        float setup_slack_margin)
 {
-  Pin* drvr_pin = drvr_path->pin(this);
-  Vertex* drvr_vertex = drvr_path->vertex(sta_);
+  Vertex* drvr_vertex = graph_->pinDrvrVertex(drvr_pin);
 
   const int fanout = this->fanout(drvr_vertex);
   if (fanout <= split_load_min_fanout_) {
@@ -102,7 +101,6 @@ bool CloneMove::doMove(const Path* drvr_path,
              "clone driver {}",
              network_->pathName(drvr_pin));
 
-  const RiseFall* rf = drvr_path->transition(sta_);
   // Sort fanouts of the drvr on the critical path by slack margin
   // wrt the critical path slack.
   vector<pair<Vertex*, Slack>> fanout_slacks;
@@ -110,8 +108,7 @@ bool CloneMove::doMove(const Path* drvr_path,
   while (edge_iter.hasNext()) {
     Edge* edge = edge_iter.next();
     Vertex* fanout_vertex = edge->to(graph_);
-    const Slack fanout_slack
-        = sta_->vertexSlack(fanout_vertex, rf, resizer_->max_);
+    const Slack fanout_slack = sta_->vertexSlack(fanout_vertex, resizer_->max_);
     const Slack slack_margin = fanout_slack - drvr_slack;
     debugPrint(logger_,
                RSZ,
@@ -148,7 +145,7 @@ bool CloneMove::doMove(const Path* drvr_path,
   const string clone_name = resizer_->makeUniqueInstName("clone");
 
   // Hierarchy fix
-  Instance* parent = db_network_->getOwningInstanceParent(drvr_pin);
+  Instance* parent = db_network_->getOwningInstanceParent(drvr_vertex->pin());
 
   // This is the meat of the gate cloning code.
   // We need to downsize the current driver AND we need to insert another
@@ -263,8 +260,7 @@ bool CloneMove::doMove(const Path* drvr_path,
 
     auto* load_port = network_->port(load_pin);
     Instance* load = network_->instance(load_pin);
-    Instance* load_parent_inst
-        = db_network_->getOwningInstanceParent(load_pin);
+    Instance* load_parent_inst = db_network_->getOwningInstanceParent(load_pin);
 
     // disconnects everything
     sta_->disconnectPin(load_pin);

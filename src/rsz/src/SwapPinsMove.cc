@@ -41,11 +41,10 @@ using sta::TimingArc;
 using sta::TimingArcSet;
 using sta::Vertex;
 
-bool SwapPinsMove::doMove(const Path* drvr_path,
+bool SwapPinsMove::doMove(const Pin* drvr_pin,
                           Slack drvr_slack,
                           float setup_slack_margin)
 {
-  Pin* drvr_pin = drvr_path->pin(this);
   // Skip if there is no liberty model or this is a single-input cell
   LibertyPort* drvr_port = network_->libertyPort(drvr_pin);
   if (drvr_port == nullptr) {
@@ -59,18 +58,20 @@ bool SwapPinsMove::doMove(const Path* drvr_path,
     return false;
   }
   Instance* drvr = network_->instance(drvr_pin);
-  const DcalcAnalysisPt* dcalc_ap = drvr_path->dcalcAnalysisPt(sta_);
+  const DcalcAnalysisPt* dcalc_ap = resizer_->tgt_slew_dcalc_ap_;
   // int lib_ap = dcalc_ap->libertyIndex(); : check cornerPort
   const float load_cap = graph_delay_calc_->loadCap(drvr_pin, dcalc_ap);
-  const Path* in_path = drvr_path->prevPath();
-  Pin* in_pin = in_path->pin(sta_);
+  Pin* prev_drvr_pin;
+  Pin* drvr_input_pin;
+  Pin* load_pin;
+  getPrevNextPins(drvr_pin, prev_drvr_pin, drvr_input_pin, load_pin);
 
   if (resizer_->dontTouch(drvr)) {
     return false;
   }
 
   // We get the driver port and the cell for that port.
-  LibertyPort* input_port = network_->libertyPort(in_pin);
+  LibertyPort* input_port = network_->libertyPort(drvr_input_pin);
   LibertyPort* swap_port = input_port;
   sta::LibertyPortSet ports;
 

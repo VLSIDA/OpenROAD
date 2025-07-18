@@ -27,27 +27,27 @@ using sta::Pin;
 using sta::Slack;
 using sta::Slew;
 
-bool SizeUpMove::doMove(const Path* drvr_path,
+bool SizeUpMove::doMove(const Pin* drvr_pin,
                         Slack drvr_slack,
                         float setup_slack_margin)
 {
-  Pin* drvr_pin = drvr_path->pin(this);
   Instance* drvr = network_->instance(drvr_pin);
-  const DcalcAnalysisPt* dcalc_ap = drvr_path->dcalcAnalysisPt(sta_);
+  const DcalcAnalysisPt* dcalc_ap = resizer_->tgt_slew_dcalc_ap_;
   const float load_cap = graph_delay_calc_->loadCap(drvr_pin, dcalc_ap);
-  const Path* in_path = drvr_path->prevPath();
-  Pin* in_pin = in_path->pin(sta_);
-  LibertyPort* in_port = network_->libertyPort(in_pin);
+  Pin* prev_drvr_pin;
+  Pin* drvr_input_pin;
+  Pin* load_pin;
+  getPrevNextPins(drvr_pin, prev_drvr_pin, drvr_input_pin, load_pin);
+  LibertyPort* in_port = network_->libertyPort(drvr_input_pin);
 
   // We always size the cloned gates for some reason, but it would be good if we
   // also down-sized here instead since we might want smaller original.
-  if (resizer_->dontTouch(drvr) && !resizer_->clone_move_->hasPendingMoves(drvr)) {
+  if (resizer_->dontTouch(drvr)
+      && !resizer_->clone_move_->hasPendingMoves(drvr)) {
     return false;
   }
   float prev_drive;
-  if (in_path->prevPath()) {
-    const Path* prev_drvr_path = in_path->prevPath();
-    Pin* prev_drvr_pin = prev_drvr_path->pin(sta_);
+  if (prev_drvr_pin) {
     prev_drive = 0.0;
     LibertyPort* prev_drvr_port = network_->libertyPort(prev_drvr_pin);
     if (prev_drvr_port) {

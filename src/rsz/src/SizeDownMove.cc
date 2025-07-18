@@ -32,12 +32,11 @@ using sta::Slew;
 using sta::Vertex;
 using sta::VertexOutEdgeIterator;
 
-bool SizeDownMove::doMove(const Path* drvr_path,
+bool SizeDownMove::doMove(const Pin* drvr_pin,
                           Slack drvr_slack,
                           float setup_slack_margin)
 {
-  Pin* drvr_pin = drvr_path->pin(this);
-  Vertex* drvr_vertex = drvr_path->vertex(sta_);
+  Vertex* drvr_vertex = graph_->pinDrvrVertex(drvr_pin);
 
   // Divide and conquer.
   debugPrint(logger_,
@@ -47,7 +46,7 @@ bool SizeDownMove::doMove(const Path* drvr_path,
              "sizing down {}",
              network_->pathName(drvr_pin));
 
-  const DcalcAnalysisPt* dcalc_ap = drvr_path->dcalcAnalysisPt(sta_);
+  const DcalcAnalysisPt* dcalc_ap = resizer_->tgt_slew_dcalc_ap_;
   LibertyPort* drvr_port = network_->libertyPort(drvr_pin);
 
   // Sort fanouts of the drvr on the critical path by slack margin
@@ -61,8 +60,7 @@ bool SizeDownMove::doMove(const Path* drvr_path,
       continue;
     }
     Vertex* fanout_vertex = edge->to(graph_);
-    const Slack fanout_slack
-        = sta_->vertexSlack(fanout_vertex, resizer_->max_);
+    const Slack fanout_slack = sta_->vertexSlack(fanout_vertex, resizer_->max_);
     Pin* fanout_pin = fanout_vertex->pin();
     Instance* fanout_inst = network_->instance(fanout_pin);
     debugPrint(logger_,
@@ -73,7 +71,7 @@ bool SizeDownMove::doMove(const Path* drvr_path,
                network_->pathName(fanout_pin),
                delayAsString(fanout_slack, sta_, 3),
                delayAsString(drvr_slack, sta_, 3));
-        // If we already have a move on the load, don't try to size down
+    // If we already have a move on the load, don't try to size down
     if (!hasMoves(fanout_inst)) {
       fanout_slacks.emplace_back(fanout_vertex, fanout_slack);
     }
@@ -245,8 +243,7 @@ LibertyCell* SizeDownMove::downsizeFanout(const LibertyPort* drvr_port,
     if (swappable == fanout_cell) {
       continue;
     }
-    LibertyPort* new_fanout_port
-        = swappable->findLibertyPort(fanout_port_name);
+    LibertyPort* new_fanout_port = swappable->findLibertyPort(fanout_port_name);
     LibertyPort* new_fanout_output_port
         = swappable->findLibertyPort(fanout_output_port_name);
     float new_fanout_cap = new_fanout_port->cornerPort(lib_ap)->capacitance();
