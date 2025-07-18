@@ -173,7 +173,6 @@ bool RepairSetup::repairSetup2(const float setup_slack_margin,
 
   const VertexSet* endpoints = sta_->endpoints();
   int num_viols = 0;
-  vector<pair<Vertex*, Slack>> violating_ends;
   for (Vertex* end : *endpoints) {
     const Slack end_slack = sta_->vertexSlack(end, max_);
     if (end_slack < setup_slack_margin) {
@@ -192,15 +191,14 @@ bool RepairSetup::repairSetup2(const float setup_slack_margin,
   float initial_tns = sta_->totalNegativeSlack(max_);
   float prev_tns = initial_tns;
 
-  int end_index = 0;
-  int max_end_count = violating_ends.size() * repair_tns_end_percent;
+  int max_end_count = num_viols * repair_tns_end_percent;
   // Always repair the worst endpoint, even if tns percent is zero.
   max_end_count = max(max_end_count, 1);
   logger_->info(RSZ,
                 99,
                 "Repairing {} out of {} ({:0.2f}%) violating endpoints...",
                 max_end_count,
-                violating_ends.size(),
+                num_viols,
                 repair_tns_end_percent * 100.0);
 
   // Ensure that max cap and max fanout violations don't get worse
@@ -286,7 +284,7 @@ bool RepairSetup::repairSetup2(const float setup_slack_margin,
         // clang-format on
         break;
       }
-      vector<const Pin*> viol_pins = violator_collector_->collectViolators();
+      vector<const Pin*> viol_pins = violator_collector_->collectViolators(1);
 
       const bool changed = repairPins(viol_pins, setup_slack_margin);
       if (!changed) {
@@ -472,7 +470,7 @@ bool RepairSetup::repairSetup(const float setup_slack_margin,
   // Always repair the worst endpoint, even if tns percent is zero.
   max_end_count = max(max_end_count, 1);
   logger_->info(RSZ,
-                99,
+                100,
                 "Repairing {} out of {} ({:0.2f}%) violating endpoints...",
                 max_end_count,
                 violating_ends.size(),
@@ -864,14 +862,12 @@ bool RepairSetup::repairPins(std::vector<const Pin*>& pins,
       debugPrint(logger_,
                  RSZ,
                  "repair_setup",
-                 1,
+                 2,
                  "Considering {} for {}",
                  move->name(),
                  network_->pathName(drvr_pin));
 
-      if (move->doMove(drvr_pin,
-                       sta_->vertexSlack(drvr_vertex, max_),
-                       setup_slack_margin)) {
+      if (move->doMove(drvr_pin, setup_slack_margin)) {
         if (move == resizer_->unbuffer_move_.get()) {
           // Only allow one unbuffer move per pass to
           // prevent the use-after-free error of multiple buffer removals.

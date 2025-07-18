@@ -309,16 +309,6 @@ void ViolatorCollector::collectByPaths(int numPaths)
                      return end_slack1.second < end_slack2.second;
                    });
 
-  if (!violating_ends.empty()) {
-    logger_->info(RSZ,
-                  94,
-                  "Found {} endpoints with setup violations.",
-                  violating_ends.size());
-  } else {
-    // nothing to repair
-    logger_->metric("design__instance__count__setup_buffer", 0);
-    logger_->info(RSZ, 98, "No setup violations found");
-  }
   debugPrint(logger_,
              RSZ,
              "violator_collector",

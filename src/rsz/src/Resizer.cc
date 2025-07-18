@@ -3691,15 +3691,6 @@ bool Resizer::repairSetup(double setup_margin,
                           bool skip_buffer_removal,
                           bool skip_last_gasp)
 {
-  violator_collector_->init();
-  violator_collector_->collectBySlack();
-  // violator_collector_->printViolators(100);
-  violator_collector_->printHistogram();
-
-  violator_collector_->collectByPaths();
-  // violator_collector_->printViolators(100);
-  violator_collector_->printHistogram();
-
   utl::SetAndRestore set_match_footprint(match_cell_footprint_,
                                          match_cell_footprint);
   resizePreamble();
