@@ -150,6 +150,8 @@ void ViolatorCollector::init(float slack_margin)
   corner_ = sta_->cmdCorner();
 
   slack_margin_ = slack_margin;
+
+  collectViolatingEndpoints();
 }
 
 void ViolatorCollector::collectBySlack(int numPins)
@@ -245,6 +247,29 @@ void ViolatorCollector::sortByLoadDelay()
         });
   }
 }
+
+vector<const Pin*> ViolatorCollector::collectViolatorsByEndpoint(
+    int endpoint_index,
+    ViolatorSortType sort_type)
+{
+  violating_pins_.clear();
+  if (endpoint_index > violating_ends_.size()) {
+    logger_->error(RSZ,
+                   9,
+                   "Endpoint index {} out of range ({} endpoints).",
+                   endpoint_index,
+                   violating_ends_.size());
+    return violating_pins_;
+  }
+  set<const Pin*> pin_set
+      = collectPinsByPathEndpoint(violating_ends_[endpoint_index].first, 1);
+  violating_pins_.insert(violating_pins_.end(), pin_set.begin(), pin_set.end());
+
+  sortPins(sort_type);
+
+  return (violating_pins_);
+}
+
 vector<const Pin*> ViolatorCollector::collectViolators(
     int numPaths,
     ViolatorSortType sort_type)
@@ -255,6 +280,13 @@ vector<const Pin*> ViolatorCollector::collectViolators(
     collectBySlack();
   }
 
+  sortPins(sort_type);
+
+  return violating_pins_;
+}
+
+void ViolatorCollector::sortPins(ViolatorSortType sort_type)
+{
   switch (sort_type) {
     case ViolatorSortType::SORT_BY_TNS:
       sortByTNS();
@@ -266,7 +298,6 @@ vector<const Pin*> ViolatorCollector::collectViolators(
       sortByLoadDelay();
       break;
   }
-  return violating_pins_;
 }
 
 void ViolatorCollector::sortByWNS()
@@ -290,21 +321,19 @@ void ViolatorCollector::sortByTNS()
 {
 }
 
-void ViolatorCollector::collectByPaths(int numPaths)
+void ViolatorCollector::collectViolatingEndpoints()
 {
-  // For tracking duplicates
-  set<const Pin*> viol_pins;
+  violating_ends_.clear();
 
   const VertexSet* endpoints = sta_->endpoints();
-  vector<pair<Vertex*, Slack>> violating_ends;
   for (Vertex* end : *endpoints) {
     const Slack end_slack = sta_->vertexSlack(end, max_);
     if (end_slack < slack_margin_) {
-      violating_ends.emplace_back(end, end_slack);
+      violating_ends_.emplace_back(end->pin(), end_slack);
     }
   }
-  std::stable_sort(violating_ends.begin(),
-                   violating_ends.end(),
+  std::stable_sort(violating_ends_.begin(),
+                   violating_ends_.end(),
                    [](const auto& end_slack1, const auto& end_slack2) {
                      return end_slack1.second < end_slack2.second;
                    });
@@ -314,13 +343,22 @@ void ViolatorCollector::collectByPaths(int numPaths)
              "violator_collector",
              1,
              "Violating endpoints {}/{} {}%",
-             violating_ends.size(),
+             violating_ends_.size(),
              endpoints->size(),
-             int(violating_ends.size() / double(endpoints->size()) * 100));
+             int(violating_ends_.size() / double(endpoints->size()) * 100));
+}
+
+void ViolatorCollector::collectByPaths(int numPaths)
+{
+  // For tracking duplicates
+  set<const Pin*> viol_pins;
+
+  collectViolatingEndpoints();
 
   size_t old_size = viol_pins.size();
-  for (const auto& end_original_slack : violating_ends) {
-    Vertex* end = end_original_slack.first;
+  for (const auto& end_original_slack : violating_ends_) {
+    const Pin* endpoint_pin = end_original_slack.first;
+    Vertex* end = graph_->pinDrvrVertex(endpoint_pin);
     set<const Pin*> end_pins = collectPinsByPathEndpoint(end->pin());
     viol_pins.insert(end_pins.begin(), end_pins.end());
 

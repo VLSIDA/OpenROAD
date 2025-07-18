@@ -38,21 +38,29 @@ class ViolatorCollector
   void init(float slack_margin);
   void printHistogram(int numBins = 20) const;
   void printViolators(int numPrint) const;
-  void collectBySlack(int numPins = 1000);
-  void collectByPaths(int numPaths = 1);
-  set<const Pin*> collectPinsByPathEndpoint(const sta::Pin* endpoint_pin,
-                                            size_t paths_per_endpoint = 1);
-  void sortByLoadDelay();
-  void sortByWNS();
-  void sortByTNS();
+
+  // For backwards compatibility to the old resizer
+  vector<const Pin*> collectViolatorsByEndpoint(
+      int endpoint_index,
+      ViolatorSortType sort_type = ViolatorSortType::SORT_BY_LOAD_DELAY);
 
   vector<const Pin*> collectViolators(int numPaths = 1,
                                       ViolatorSortType sort_type
                                       = ViolatorSortType::SORT_BY_LOAD_DELAY);
 
  private:
-  float slack_margin_;
-  vector<const Pin*> violating_pins_;
+  void collectViolatingEndpoints();
+
+  set<const Pin*> collectPinsByPathEndpoint(const sta::Pin* endpoint_pin,
+                                            size_t paths_per_endpoint = 1);
+  void collectBySlack(int numPins = 1000);
+  void collectByPaths(int numPaths = 1);
+
+  void sortPins(ViolatorSortType sort_type);
+  void sortByLoadDelay();
+  void sortByWNS();
+  void sortByTNS();
+
   Resizer* resizer_;
   Logger* logger_;
   sta::Sta* sta_;
@@ -64,6 +72,10 @@ class ViolatorCollector
   sta::Sdc* sdc_;
   sta::Report* report_;
   sta::Corner* corner_;
+
+  float slack_margin_;
+  vector<const Pin*> violating_pins_;
+  vector<std::pair<const Pin*, Slack>> violating_ends_;
 };
 
 }  // namespace rsz

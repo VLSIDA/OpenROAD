@@ -284,7 +284,8 @@ bool RepairSetup::repairSetup2(const float setup_slack_margin,
         // clang-format on
         break;
       }
-      vector<const Pin*> viol_pins = violator_collector_->collectViolators(1);
+      vector<const Pin*> viol_pins
+          = violator_collector_->collectViolatorsByEndpoint(i);
 
       const bool changed = repairPins(viol_pins, setup_slack_margin);
       if (!changed) {
