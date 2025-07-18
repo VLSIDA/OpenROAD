@@ -102,8 +102,7 @@ class BaseMove : public sta::dbStaState
   BaseMove(Resizer* resizer);
   ~BaseMove() override = default;
 
-  virtual bool doMove(const Pin* drvr_pin,
-                      float setup_slack_margin)
+  virtual bool doMove(const Pin* drvr_pin, float setup_slack_margin)
   {
     return false;
   }

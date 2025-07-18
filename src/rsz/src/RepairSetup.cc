@@ -310,7 +310,7 @@ bool RepairSetup::repairSetup2(const float setup_slack_margin,
         }
         // clang-format off
         debugPrint(logger_, RSZ, "repair_setup", 1, "bailing out {} no changes"
-                   " after {} decreasing passes", end->name(network_),
+                   " after {} decreasing passes", i,
                    decreasing_slack_passes);
         // clang-format on
         break;
@@ -869,7 +869,9 @@ bool RepairSetup::repairPins(std::vector<const Pin*>& pins,
                  move->name(),
                  network_->pathName(drvr_pin));
 
-      if (move->doMove(drvr_pin, setup_slack_margin)) {
+      if (move->doMove(drvr_pin,
+                       sta_->vertexSlack(drvr_vertex, max_),
+                       setup_slack_margin)) {
         if (move == resizer_->unbuffer_move_.get()) {
           // Only allow one unbuffer move per pass to
           // prevent the use-after-free error of multiple buffer removals.
