@@ -15,6 +15,13 @@ using std::set;
 using std::vector;
 using utl::RSZ;
 
+enum class ViolatorSortType
+{
+  SORT_BY_TNS,
+  SORT_BY_WNS,
+  SORT_BY_LOAD_DELAY
+};
+
 // Class to collect instances with violating output pins.
 class ViolatorCollector
 {
@@ -28,17 +35,23 @@ class ViolatorCollector
     max_ = resizer_->max_;
   }
 
-  void init();
+  void init(float slack_margin);
   void printHistogram(int numBins = 20) const;
   void printViolators(int numPrint) const;
-  void collectBySlack(int numTargetPins = 1000);
-  void collectByPaths(int numTargetPins = 1000);
+  void collectBySlack(int numPins = 1000);
+  void collectByPaths(int numPaths = 1);
   set<const Pin*> collectPinsByPathEndpoint(const sta::Pin* endpoint_pin,
-                                            size_t paths_per_endpoint = 30);
+                                            size_t paths_per_endpoint = 1);
+  void sortByLoadDelay();
   void sortByWNS();
   void sortByTNS();
 
+  vector<const Pin*> collectViolators(int numPaths = 1,
+                                      ViolatorSortType sort_type
+                                      = ViolatorSortType::SORT_BY_LOAD_DELAY);
+
  private:
+  float slack_margin_;
   vector<const Pin*> violating_pins_;
   Resizer* resizer_;
   Logger* logger_;
