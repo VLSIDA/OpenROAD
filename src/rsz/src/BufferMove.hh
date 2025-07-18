@@ -27,7 +27,6 @@ class BufferMove : public BaseMove
   BufferMove(Resizer* resizer);
 
   bool doMove(const Pin* drvr_pin,
-              Slack drvr_slack,
               float setup_slack_margin) override;
 
   const char* name() override { return "BufferMove"; }

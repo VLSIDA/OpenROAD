@@ -1003,7 +1003,7 @@ bool RepairSetup::repairPath(Path* path,
                    move->name(),
                    network_->pathName(drvr_pin));
 
-        if (move->doMove(drvr_pin, path_slack, setup_slack_margin)) {
+        if (move->doMove(drvr_pin, setup_slack_margin)) {
           if (move == resizer_->unbuffer_move_.get()) {
             // Only allow one unbuffer move per pass to
             // prevent the use-after-free error of multiple buffer removals.

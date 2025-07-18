@@ -46,7 +46,6 @@ using sta::Vertex;
 // 3) it doesn't create new max cap violations
 // 4) it doesn't worsen slack
 bool UnbufferMove::doMove(const Pin* drvr_pin,
-                          Slack drvr_slack,
                           float setup_slack_margin)
 {
   Vertex* drvr_vertex = graph_->pinDrvrVertex(drvr_pin);

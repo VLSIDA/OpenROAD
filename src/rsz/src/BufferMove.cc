@@ -33,7 +33,6 @@ BufferMove::BufferMove(Resizer* resizer) : BaseMove(resizer)
 }
 
 bool BufferMove::doMove(const Pin* drvr_pin,
-                        Slack drvr_slack,
                         float setup_slack_margin)
 {
   Vertex* drvr_vertex = graph_->pinDrvrVertex(drvr_pin);

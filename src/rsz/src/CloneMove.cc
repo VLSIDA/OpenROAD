@@ -58,10 +58,10 @@ Point CloneMove::computeCloneGateLocation(
 }
 
 bool CloneMove::doMove(const Pin* drvr_pin,
-                       Slack drvr_slack,
                        float setup_slack_margin)
 {
   Vertex* drvr_vertex = graph_->pinDrvrVertex(drvr_pin);
+  const Slack drvr_slack = sta_->vertexSlack(drvr_vertex, resizer_->max_);
 
   const int fanout = this->fanout(drvr_vertex);
   if (fanout <= split_load_min_fanout_) {

@@ -42,7 +42,6 @@ using sta::TimingArcSet;
 using sta::Vertex;
 
 bool SwapPinsMove::doMove(const Pin* drvr_pin,
-                          Slack drvr_slack,
                           float setup_slack_margin)
 {
   // Skip if there is no liberty model or this is a single-input cell

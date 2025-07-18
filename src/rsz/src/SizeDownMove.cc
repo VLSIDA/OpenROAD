@@ -33,10 +33,10 @@ using sta::Vertex;
 using sta::VertexOutEdgeIterator;
 
 bool SizeDownMove::doMove(const Pin* drvr_pin,
-                          Slack drvr_slack,
                           float setup_slack_margin)
 {
   Vertex* drvr_vertex = graph_->pinDrvrVertex(drvr_pin);
+  const Slack drvr_slack = sta_->vertexSlack(drvr_vertex, resizer_->max_);
 
   // Divide and conquer.
   debugPrint(logger_,

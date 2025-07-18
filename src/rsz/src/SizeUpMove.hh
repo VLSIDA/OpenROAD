@@ -13,7 +13,6 @@ class SizeUpMove : public BaseMove
   using BaseMove::BaseMove;
 
   bool doMove(const Pin* drvr_pin,
-              Slack drvr_slack,
               float setup_slack_margin) override;
 
   const char* name() override { return "SizeUpMove"; }

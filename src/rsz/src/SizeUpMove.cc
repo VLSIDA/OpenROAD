@@ -28,7 +28,6 @@ using sta::Slack;
 using sta::Slew;
 
 bool SizeUpMove::doMove(const Pin* drvr_pin,
-                        Slack drvr_slack,
                         float setup_slack_margin)
 {
   Instance* drvr = network_->instance(drvr_pin);
