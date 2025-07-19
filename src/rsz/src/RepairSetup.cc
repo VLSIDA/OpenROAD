@@ -212,7 +212,9 @@ bool RepairSetup::repairSetup2(const float setup_slack_margin,
   printProgress(opto_iteration, false, false, false, num_viols);
   float fix_rate_threshold = inc_fix_rate_threshold_;
   vector<ViolatorSortType> SortTypeArray
-      = {ViolatorSortType::SORT_BY_LOAD_DELAY, ViolatorSortType::SORT_BY_WNS};
+      = {ViolatorSortType::SORT_BY_LOAD_DELAY,
+         ViolatorSortType::SORT_BY_TNS,
+         ViolatorSortType::SORT_BY_WNS};
 
   for (auto sort_type : SortTypeArray)  // Loop through each sort type
   {

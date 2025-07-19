@@ -68,7 +68,9 @@ class ViolatorCollector
                 = ViolatorSortType::SORT_BY_LOAD_DELAY);
   void sortByLoadDelay();
   void sortByWNS();
-  void sortByTNS();
+  void sortByLocalTNS();
+  std::map<const Pin*, Delay> getLocalTNS() const;
+  Delay getLocalPinTNS(const Pin* pin) const;
 
   Resizer* resizer_;
   Logger* logger_;

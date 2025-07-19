@@ -76,16 +76,18 @@ void ViolatorCollector::printViolators(int numPrint = 0) const
     LibertyCell* cell = port->libertyCell();
     Vertex* vertex = graph_->pinDrvrVertex(pin);
     float slack = sta_->pinSlack(pin, max_);
+    float tns = getLocalPinTNS(pin);
     pair<Delay, Delay> delays = getDelays(pin);
     debugPrint(logger_,
                RSZ,
                "violator_collector",
                1,
-               "{} ({}) slack={} level={} delay={} load_delay={} + "
+               "{} ({}) slack={} tns={} level={} delay={} load_delay={} + "
                "intrinsic_delay={}",
                network_->pathName(pin),
                cell->name(),
                delayAsString(slack, sta_, 3),
+               delayAsString(tns, sta_, 3),
                vertex->level(),
                delayAsString(delays.first + delays.second, sta_, 3),
                delayAsString(delays.first, sta_, 3),
@@ -332,7 +334,7 @@ void ViolatorCollector::sortPins(int numPins, ViolatorSortType sort_type)
              getEnumString(sort_type));
   switch (sort_type) {
     case ViolatorSortType::SORT_BY_TNS:
-      sortByTNS();
+      sortByLocalTNS();
       break;
     case ViolatorSortType::SORT_BY_WNS:
       sortByWNS();
@@ -370,8 +372,59 @@ void ViolatorCollector::sortByWNS()
             });
 }
 
-void ViolatorCollector::sortByTNS()
+Delay ViolatorCollector::getLocalPinTNS(const Pin* pin) const
 {
+  Delay tns = 0;
+  Vertex* drvr_vertex = graph_->pinDrvrVertex(pin);
+  sta::VertexOutEdgeIterator edge_iter(drvr_vertex, graph_);
+  while (edge_iter.hasNext()) {
+    Edge* edge = edge_iter.next();
+    // Watch out for problematic asap7 output->output timing arcs.
+    if (!edge->isWire()) {
+      continue;
+    }
+    Vertex* fanout_vertex = edge->to(graph_);
+    const Slack fanout_slack = sta_->vertexSlack(fanout_vertex, resizer_->max_);
+    if (fanout_slack < 0) {
+      tns += fanout_slack;
+    }
+    debugPrint(logger_,
+               RSZ,
+               "violator_collector",
+               1,
+               " pin {} fanout {} slack: {} tns: {}",
+               network_->pathName(pin),
+               network_->pathName(fanout_vertex->pin()),
+               delayAsString(fanout_slack, sta_, 3),
+               delayAsString(tns, sta_, 3));
+  }
+  return tns;
+}
+
+map<const Pin*, Delay> ViolatorCollector::getLocalTNS() const
+{
+  map<const Pin*, Delay> local_tns;
+  for (auto pin : violating_pins_) {
+    local_tns[pin] = getLocalPinTNS(pin);
+  }
+  return local_tns;
+}
+
+void ViolatorCollector::sortByLocalTNS()
+{
+  map<const Pin*, Delay> local_tns = getLocalTNS();
+
+  std::sort(violating_pins_.begin(),
+            violating_pins_.end(),
+            [this, &local_tns](const Pin* a, const Pin* b) {
+              float tns1 = local_tns[a];
+              float tns2 = local_tns[b];
+              float slack1 = sta_->pinSlack(a, max_);
+              float slack2 = sta_->pinSlack(b, max_);
+              return tns1 < tns2 || (tns1 == tns2 && slack1 < slack2)
+                     || (tns1 == tns2 && slack1 == slack2
+                         && network_->pathNameLess(a, b));
+            });
 }
 
 void ViolatorCollector::collectViolatingEndpoints()
