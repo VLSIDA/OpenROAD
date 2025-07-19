@@ -211,185 +211,196 @@ bool RepairSetup::repairSetup2(const float setup_slack_margin,
   bool two_cons_terminations = false;
   printProgress(opto_iteration, false, false, false, num_viols);
   float fix_rate_threshold = inc_fix_rate_threshold_;
-  // Just do it for the number of repeats rather than for each specific endpoint
-  for (int i = 0; i < max_end_count; i++) {
-    fallback_ = false;
-    Slack worst_slack = sta_->worstSlack(max_);
-    Slack worst_tns = sta_->totalNegativeSlack(max_);
-    debugPrint(logger_,
-               RSZ,
-               "repair_setup",
-               1,
-               "Doing {} / {} worst_slack = {} worst_tns = {}",
-               i,
-               max_end_count,
-               delayAsString(worst_slack, sta_, digits),
-               delayAsString(worst_tns, sta_, digits));
-    Slack prev_worst_slack = worst_slack;
-    Slack prev_worst_tns = worst_tns;
-    int pass = 1;
-    int decreasing_slack_passes = 0;
-    resizer_->journalBegin();
-    while (pass <= max_passes) {
-      opto_iteration++;
-      if (verbose || opto_iteration == 1) {
-        printProgress(opto_iteration, false, false, false, num_viols);
-      }
-      if (terminateProgress(opto_iteration,
-                            initial_tns,
-                            prev_tns,
-                            fix_rate_threshold,
-                            i,
-                            max_end_count)) {
-        if (prev_termination) {
-          // Abort entire fixing if no progress for 200 iterations
-          two_cons_terminations = true;
-        } else {
-          prev_termination = true;
+  vector<ViolatorSortType> SortTypeArray
+      = {ViolatorSortType::SORT_BY_LOAD_DELAY, ViolatorSortType::SORT_BY_WNS};
+
+  for (auto sort_type : SortTypeArray)  // Loop through each sort type
+  {
+    // Just do it for the number of repeats rather than for each specific
+    // endpoint
+    for (int i = 0; i < max_end_count; i++) {
+      fallback_ = false;
+      Slack worst_slack = sta_->worstSlack(max_);
+      Slack worst_tns = sta_->totalNegativeSlack(max_);
+      debugPrint(logger_,
+                 RSZ,
+                 "repair_setup",
+                 1,
+                 "Doing {} / {} worst_slack = {} worst_tns = {}",
+                 i,
+                 max_end_count,
+                 delayAsString(worst_slack, sta_, digits),
+                 delayAsString(worst_tns, sta_, digits));
+      Slack prev_worst_slack = worst_slack;
+      Slack prev_worst_tns = worst_tns;
+      int pass = 1;
+      int decreasing_slack_passes = 0;
+      resizer_->journalBegin();
+      while (pass <= max_passes) {
+        opto_iteration++;
+        if (verbose || opto_iteration == 1) {
+          printProgress(opto_iteration, false, false, false, num_viols);
+        }
+        if (terminateProgress(opto_iteration,
+                              initial_tns,
+                              prev_tns,
+                              fix_rate_threshold,
+                              i,
+                              max_end_count)) {
+          if (prev_termination) {
+            // Abort entire fixing if no progress for 200 iterations
+            two_cons_terminations = true;
+          } else {
+            prev_termination = true;
+          }
+
+          // Restore to previous good checkpoint
+          debugPrint(logger_,
+                     RSZ,
+                     "repair_setup",
+                     2,
+                     "Restoring best slack worst slack {} tns {}",
+                     delayAsString(prev_worst_slack, sta_, digits),
+                     delayAsString(prev_worst_tns, sta_, digits));
+          resizer_->journalRestore();
+          break;
+        }
+        if (opto_iteration % opto_small_interval_ == 0) {
+          prev_termination = false;
         }
 
-        // Restore to previous good checkpoint
+        if (worst_slack > setup_slack_margin) {
+          --num_viols;
+          if (pass != 1) {
+            debugPrint(logger_,
+                       RSZ,
+                       "repair_setup",
+                       2,
+                       "Restoring best slack worst slack {} tns {}",
+                       delayAsString(prev_worst_slack, sta_, digits),
+                       delayAsString(prev_worst_tns, sta_, digits));
+            resizer_->journalRestore();
+          } else {
+            resizer_->journalEnd();
+          }
+          // clang-format off
+        debugPrint(logger_, RSZ, "repair_setup", 1, "bailing out at {}/{} "
+                   "worst_slack {} is larger than setup_slack_margin {}",
+                   i, max_end_count, worst_slack, setup_slack_margin);
+          // clang-format on
+          break;
+        }
+        // vector<const Pin*> viol_pins
+        //    = violator_collector_->collectViolatorsByEndpoint(
+        //       i, ViolatorSortType::SORT_BY_LOAD_DELAY);
+        vector<const Pin*> viol_pins
+            = violator_collector_->collectViolators(1, 1, 0, sort_type);
+
+        const bool changed = repairPins(viol_pins, setup_slack_margin);
+        if (!changed) {
+          if (pass != 1) {
+            debugPrint(logger_,
+                       RSZ,
+                       "repair_setup",
+                       2,
+                       "No change after {} decreasing slack passes.",
+                       decreasing_slack_passes);
+            debugPrint(logger_,
+                       RSZ,
+                       "repair_setup",
+                       2,
+                       "Restoring best slack worst slack {} tns {}",
+                       delayAsString(prev_worst_slack, sta_, digits),
+                       delayAsString(prev_worst_tns, sta_, digits));
+            resizer_->journalRestore();
+          } else {
+            resizer_->journalEnd();
+          }
+          // clang-format off
+        debugPrint(logger_, RSZ, "repair_setup", 1, "bailing out {} no changes"
+                   " after {} decreasing passes", i,
+                   decreasing_slack_passes);
+          // clang-format on
+          break;
+        }
+        resizer_->updateParasitics();
+        sta_->findRequireds();
+        worst_slack = sta_->worstSlack(max_);
+        worst_tns = sta_->totalNegativeSlack(max_);
+        const bool better
+            = (fuzzyGreater(worst_slack, prev_worst_slack)
+               || (i != 1 && fuzzyEqual(worst_slack, prev_worst_slack)
+                   && fuzzyGreater(worst_tns, prev_worst_tns)));
         debugPrint(logger_,
                    RSZ,
                    "repair_setup",
                    2,
-                   "Restoring best slack worst slack {} tns {}",
-                   delayAsString(prev_worst_slack, sta_, digits),
-                   delayAsString(prev_worst_tns, sta_, digits));
-        resizer_->journalRestore();
-        break;
-      }
-      if (opto_iteration % opto_small_interval_ == 0) {
-        prev_termination = false;
-      }
-
-      if (worst_slack > setup_slack_margin) {
-        //--num_viols;
-        if (pass != 1) {
-          debugPrint(logger_,
-                     RSZ,
-                     "repair_setup",
-                     2,
-                     "Restoring best slack worst slack {} tns {}",
-                     delayAsString(prev_worst_slack, sta_, digits),
-                     delayAsString(prev_worst_tns, sta_, digits));
-          resizer_->journalRestore();
-        } else {
+                   "pass {} slack = {} tns= {} {}",
+                   pass,
+                   delayAsString(worst_slack, sta_, digits),
+                   delayAsString(worst_tns, sta_, digits),
+                   better ? "save" : "");
+        if (better) {
+          prev_worst_slack = worst_slack;
+          prev_worst_tns = worst_tns;
+          decreasing_slack_passes = 0;
           resizer_->journalEnd();
-        }
-        // clang-format off
-        debugPrint(logger_, RSZ, "repair_setup", 1, "bailing out at {}/{} "
-                   "worst_slack {} is larger than setup_slack_margin {}",
-                   i, max_end_count, worst_slack, setup_slack_margin);
-        // clang-format on
-        break;
-      }
-      vector<const Pin*> viol_pins
-          = violator_collector_->collectViolatorsByEndpoint(i);
-
-      const bool changed = repairPins(viol_pins, setup_slack_margin);
-      if (!changed) {
-        if (pass != 1) {
-          debugPrint(logger_,
-                     RSZ,
-                     "repair_setup",
-                     2,
-                     "No change after {} decreasing slack passes.",
-                     decreasing_slack_passes);
-          debugPrint(logger_,
-                     RSZ,
-                     "repair_setup",
-                     2,
-                     "Restoring best slack worst slack {} tns {}",
-                     delayAsString(prev_worst_slack, sta_, digits),
-                     delayAsString(prev_worst_tns, sta_, digits));
-          resizer_->journalRestore();
+          // Progress, Save checkpoint so we can back up to here.
+          resizer_->journalBegin();
         } else {
-          resizer_->journalEnd();
-        }
-        // clang-format off
-        debugPrint(logger_, RSZ, "repair_setup", 1, "bailing out {} no changes"
-                   " after {} decreasing passes", i,
-                   decreasing_slack_passes);
-        // clang-format on
-        break;
-      }
-      resizer_->updateParasitics();
-      sta_->findRequireds();
-      worst_slack = sta_->worstSlack(max_);
-      worst_tns = sta_->totalNegativeSlack(max_);
-      const bool better
-          = (fuzzyGreater(worst_slack, prev_worst_slack)
-             || (i != 1 && fuzzyEqual(worst_slack, prev_worst_slack)
-                 && fuzzyGreater(worst_tns, prev_worst_tns)));
-      debugPrint(logger_,
-                 RSZ,
-                 "repair_setup",
-                 2,
-                 "pass {} slack = {} tns= {} {}",
-                 pass,
-                 delayAsString(worst_slack, sta_, digits),
-                 delayAsString(worst_tns, sta_, digits),
-                 better ? "save" : "");
-      if (better) {
-        prev_worst_slack = worst_slack;
-        prev_worst_tns = worst_tns;
-        decreasing_slack_passes = 0;
-        resizer_->journalEnd();
-        // Progress, Save checkpoint so we can back up to here.
-        resizer_->journalBegin();
-      } else {
-        fallback_ = true;
-        // Allow slack to increase to get out of local minima.
-        // Do not update prev_end_slack so it saves the high water
-        // mark.
-        decreasing_slack_passes++;
-        if (decreasing_slack_passes > decreasing_slack_max_passes_) {
-          // Undo changes that reduced slack.
-          debugPrint(logger_,
-                     RSZ,
-                     "repair_setup",
-                     2,
-                     "decreasing slack for {} passes.",
-                     decreasing_slack_passes);
-          debugPrint(logger_,
-                     RSZ,
-                     "repair_setup",
-                     2,
-                     "Restoring best worst slack {} tns {}",
-                     delayAsString(prev_worst_slack, sta_, digits),
-                     delayAsString(prev_worst_tns, sta_, digits));
-          resizer_->journalRestore();
-          // clang-format off
+          fallback_ = true;
+          // Allow slack to increase to get out of local minima.
+          // Do not update prev_end_slack so it saves the high water
+          // mark.
+          decreasing_slack_passes++;
+          if (decreasing_slack_passes > decreasing_slack_max_passes_) {
+            // Undo changes that reduced slack.
+            debugPrint(logger_,
+                       RSZ,
+                       "repair_setup",
+                       2,
+                       "decreasing slack for {} passes.",
+                       decreasing_slack_passes);
+            debugPrint(logger_,
+                       RSZ,
+                       "repair_setup",
+                       2,
+                       "Restoring best worst slack {} tns {}",
+                       delayAsString(prev_worst_slack, sta_, digits),
+                       delayAsString(prev_worst_tns, sta_, digits));
+            resizer_->journalRestore();
+            // clang-format off
           debugPrint(logger_, RSZ, "repair_setup", 1, "bailing out {} decreasing"
                      " passes {} > decreasig pass limit {}", i, 
                      decreasing_slack_passes, decreasing_slack_max_passes_);
-          // clang-format on
-          break;
+            // clang-format on
+            break;
+          }
         }
-      }
 
-      if (resizer_->overMaxArea()) {
-        // clang-format off
+        if (resizer_->overMaxArea()) {
+          // clang-format off
         debugPrint(logger_, RSZ, "repair_setup", 1, "bailing out {} resizer"
                    " over max area", i);
-        // clang-format on
-        resizer_->journalEnd();
-        break;
+          // clang-format on
+          resizer_->journalEnd();
+          break;
+        }
+        pass++;
+      }  // while pass <= max_passes
+      if (verbose || opto_iteration == 1) {
+        printProgress(opto_iteration, true, false, false, num_viols);
       }
-      pass++;
-    }  // while pass <= max_passes
-    if (verbose || opto_iteration == 1) {
-      printProgress(opto_iteration, true, false, false, num_viols);
-    }
-    if (two_cons_terminations) {
-      // clang-format off
+      if (two_cons_terminations) {
+        // clang-format off
       debugPrint(logger_, RSZ, "repair_setup", 1, "bailing out of setup fixing"
                  "due to no TNS progress for two opto cycles");
-      // clang-format on
-      break;
-    }
-  }  // for each violating endpoint
+        // clang-format on
+        break;
+      }
+    }  // for each violating endpoint
+
+  }  // for each sort type
 
   // if (!skip_last_gasp) {
   //  do some last gasp setup fixing before we give up
@@ -838,7 +849,7 @@ bool RepairSetup::repairPins(std::vector<const Pin*>& pins,
   if (pins.size() == 0) {
     return false;
   }
-  int repairs_per_pass = 10;
+  int repairs_per_pass = 1;
   if (fallback_) {
     repairs_per_pass = 1;
   }

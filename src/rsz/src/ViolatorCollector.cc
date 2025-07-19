@@ -40,6 +40,20 @@ using sta::Slew;
 using sta::TimingArcSet;
 using sta::VertexInEdgeIterator;
 
+const char* ViolatorCollector::getEnumString(ViolatorSortType sort_type)
+{
+  switch (sort_type) {
+    case ViolatorSortType::SORT_BY_TNS:
+      return "SORT_BY_TNS";
+    case ViolatorSortType::SORT_BY_WNS:
+      return "SORT_BY_WNS";
+    case ViolatorSortType::SORT_BY_LOAD_DELAY:
+      return "SORT_BY_LOAD_DELAY";
+    default:
+      return "UNKNOWN";
+  }
+}
+
 void ViolatorCollector::printViolators(int numPrint = 0) const
 {
   if (violating_pins_.empty()) {
@@ -62,15 +76,20 @@ void ViolatorCollector::printViolators(int numPrint = 0) const
     LibertyCell* cell = port->libertyCell();
     Vertex* vertex = graph_->pinDrvrVertex(pin);
     float slack = sta_->pinSlack(pin, max_);
+    pair<Delay, Delay> delays = getDelays(pin);
     debugPrint(logger_,
                RSZ,
                "violator_collector",
                1,
-               "{} ({}) slack={} level={}",
+               "{} ({}) slack={} level={} delay={} load_delay={} + "
+               "intrinsic_delay={}",
                network_->pathName(pin),
                cell->name(),
                delayAsString(slack, sta_, 3),
-               vertex->level());
+               vertex->level(),
+               delayAsString(delays.first + delays.second, sta_, 3),
+               delayAsString(delays.first, sta_, 3),
+               delayAsString(delays.second, sta_, 3));
   }
 }
 
@@ -154,7 +173,7 @@ void ViolatorCollector::init(float slack_margin)
   collectViolatingEndpoints();
 }
 
-void ViolatorCollector::collectBySlack(int numPins)
+void ViolatorCollector::collectBySlack()
 {
   violating_pins_.clear();
 
@@ -195,67 +214,79 @@ void ViolatorCollector::collectBySlack(int numPins)
              violating_pins_.size());
 }
 
+pair<Delay, Delay> ViolatorCollector::getDelays(const Pin* pin) const
+{
+  Vertex* path_vertex = graph_->pinDrvrVertex(pin);
+  Delay worst_load_delay = -sta::INF;
+  Delay worst_intrinsic_delay = -sta::INF;
+
+  VertexInEdgeIterator edge_iter(path_vertex, graph_);
+  while (edge_iter.hasNext()) {
+    Edge* prev_edge = edge_iter.next();
+    const TimingArcSet* arc_set = prev_edge->timingArcSet();
+    for (const RiseFall* rf : RiseFall::range()) {
+      TimingArc* prev_arc = arc_set->arcTo(rf);
+      const TimingArc* corner_arc = prev_arc->cornerArc(lib_ap_);
+      const Delay intrinsic_delay = corner_arc->intrinsicDelay();
+      const Delay delay
+          = graph_->arcDelay(prev_edge, prev_arc, dcalc_ap_->index());
+      const Delay load_delay = delay - intrinsic_delay;
+      if (load_delay > worst_load_delay) {
+        worst_load_delay = load_delay;
+        worst_intrinsic_delay = intrinsic_delay;
+      }
+    }
+  }
+
+  return std::make_pair(worst_load_delay, worst_intrinsic_delay);
+}
+
 void ViolatorCollector::sortByLoadDelay()
 {
-  const sta::DcalcAnalysisPt* dcalc_ap
-      = corner_->findDcalcAnalysisPt(sta::MinMax::max());
-  const int lib_ap = dcalc_ap->libertyIndex();
+  map<const Pin*, Delay> load_delays;
+  for (auto pin : violating_pins_) {
+    std::pair<Delay, Delay> delays = getDelays(pin);
+    Delay worst_load_delay = delays.first;
+    Delay worst_intrinsic_delay = delays.second;
+    Delay worst_delay = worst_load_delay + worst_intrinsic_delay;
 
-  vector<pair<int, Delay>> load_delays;
-  for (int i = 0; i < violating_pins_.size(); i++) {
-    const Pin* path_pin = violating_pins_[i];
-    Vertex* path_vertex = graph_->pinDrvrVertex(path_pin);
-    Delay worst_delay = -sta::INF;
-    Delay worst_load_delay = -sta::INF;
-    Delay worst_intrinsic_delay = -sta::INF;
-
-    VertexInEdgeIterator edge_iter(path_vertex, graph_);
-    while (edge_iter.hasNext()) {
-      Edge* prev_edge = edge_iter.next();
-      const TimingArcSet* arc_set = prev_edge->timingArcSet();
-      for (const RiseFall* rf : RiseFall::range()) {
-        TimingArc* prev_arc = arc_set->arcTo(rf);
-        const TimingArc* corner_arc = prev_arc->cornerArc(lib_ap);
-        const Delay intrinsic_delay = corner_arc->intrinsicDelay();
-        const Delay delay
-            = graph_->arcDelay(prev_edge, prev_arc, dcalc_ap->index());
-        const Delay load_delay = delay - intrinsic_delay;
-        if (load_delay > worst_load_delay) {
-          worst_delay = delay;
-          worst_load_delay = load_delay;
-          worst_intrinsic_delay = intrinsic_delay;
-        }
-      }
-      load_delays.emplace_back(i, worst_delay);
-      debugPrint(logger_,
-                 RSZ,
-                 "repair_setup",
-                 3,
-                 "{} load_delay = {} intrinsic_delay = {}",
-                 path_vertex->name(network_),
-                 delayAsString(worst_delay, sta_, 3),
-                 delayAsString(worst_load_delay, sta_, 3),
-                 delayAsString(worst_intrinsic_delay, sta_, 3));
-    }
-
-    sort(
-        load_delays.begin(),
-        load_delays.end(),
-        [](pair<int, Delay> pair1, pair<int, Delay> pair2) {
-          return pair1.second > pair2.second
-                 || (pair1.second == pair2.second && pair1.first > pair2.first);
-        });
+    load_delays[pin] = worst_load_delay;
+    debugPrint(logger_,
+               RSZ,
+               "violator_collector",
+               3,
+               "{} load_delay = {} intrinsic_delay = {}",
+               network_->portName(pin),
+               delayAsString(worst_delay, sta_, 3),
+               delayAsString(worst_load_delay, sta_, 3),
+               delayAsString(worst_intrinsic_delay, sta_, 3));
   }
+
+  std::sort(violating_pins_.begin(),
+            violating_pins_.end(),
+            [this, &load_delays](const Pin* a, const Pin* b) {
+              Vertex* vertex1 = graph_->pinDrvrVertex(a);
+              Vertex* vertex2 = graph_->pinDrvrVertex(b);
+              int level1 = vertex1->level();
+              int level2 = vertex2->level();
+              return load_delays[a] > load_delays[b]
+                     || (load_delays[a] == load_delays[b] && level1 > level2)
+                     || (load_delays[a] == load_delays[b] && level1 == level2
+                         && network_->pathNameLess(a, b));
+            });
 }
 
 vector<const Pin*> ViolatorCollector::collectViolatorsByEndpoint(
     int endpoint_index,
     ViolatorSortType sort_type)
 {
+  dcalc_ap_ = corner_->findDcalcAnalysisPt(sta::MinMax::max());
+  lib_ap_ = dcalc_ap_->libertyIndex();
+
   violating_pins_.clear();
   if (endpoint_index > violating_ends_.size()) {
     logger_->error(RSZ,
-                   9,
+                   14,
                    "Endpoint index {} out of range ({} endpoints).",
                    endpoint_index,
                    violating_ends_.size());
@@ -265,28 +296,40 @@ vector<const Pin*> ViolatorCollector::collectViolatorsByEndpoint(
       = collectPinsByPathEndpoint(violating_ends_[endpoint_index].first, 1);
   violating_pins_.insert(violating_pins_.end(), pin_set.begin(), pin_set.end());
 
-  sortPins(sort_type);
+  sortPins(0, sort_type);
 
   return (violating_pins_);
 }
 
 vector<const Pin*> ViolatorCollector::collectViolators(
     int numPaths,
+    int numEndpoints,
+    int numPins,
     ViolatorSortType sort_type)
 {
+  dcalc_ap_ = corner_->findDcalcAnalysisPt(sta::MinMax::max());
+  lib_ap_ = dcalc_ap_->libertyIndex();
+
   if (numPaths > 0) {
-    collectByPaths(numPaths);
+    collectByPaths(numPaths, numEndpoints);
   } else {
     collectBySlack();
   }
 
-  sortPins(sort_type);
+  sortPins(numPins, sort_type);
 
   return violating_pins_;
 }
 
-void ViolatorCollector::sortPins(ViolatorSortType sort_type)
+void ViolatorCollector::sortPins(int numPins, ViolatorSortType sort_type)
 {
+  debugPrint(logger_,
+             RSZ,
+             "violator_collector",
+             1,
+             "Sorting {} violating pins by {}.",
+             violating_pins_.size(),
+             getEnumString(sort_type));
   switch (sort_type) {
     case ViolatorSortType::SORT_BY_TNS:
       sortByTNS();
@@ -297,7 +340,17 @@ void ViolatorCollector::sortPins(ViolatorSortType sort_type)
     case ViolatorSortType::SORT_BY_LOAD_DELAY:
       sortByLoadDelay();
       break;
+    default:
+      logger_->error(
+          RSZ, 9, "Unknown sort type: {}.", getEnumString(sort_type));
   }
+
+  // Truncate to keep only the top numPins pins
+  if (numPins > 0 && numPins < violating_pins_.size()) {
+    violating_pins_.resize(numPins);
+  }
+
+  printViolators(10);
 }
 
 void ViolatorCollector::sortByWNS()
@@ -311,7 +364,7 @@ void ViolatorCollector::sortByWNS()
               Vertex* vertex2 = graph_->pinDrvrVertex(b);
               int level1 = vertex1->level();
               int level2 = vertex2->level();
-              return slack1 < slack2 || (slack1 == slack2 && level1 < level2)
+              return slack1 < slack2 || (slack1 == slack2 && level1 > level2)
                      || (slack1 == slack2 && level1 == level2
                          && network_->pathNameLess(a, b));
             });
@@ -348,18 +401,19 @@ void ViolatorCollector::collectViolatingEndpoints()
              int(violating_ends_.size() / double(endpoints->size()) * 100));
 }
 
-void ViolatorCollector::collectByPaths(int numPaths)
+void ViolatorCollector::collectByPaths(int numPaths, int numEndpoints)
 {
-  // For tracking duplicates
+  // For skipping duplicates
   set<const Pin*> viol_pins;
 
   collectViolatingEndpoints();
 
   size_t old_size = viol_pins.size();
+  int endpoint_count = 0;
   for (const auto& end_original_slack : violating_ends_) {
     const Pin* endpoint_pin = end_original_slack.first;
     Vertex* end = graph_->pinDrvrVertex(endpoint_pin);
-    set<const Pin*> end_pins = collectPinsByPathEndpoint(end->pin());
+    set<const Pin*> end_pins = collectPinsByPathEndpoint(end->pin(), numPaths);
     viol_pins.insert(end_pins.begin(), end_pins.end());
 
     debugPrint(
@@ -374,6 +428,10 @@ void ViolatorCollector::collectByPaths(int numPaths)
         viol_pins.size());
 
     old_size = viol_pins.size();
+    endpoint_count++;
+    if (numEndpoints > 0 && endpoint_count >= numEndpoints) {
+      break;
+    }
   }
 
   violating_pins_.clear();

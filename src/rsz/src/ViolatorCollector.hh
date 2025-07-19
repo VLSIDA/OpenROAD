@@ -17,9 +17,10 @@ using utl::RSZ;
 
 enum class ViolatorSortType
 {
-  SORT_BY_TNS,
-  SORT_BY_WNS,
-  SORT_BY_LOAD_DELAY
+  SORT_BY_LOAD_DELAY = 0,
+  SORT_BY_WNS = 1,
+  SORT_BY_TNS = 2,
+  MAX = 3
 };
 
 // Class to collect instances with violating output pins.
@@ -33,6 +34,8 @@ class ViolatorCollector
     sta_ = resizer_->sta_;
     network_ = resizer_->network_;
     max_ = resizer_->max_;
+    dcalc_ap_ = nullptr;
+    lib_ap_ = -1;
   }
 
   void init(float slack_margin);
@@ -45,18 +48,24 @@ class ViolatorCollector
       ViolatorSortType sort_type = ViolatorSortType::SORT_BY_LOAD_DELAY);
 
   vector<const Pin*> collectViolators(int numPaths = 1,
+                                      int numEndpoints = 1,
+                                      int numPins = 0,
                                       ViolatorSortType sort_type
                                       = ViolatorSortType::SORT_BY_LOAD_DELAY);
 
  private:
+  const char* getEnumString(ViolatorSortType sort_type);
   void collectViolatingEndpoints();
+  std::pair<Delay, Delay> getDelays(const Pin* pin) const;
 
   set<const Pin*> collectPinsByPathEndpoint(const sta::Pin* endpoint_pin,
                                             size_t paths_per_endpoint = 1);
-  void collectBySlack(int numPins = 1000);
-  void collectByPaths(int numPaths = 1);
+  void collectBySlack();
+  void collectByPaths(int numPaths = 1, int numEndpoints = 0);
 
-  void sortPins(ViolatorSortType sort_type);
+  void sortPins(int numPins = 0,
+                ViolatorSortType sort_type
+                = ViolatorSortType::SORT_BY_LOAD_DELAY);
   void sortByLoadDelay();
   void sortByWNS();
   void sortByTNS();
@@ -72,6 +81,8 @@ class ViolatorCollector
   sta::Sdc* sdc_;
   sta::Report* report_;
   sta::Corner* corner_;
+  sta::DcalcAnalysisPt* dcalc_ap_;
+  int lib_ap_;
 
   float slack_margin_;
   vector<const Pin*> violating_pins_;
