@@ -23,6 +23,16 @@ enum class ViolatorSortType
   MAX = 3
 };
 
+struct pinData
+{
+  std::string name;
+  Delay slack;
+  Delay tns;
+  float intrinsic_delay;
+  float load_delay;
+  int level;
+};
+
 // Class to collect instances with violating output pins.
 class ViolatorCollector
 {
@@ -36,6 +46,7 @@ class ViolatorCollector
     max_ = resizer_->max_;
     dcalc_ap_ = nullptr;
     lib_ap_ = -1;
+    move_count_ = 0;
   }
 
   void init(float slack_margin);
@@ -47,21 +58,27 @@ class ViolatorCollector
       int endpoint_index,
       ViolatorSortType sort_type = ViolatorSortType::SORT_BY_LOAD_DELAY);
 
-  vector<const Pin*> collectViolators(int numPaths = 1,
+  vector<const Pin*> collectViolators(int endPointIndex = -1,
                                       int numEndpoints = 1,
+                                      int numPathsPerEndpoint = 1,
                                       int numPins = 0,
                                       ViolatorSortType sort_type
                                       = ViolatorSortType::SORT_BY_LOAD_DELAY);
+  void trackMove(const Pin* pin, std::string move_type, bool accept);
+  void printMoveSummary();
+  void clearMoveSummary();
 
  private:
   const char* getEnumString(ViolatorSortType sort_type);
   void collectViolatingEndpoints();
-  std::pair<Delay, Delay> getDelays(const Pin* pin) const;
+  void updatePinData(const Pin* pin, pinData& pd);
 
   set<const Pin*> collectPinsByPathEndpoint(const sta::Pin* endpoint_pin,
                                             size_t paths_per_endpoint = 1);
   void collectBySlack();
-  void collectByPaths(int numPaths = 1, int numEndpoints = 0);
+  void collectByPaths(int endPointIndex = 1,
+                      int numEndpoints = 1,
+                      int numPathsPerEndpoint = 1);
 
   void sortPins(int numPins = 0,
                 ViolatorSortType sort_type
@@ -88,7 +105,12 @@ class ViolatorCollector
 
   float slack_margin_;
   vector<const Pin*> violating_pins_;
+  std::map<const Pin*, pinData> pin_data_;
   vector<std::pair<const Pin*, Slack>> violating_ends_;
+
+  int move_count_ = 0;
+  std::map<const Pin*, int> visit_count_;
+  std::vector<std::tuple<const Pin*, int, std::string, bool>> moves_;
 };
 
 }  // namespace rsz

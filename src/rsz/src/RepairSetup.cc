@@ -19,6 +19,7 @@
 #include "UnbufferMove.hh"
 #include "ViolatorCollector.hh"
 #include "rsz/Resizer.hh"
+#include "sta/DcalcAnalysisPt.hh"
 #include "sta/Fuzzy.hh"
 #include "sta/Graph.hh"
 #include "sta/PathExpanded.hh"
@@ -171,27 +172,51 @@ bool RepairSetup::repairSetup2(const float setup_slack_margin,
                     skip_buffering,
                     skip_buffer_removal);
 
+  // Sort failing endpoints by slack.
   const VertexSet* endpoints = sta_->endpoints();
-  int num_viols = 0;
+  vector<pair<Vertex*, Slack>> violating_ends;
+  // logger_->setDebugLevel(RSZ, "repair_setup", 2);
+  // Should check here whether we can figure out the clock domain for each
+  // vertex. This may be the place where we can do some round robin fun to
+  // individually control each clock domain instead of just fixating on fixing
+  // one.
   for (Vertex* end : *endpoints) {
     const Slack end_slack = sta_->vertexSlack(end, max_);
     if (end_slack < setup_slack_margin) {
-      num_viols++;
+      violating_ends.emplace_back(end, end_slack);
     }
   }
+  std::stable_sort(violating_ends.begin(),
+                   violating_ends.end(),
+                   [](const auto& end_slack1, const auto& end_slack2) {
+                     return end_slack1.second < end_slack2.second;
+                   });
   debugPrint(logger_,
              RSZ,
              "repair_setup",
              1,
              "Violating endpoints {}/{} {}%",
-             num_viols,
+             violating_ends.size(),
              endpoints->size(),
-             int(num_viols / double(endpoints->size()) * 100));
+             int(violating_ends.size() / double(endpoints->size()) * 100));
 
+  if (!violating_ends.empty()) {
+    logger_->info(RSZ,
+                  94,
+                  "Found {} endpoints with setup violations.",
+                  violating_ends.size());
+  } else {
+    // nothing to repair
+    logger_->metric("design__instance__count__setup_buffer", 0);
+    logger_->info(RSZ, 98, "No setup violations found");
+    return false;
+  }
+
+  int max_end_count = violating_ends.size() * repair_tns_end_percent;
   float initial_tns = sta_->totalNegativeSlack(max_);
   float prev_tns = initial_tns;
-
-  int max_end_count = num_viols * repair_tns_end_percent;
+  int num_viols = violating_ends.size();
+  max_end_count = num_viols * repair_tns_end_percent;
   // Always repair the worst endpoint, even if tns percent is zero.
   max_end_count = max(max_end_count, 1);
   logger_->info(RSZ,
@@ -211,16 +236,25 @@ bool RepairSetup::repairSetup2(const float setup_slack_margin,
   bool two_cons_terminations = false;
   printProgress(opto_iteration, false, false, false, num_viols);
   float fix_rate_threshold = inc_fix_rate_threshold_;
+  if (!violating_ends.empty()) {
+    min_viol_ = -violating_ends.back().second;
+    max_viol_ = -violating_ends.front().second;
+  }
   vector<ViolatorSortType> SortTypeArray
-      = {ViolatorSortType::SORT_BY_LOAD_DELAY,
-         ViolatorSortType::SORT_BY_TNS,
-         ViolatorSortType::SORT_BY_WNS};
+      = {ViolatorSortType::SORT_BY_LOAD_DELAY};
+  // vector<ViolatorSortType> SortTypeArray
+  //    = {ViolatorSortType::SORT_BY_LOAD_DELAY,
+  //       ViolatorSortType::SORT_BY_TNS,
+  //      ViolatorSortType::SORT_BY_WNS};
 
   for (auto sort_type : SortTypeArray)  // Loop through each sort type
   {
     // Just do it for the number of repeats rather than for each specific
     // endpoint
-    for (int i = 0; i < max_end_count; i++) {
+    for (int end_index = 0; end_index < max_end_count; end_index++) {
+      Vertex* end = violating_ends[end_index].first;
+      Slack end_slack = sta_->vertexSlack(end, max_);
+
       fallback_ = false;
       Slack worst_slack = sta_->worstSlack(max_);
       Slack worst_tns = sta_->totalNegativeSlack(max_);
@@ -228,11 +262,18 @@ bool RepairSetup::repairSetup2(const float setup_slack_margin,
                  RSZ,
                  "repair_setup",
                  1,
-                 "Doing {} / {} worst_slack = {} worst_tns = {}",
-                 i,
-                 max_end_count,
+                 "{} slack={} worst_slack = {} worst_tns= {}",
+                 end->name(network_),
+                 delayAsString(end_slack, sta_, digits),
                  delayAsString(worst_slack, sta_, digits),
                  delayAsString(worst_tns, sta_, digits));
+      debugPrint(logger_,
+                 RSZ,
+                 "repair_setup",
+                 1,
+                 "Doing {} /{}",
+                 end_index + 1,
+                 max_end_count);
       Slack prev_worst_slack = worst_slack;
       Slack prev_worst_tns = worst_tns;
       int pass = 1;
@@ -247,7 +288,7 @@ bool RepairSetup::repairSetup2(const float setup_slack_margin,
                               initial_tns,
                               prev_tns,
                               fix_rate_threshold,
-                              i,
+                              end_index + 1,
                               max_end_count)) {
           if (prev_termination) {
             // Abort entire fixing if no progress for 200 iterations
@@ -288,15 +329,12 @@ bool RepairSetup::repairSetup2(const float setup_slack_margin,
           // clang-format off
         debugPrint(logger_, RSZ, "repair_setup", 1, "bailing out at {}/{} "
                    "worst_slack {} is larger than setup_slack_margin {}",
-                   i, max_end_count, worst_slack, setup_slack_margin);
+                   end_index+1, max_end_count, worst_slack, setup_slack_margin);
           // clang-format on
           break;
         }
-        // vector<const Pin*> viol_pins
-        //    = violator_collector_->collectViolatorsByEndpoint(
-        //       i, ViolatorSortType::SORT_BY_LOAD_DELAY);
-        vector<const Pin*> viol_pins
-            = violator_collector_->collectViolators(1, 1, 0, sort_type);
+        vector<const Pin*> viol_pins = violator_collector_->collectViolators(
+            end_index, 1, 1, 100, sort_type);
 
         const bool changed = repairPins(viol_pins, setup_slack_margin);
         if (!changed) {
@@ -320,7 +358,7 @@ bool RepairSetup::repairSetup2(const float setup_slack_margin,
           }
           // clang-format off
         debugPrint(logger_, RSZ, "repair_setup", 1, "bailing out {} no changes"
-                   " after {} decreasing passes", i,
+                   " after {} decreasing passes", end->name(network_),
                    decreasing_slack_passes);
           // clang-format on
           break;
@@ -329,10 +367,10 @@ bool RepairSetup::repairSetup2(const float setup_slack_margin,
         sta_->findRequireds();
         worst_slack = sta_->worstSlack(max_);
         worst_tns = sta_->totalNegativeSlack(max_);
-        const bool better
-            = (fuzzyGreater(worst_slack, prev_worst_slack)
-               || (i != 1 && fuzzyEqual(worst_slack, prev_worst_slack)
-                   && fuzzyGreater(worst_tns, prev_worst_tns)));
+        const bool better = (fuzzyGreater(worst_slack, prev_worst_slack)
+                             || (end_index + 1 != 1
+                                 && fuzzyEqual(worst_slack, prev_worst_slack)
+                                 && fuzzyGreater(worst_tns, prev_worst_tns)));
         debugPrint(logger_,
                    RSZ,
                    "repair_setup",
@@ -373,7 +411,7 @@ bool RepairSetup::repairSetup2(const float setup_slack_margin,
             resizer_->journalRestore();
             // clang-format off
           debugPrint(logger_, RSZ, "repair_setup", 1, "bailing out {} decreasing"
-                     " passes {} > decreasig pass limit {}", i, 
+                     " passes {} > decreasig pass limit {}", end->name(network_),
                      decreasing_slack_passes, decreasing_slack_max_passes_);
             // clang-format on
             break;
@@ -383,7 +421,7 @@ bool RepairSetup::repairSetup2(const float setup_slack_margin,
         if (resizer_->overMaxArea()) {
           // clang-format off
         debugPrint(logger_, RSZ, "repair_setup", 1, "bailing out {} resizer"
-                   " over max area", i);
+                   " over max area", end->name(network_));
           // clang-format on
           resizer_->journalEnd();
           break;
@@ -400,12 +438,15 @@ bool RepairSetup::repairSetup2(const float setup_slack_margin,
         // clang-format on
         break;
       }
+
+      violator_collector_->printMoveSummary();
+      violator_collector_->clearMoveSummary();
     }  // for each violating endpoint
 
   }  // for each sort type
 
   // if (!skip_last_gasp) {
-  //  do some last gasp setup fixing before we give up
+  //   do some last gasp setup fixing before we give up
   //  OptoParams params(setup_slack_margin, verbose);
   // params.iteration = opto_iteration;
   // params.initial_tns = initial_tns;
@@ -855,6 +896,14 @@ bool RepairSetup::repairPins(std::vector<const Pin*>& pins,
   if (fallback_) {
     repairs_per_pass = 1;
   }
+  debugPrint(logger_,
+             RSZ,
+             "repair_setup",
+             3,
+             "Path slack: {}, repairs: {}, load_delays: {}",
+             0,
+             repairs_per_pass,
+             pins.size());
   for (const auto& drvr_pin : pins) {
     if (changed >= repairs_per_pass) {
       break;
@@ -889,9 +938,13 @@ bool RepairSetup::repairPins(std::vector<const Pin*>& pins,
         } else {
           changed++;
         }
+        violator_collector_->trackMove(drvr_pin, move->name(), true);
+
         // Move on to the next gate
         break;
       }
+      violator_collector_->trackMove(drvr_pin, move->name(), false);
+
       debugPrint(logger_,
                  RSZ,
                  "repair_setup",
@@ -1010,7 +1063,7 @@ bool RepairSetup::repairPath(Path* path,
         debugPrint(logger_,
                    RSZ,
                    "repair_setup",
-                   1,
+                   2,
                    "Considering {} for {}",
                    move->name(),
                    network_->pathName(drvr_pin));

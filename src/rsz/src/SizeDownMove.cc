@@ -8,6 +8,7 @@
 #include <string>
 
 #include "BaseMove.hh"
+#include "sta/GraphDelayCalc.hh"
 
 namespace rsz {
 
@@ -25,15 +26,13 @@ using sta::LibertyCell;
 using sta::LibertyPort;
 using sta::LoadPinIndexMap;
 using sta::NetConnectedPinIterator;
-using sta::Path;
 using sta::Pin;
 using sta::Slack;
 using sta::Slew;
 using sta::Vertex;
 using sta::VertexOutEdgeIterator;
 
-bool SizeDownMove::doMove(const Pin* drvr_pin,
-                          float setup_slack_margin)
+bool SizeDownMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
 {
   Vertex* drvr_vertex = graph_->pinDrvrVertex(drvr_pin);
   const Slack drvr_slack = sta_->vertexSlack(drvr_vertex, resizer_->max_);

@@ -9,6 +9,7 @@
 
 #include "BufferMove.hh"
 #include "SplitLoadMove.hh"
+#include "sta/PortDirection.hh"
 
 namespace rsz {
 
@@ -28,9 +29,7 @@ using sta::LibertyCell;
 using sta::LoadPinIndexMap;
 using sta::Net;
 using sta::NetConnectedPinIterator;
-using sta::Path;
 using sta::Pin;
-using sta::RiseFall;
 using sta::Slack;
 using sta::Slew;
 using sta::Vertex;
@@ -57,8 +56,7 @@ Point CloneMove::computeCloneGateLocation(
   return {centroid_x / count, centroid_y / count};
 }
 
-bool CloneMove::doMove(const Pin* drvr_pin,
-                       float setup_slack_margin)
+bool CloneMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
 {
   Vertex* drvr_vertex = graph_->pinDrvrVertex(drvr_pin);
   const Slack drvr_slack = sta_->vertexSlack(drvr_vertex, resizer_->max_);

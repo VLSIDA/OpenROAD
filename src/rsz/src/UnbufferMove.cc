@@ -3,7 +3,6 @@
 
 #include "UnbufferMove.hh"
 
-#include <algorithm>
 #include <cmath>
 #include <string>
 
@@ -13,6 +12,7 @@
 #include "SizeUpMove.hh"
 #include "SplitLoadMove.hh"
 #include "SwapPinsMove.hh"
+#include "sta/GraphDelayCalc.hh"
 
 namespace rsz {
 
@@ -45,8 +45,7 @@ using sta::Vertex;
 // 2) it doesn't create new max fanout violations
 // 3) it doesn't create new max cap violations
 // 4) it doesn't worsen slack
-bool UnbufferMove::doMove(const Pin* drvr_pin,
-                          float setup_slack_margin)
+bool UnbufferMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
 {
   Vertex* drvr_vertex = graph_->pinDrvrVertex(drvr_pin);
   LibertyPort* drvr_port = network_->libertyPort(drvr_pin);

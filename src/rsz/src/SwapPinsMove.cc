@@ -14,6 +14,8 @@
 #include <utility>
 
 #include "BaseMove.hh"
+#include "sta/GraphDelayCalc.hh"
+#include "sta/PortDirection.hh"
 
 namespace rsz {
 
@@ -32,7 +34,6 @@ using sta::LibertyPort;
 using sta::LoadPinIndexMap;
 using sta::Net;
 using sta::NetConnectedPinIterator;
-using sta::Path;
 using sta::Pin;
 using sta::RiseFall;
 using sta::Slack;
@@ -41,8 +42,7 @@ using sta::TimingArc;
 using sta::TimingArcSet;
 using sta::Vertex;
 
-bool SwapPinsMove::doMove(const Pin* drvr_pin,
-                          float setup_slack_margin)
+bool SwapPinsMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
 {
   // Skip if there is no liberty model or this is a single-input cell
   LibertyPort* drvr_port = network_->libertyPort(drvr_pin);

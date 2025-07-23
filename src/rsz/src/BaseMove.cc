@@ -3,6 +3,10 @@
 
 #include "BaseMove.hh"
 
+#include "sta/Fuzzy.hh"
+#include "sta/GraphDelayCalc.hh"
+#include "sta/PortDirection.hh"
+
 namespace rsz {
 
 using std::max;
@@ -653,57 +657,6 @@ int BaseMove::fanout(Vertex* vertex)
   }
   return fanout;
 }
-
-LibertyCell* BaseMove::upsizeCell(LibertyPort* in_port,
-                                  LibertyPort* drvr_port,
-                                  const float load_cap,
-                                  const float prev_drive,
-                                  const DcalcAnalysisPt* dcalc_ap)
-{
-  const int lib_ap = dcalc_ap->libertyIndex();
-  LibertyCell* cell = drvr_port->libertyCell();
-  LibertyCellSeq swappable_cells = resizer_->getSwappableCells(cell);
-  if (!swappable_cells.empty()) {
-    const char* in_port_name = in_port->name();
-    const char* drvr_port_name = drvr_port->name();
-    sort(swappable_cells,
-         [=](const LibertyCell* cell1, const LibertyCell* cell2) {
-           LibertyPort* port1
-               = cell1->findLibertyPort(drvr_port_name)->cornerPort(lib_ap);
-           LibertyPort* port2
-               = cell2->findLibertyPort(drvr_port_name)->cornerPort(lib_ap);
-           const float drive1 = port1->driveResistance();
-           const float drive2 = port2->driveResistance();
-           const ArcDelay intrinsic1 = port1->intrinsicDelay(this);
-           const ArcDelay intrinsic2 = port2->intrinsicDelay(this);
-           const float capacitance1 = port1->capacitance();
-           const float capacitance2 = port2->capacitance();
-           return std::tie(drive2, intrinsic1, capacitance1)
-                  < std::tie(drive1, intrinsic2, capacitance2);
-         });
-    const float drive = drvr_port->cornerPort(lib_ap)->driveResistance();
-    const float delay
-        = resizer_->gateDelay(drvr_port, load_cap, resizer_->tgt_slew_dcalc_ap_)
-          + prev_drive * in_port->cornerPort(lib_ap)->capacitance();
-
-    for (LibertyCell* swappable : swappable_cells) {
-      LibertyCell* swappable_corner = swappable->cornerCell(lib_ap);
-      LibertyPort* swappable_drvr
-          = swappable_corner->findLibertyPort(drvr_port_name);
-      LibertyPort* swappable_input
-          = swappable_corner->findLibertyPort(in_port_name);
-      const float swappable_drive = swappable_drvr->driveResistance();
-      // Include delay of previous driver into swappable gate.
-      const float swappable_delay
-          = resizer_->gateDelay(swappable_drvr, load_cap, dcalc_ap)
-            + prev_drive * swappable_input->capacitance();
-      if (swappable_drive < drive && swappable_delay < delay) {
-        return swappable;
-      }
-    }
-  }
-  return nullptr;
-};
 
 // Replace LEF with LEF so ports stay aligned in instance.
 bool BaseMove::replaceCell(Instance* inst, const LibertyCell* replacement)
