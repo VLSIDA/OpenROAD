@@ -489,6 +489,8 @@ bool RepairSetup::repairSetup(const float setup_slack_margin,
                     skip_buffering,
                     skip_buffer_removal);
 
+  violator_collector_->init(setup_slack_margin);
+
   // Sort failing endpoints by slack.
   const VertexSet* endpoints = sta_->endpoints();
   vector<pair<Vertex*, Slack>> violating_ends;
@@ -636,6 +638,7 @@ bool RepairSetup::repairSetup(const float setup_slack_margin,
         break;
       }
       Path* end_path = sta_->vertexWorstSlackPath(end, max_);
+      violator_collector_->trackViolators((const Pin*) end_path);
 
       const bool changed = repairPath(end_path, end_slack, setup_slack_margin);
       if (!changed) {
@@ -744,6 +747,8 @@ bool RepairSetup::repairSetup(const float setup_slack_margin,
       // clang-format on
       break;
     }
+    violator_collector_->printMoveSummary();
+    violator_collector_->clearMoveSummary();
   }  // for each violating endpoint
 
   if (!skip_last_gasp) {
@@ -1046,6 +1051,7 @@ bool RepairSetup::repairPath(Path* path,
       const Path* drvr_path = expanded.path(drvr_index);
       Vertex* drvr_vertex = drvr_path->vertex(sta_);
       const Pin* drvr_pin = drvr_vertex->pin();
+      violator_collector_->trackViolators(drvr_pin);
       LibertyPort* drvr_port = network_->libertyPort(drvr_pin);
       LibertyCell* drvr_cell = drvr_port ? drvr_port->libertyCell() : nullptr;
       const int fanout = this->fanout(drvr_vertex);
@@ -1076,9 +1082,11 @@ bool RepairSetup::repairPath(Path* path,
           } else {
             changed++;
           }
+          violator_collector_->trackMove(drvr_pin, move->name(), true);
           // Move on to the next gate
           break;
         }
+        violator_collector_->trackMove(drvr_pin, move->name(), false);
         debugPrint(logger_,
                    RSZ,
                    "repair_setup",

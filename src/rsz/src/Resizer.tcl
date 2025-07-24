@@ -573,7 +573,7 @@ proc repair_tie_fanout { args } {
 
 # -max_passes is for developer debugging so intentionally not documented
 # in define_cmd_args
-sta::define_cmd_args "repair_timing" {[-setup] [-hold]\
+sta::define_cmd_args "repair_timing" {[-setup] [-hold] [-newsetup]\
                                         [-recover_power percent_of_paths_with_slack]\
                                         [-setup_margin setup_margin]\
                                         [-hold_margin hold_margin]\
@@ -600,11 +600,12 @@ proc repair_timing { args } {
     keys {-setup_margin -hold_margin -slack_margin \
             -libraries -max_utilization -max_buffer_percent -sequence \
             -recover_power -repair_tns -max_passes -max_repairs_per_pass} \
-    flags {-setup -hold -allow_setup_violations -skip_pin_swap -skip_gate_cloning \
+    flags {-setup -hold -newsetup -allow_setup_violations -skip_pin_swap -skip_gate_cloning \
            -skip_size_down -skip_buffering -skip_buffer_removal -skip_last_gasp \
             -match_cell_footprint -verbose}
 
   set setup [info exists flags(-setup)]
+  set newsetup [info exists flags(-newsetup)]
   set hold [info exists flags(-hold)]
 
   if { !$setup && !$hold } {
@@ -696,7 +697,7 @@ proc repair_timing { args } {
         $max_repairs_per_pass $match_cell_footprint $verbose \
         $sequence \
         $skip_pin_swap $skip_gate_cloning $skip_size_down $skip_buffering \
-        $skip_buffer_removal $skip_last_gasp]
+        $skip_buffer_removal $skip_last_gasp $newsetup]
     }
     if { $hold } {
       set repaired_hold [rsz::repair_hold $setup_margin $hold_margin \

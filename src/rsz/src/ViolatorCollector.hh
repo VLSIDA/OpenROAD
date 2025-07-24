@@ -64,7 +64,9 @@ class ViolatorCollector
                                       int numPins = 0,
                                       ViolatorSortType sort_type
                                       = ViolatorSortType::SORT_BY_LOAD_DELAY);
+  // For statistics on critical paths and moves
   void trackMove(const Pin* pin, std::string move_type, bool accept);
+  void trackViolators(const Pin* pin);
   void printMoveSummary();
   void clearMoveSummary();
 

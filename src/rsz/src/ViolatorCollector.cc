@@ -187,6 +187,18 @@ void ViolatorCollector::printMoveSummary()
                total_moves);
   }
 }
+
+void ViolatorCollector::trackViolators(const Pin* pin)
+{
+  if (!logger_->debugCheck(RSZ, "move_summary", 1)) {
+    return;
+  }
+  if (visit_count_.find(pin) == visit_count_.end()) {
+    visit_count_[pin] = 0;
+  }
+  visit_count_.at(pin)++;
+}
+
 void ViolatorCollector::trackMove(const Pin* pin, string move_type, bool accept)
 {
   if (!logger_->debugCheck(RSZ, "move_summary", 1)) {
