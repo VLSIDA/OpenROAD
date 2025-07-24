@@ -149,7 +149,7 @@ void ViolatorCollector::printMoveSummary()
              RSZ,
              "move_summary",
              1,
-             "Violator Summary: Pins: {} Accepted: {} Rejected: {} Not "
+             "Violator Summary:\nPins: {}\nAccepted: {}\nRejected: {}\nNot "
              "Considered: {}",
              visit_count_.size(),
              accepted_pins.size(),
@@ -180,7 +180,7 @@ void ViolatorCollector::printMoveSummary()
                RSZ,
                "move_summary",
                1,
-               "Move Type: {} Accept Rate: {:.2f}% ({}/{})",
+               "{} {:.2f}% ({}/{})",
                move_type,
                accept_rate,
                counts.first,

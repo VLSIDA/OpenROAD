@@ -202,13 +202,13 @@ bool RepairSetup::repairSetup2(const float setup_slack_margin,
 
   if (!violating_ends.empty()) {
     logger_->info(RSZ,
-                  94,
+                  106,
                   "Found {} endpoints with setup violations.",
                   violating_ends.size());
   } else {
     // nothing to repair
     logger_->metric("design__instance__count__setup_buffer", 0);
-    logger_->info(RSZ, 98, "No setup violations found");
+    logger_->info(RSZ, 110, "No setup violations found");
     return false;
   }
 
@@ -262,7 +262,7 @@ bool RepairSetup::repairSetup2(const float setup_slack_margin,
                  RSZ,
                  "repair_setup",
                  1,
-                 "{} slack={} worst_slack = {} worst_tns= {}",
+                 "{} slack={} worst_slack = {} tns = {}",
                  end->name(network_),
                  delayAsString(end_slack, sta_, digits),
                  delayAsString(worst_slack, sta_, digits),
@@ -519,6 +519,18 @@ bool RepairSetup::repairSetup(const float setup_slack_margin,
              endpoints->size(),
              int(violating_ends.size() / double(endpoints->size()) * 100));
 
+  if (!violating_ends.empty()) {
+    logger_->info(RSZ,
+                  94,
+                  "Found {} endpoints with setup violations.",
+                  violating_ends.size());
+  } else {
+    // nothing to repair
+    logger_->metric("design__instance__count__setup_buffer", 0);
+    logger_->info(RSZ, 98, "No setup violations found");
+    return false;
+  }
+
   int end_index = 0;
   int max_end_count = violating_ends.size() * repair_tns_end_percent;
   float initial_tns = sta_->totalNegativeSlack(max_);
@@ -551,6 +563,7 @@ bool RepairSetup::repairSetup(const float setup_slack_margin,
     fallback_ = false;
     Vertex* end = end_original_slack.first;
     Slack end_slack = sta_->vertexSlack(end, max_);
+    Slack worst_tns = sta_->totalNegativeSlack(max_);
     Slack worst_slack;
     Vertex* worst_vertex;
     sta_->worstSlack(max_, worst_slack, worst_vertex);
@@ -558,10 +571,11 @@ bool RepairSetup::repairSetup(const float setup_slack_margin,
                RSZ,
                "repair_setup",
                1,
-               "{} slack = {} worst_slack = {}",
+               "{} slack={} worst_slack = {} tns = {}",
                end->name(network_),
                delayAsString(end_slack, sta_, digits),
-               delayAsString(worst_slack, sta_, digits));
+               delayAsString(worst_slack, sta_, digits),
+               delayAsString(worst_tns, sta_, digits));
     end_index++;
     debugPrint(logger_,
                RSZ,
