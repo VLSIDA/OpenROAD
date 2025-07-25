@@ -23,6 +23,13 @@ enum class ViolatorSortType
   MAX = 3
 };
 
+enum class MoveStateType
+{
+  ATTEMPT = 0,
+  ATTEMPT_REJECT = 1,
+  ATTEMPT_COMMIT = 2
+};
+
 struct pinData
 {
   std::string name;
@@ -31,6 +38,24 @@ struct pinData
   float intrinsic_delay;
   float load_delay;
   int level;
+};
+
+struct moveStateData
+{
+  const Pin* pin;
+  int order;
+  std::string move_type;
+  MoveStateType state;
+
+  moveStateData(const sta::Pin* p, int c, const std::string mt, MoveStateType s)
+      : pin(p), order(c), move_type(mt), state(s)
+  {
+  }
+
+  moveStateData(const sta::Pin* p, const std::string mt, MoveStateType s)
+      : pin(p), order(0), move_type(mt), state(s)
+  {
+  }
 };
 
 // Class to collect instances with violating output pins.
@@ -65,10 +90,11 @@ class ViolatorCollector
                                       ViolatorSortType sort_type
                                       = ViolatorSortType::SORT_BY_LOAD_DELAY);
   // For statistics on critical paths and moves
-  void trackMove(const Pin* pin, std::string move_type, bool accept);
+  void trackMove(const Pin* pin, std::string move_type, MoveStateType state);
   void trackViolators(const Pin* pin);
+  void commitMoves();
+  void rejectMoves();
   void printMoveSummary();
-  void clearMoveSummary();
 
  private:
   const char* getEnumString(ViolatorSortType sort_type);
@@ -91,6 +117,8 @@ class ViolatorCollector
   std::map<const Pin*, Delay> getLocalTNS() const;
   Delay getLocalPinTNS(const Pin* pin) const;
 
+  void clearMoveSummary();
+
   Resizer* resizer_;
   Logger* logger_;
   sta::Sta* sta_;
@@ -112,7 +140,8 @@ class ViolatorCollector
 
   int move_count_ = 0;
   std::map<const Pin*, int> visit_count_;
-  std::vector<std::tuple<const Pin*, int, std::string, bool>> moves_;
+  std::vector<moveStateData> moves_;
+  std::vector<moveStateData> pending_moves_;
 };
 
 }  // namespace rsz

@@ -167,9 +167,6 @@ void Resizer::init(Logger* logger,
   split_load_move_ = std::make_unique<SplitLoadMove>(this);
   swap_pins_move_ = std::make_unique<SwapPinsMove>(this);
   unbuffer_move_ = std::make_unique<UnbufferMove>(this);
-
-  old_repair_setup_ = true;
-  violator_collector_ = std::make_unique<ViolatorCollector>(this);
 }
 
 ////////////////////////////////////////////////////////////////

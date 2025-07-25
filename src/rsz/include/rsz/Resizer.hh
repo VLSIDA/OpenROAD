@@ -291,7 +291,6 @@ class Resizer : public dbStaState, public dbNetworkObserver
                    bool skip_buffer_removal,
                    bool skip_last_gasp,
                    bool new_repair_setup);
-  bool old_repair_setup_;
   // For testing.
   void repairSetup(const Pin* end_pin);
   // For testing.
@@ -713,7 +712,6 @@ class Resizer : public dbStaState, public dbNetworkObserver
   std::unique_ptr<ConcreteSwapArithModules> swap_arith_modules_;
   std::unique_ptr<AbstractSteinerRenderer> steiner_renderer_;
   std::unique_ptr<Rebuffer> rebuffer_;
-  std::unique_ptr<ViolatorCollector> violator_collector_;
 
   // Layer RC per wire length indexed by layer->getNumber(), corner->index
   std::vector<std::vector<double>> layer_res_;  // ohms/meter

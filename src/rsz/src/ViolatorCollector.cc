@@ -8,6 +8,7 @@
 #include <memory>
 #include <set>
 #include <string>
+#include <tuple>
 
 #include "BaseMove.hh"
 #include "BufferMove.hh"
@@ -114,78 +115,122 @@ void ViolatorCollector::printMoveSummary()
   if (move_count_ == 0) {
     return;
   }
-  int accepted_moves = 0;
-  std::map<std::string, std::pair<int, int>> move_type_counts;
-  std::set<const Pin*> considered_pins;
-  std::set<const Pin*> accepted_pins;
-  std::set<const Pin*> rejected_pins;
+  // attempt, reject, commit
+  std::map<std::string, std::tuple<int, int, int>> move_type_counts;
+  // We tried a move
+  std::vector<const Pin*> attempted_pins;
+  // We tried a move and doMove succeded, but it was rejected
+  std::vector<const Pin*> rejected_pins;
+  // We tried a move and it was commited
+  std::vector<const Pin*> committed_pins;
 
   for (const auto& move : moves_) {
-    const Pin* pin;
-    int move_count;
-    std::string move_type;
-    bool accept;
-    std::tie(pin, move_count, move_type, accept) = move;
+    const Pin* pin = move.pin;
 
-    if (accept) {
-      accepted_moves++;
-      move_type_counts[move_type].first++;
-      accepted_pins.insert(pin);
-    } else {
-      move_type_counts[move_type].second++;
-      rejected_pins.insert(pin);
+    switch (move.state) {
+      case MoveStateType::ATTEMPT:
+        attempted_pins.push_back(pin);
+        std::get<(int) MoveStateType::ATTEMPT>(
+            move_type_counts[move.move_type])++;
+        break;
+      case MoveStateType::ATTEMPT_REJECT:
+        attempted_pins.push_back(pin);
+        std::get<(int) MoveStateType::ATTEMPT>(
+            move_type_counts[move.move_type])++;
+        rejected_pins.push_back(pin);
+        std::get<(int) MoveStateType::ATTEMPT_REJECT>(
+            move_type_counts[move.move_type])++;
+        break;
+      case MoveStateType::ATTEMPT_COMMIT:
+        attempted_pins.push_back(pin);
+        std::get<(int) MoveStateType::ATTEMPT>(
+            move_type_counts[move.move_type])++;
+        committed_pins.push_back(pin);
+        std::get<(int) MoveStateType::ATTEMPT_COMMIT>(
+            move_type_counts[move.move_type])++;
+        break;
     }
-    considered_pins.insert(pin);
   }
 
-  int not_considered_pins = 0;
+  int not_attempted_count = 0;
   for (const auto& [pin, visit_count] : visit_count_) {
-    if (considered_pins.find(pin) == considered_pins.end()) {
-      not_considered_pins++;
+    if (std::find(attempted_pins.begin(), attempted_pins.end(), pin)
+        != attempted_pins.end()) {
+      continue;
     }
+    not_attempted_count++;
   }
 
   debugPrint(logger_,
              RSZ,
              "move_summary",
              1,
-             "Violator Summary:\nPins: {}\nAccepted: {}\nRejected: {}\nNot "
-             "Considered: {}",
-             visit_count_.size(),
-             accepted_pins.size(),
+             "Move Summary: Not Attempted: {} Attempts: {} Rejects: "
+             "{} Commits: {} ",
+             not_attempted_count,
+             attempted_pins.size(),
              rejected_pins.size(),
-             not_considered_pins);
-
-  float total_accept_rate
+             committed_pins.size());
+  float total_attempt_rate_
       = (moves_.size() > 0)
-            ? (static_cast<float>(accepted_moves) / moves_.size()) * 100
+            ? (static_cast<float>(attempted_pins.size()) / moves_.size()) * 100
+            : 0;
+  float total_reject_rate_
+      = (moves_.size() > 0)
+            ? (static_cast<float>(rejected_pins.size()) / moves_.size()) * 100
+            : 0;
+  float total_commit_rate_
+      = (moves_.size() > 0)
+            ? (static_cast<float>(committed_pins.size()) / moves_.size()) * 100
             : 0;
   debugPrint(logger_,
              RSZ,
              "move_summary",
              1,
-             "Move Summary: Accept Rate: {}% ({}/{})",
-             total_accept_rate,
-             accepted_moves,
+             "Overall: attempt_rate: {:.2f}% ({}/{}) reject_rate: {:0.2f}% "
+             "({}/{}) commit_rate: {:0.2f}% ({}/{})",
+             total_attempt_rate_,
+             attempted_pins.size(),
+             moves_.size(),
+             total_reject_rate_,
+             rejected_pins.size(),
+             moves_.size(),
+             total_commit_rate_,
+             committed_pins.size(),
              moves_.size());
 
-  debugPrint(logger_, RSZ, "move_summary", 1, "Move Type Acceptance Rates:");
   for (const auto& [move_type, counts] : move_type_counts) {
-    int total_moves = counts.first + counts.second;
-    float accept_rate
-        = (total_moves > 0)
-              ? (static_cast<float>(counts.first) / total_moves) * 100
+    float move_attempt_rate
+        = (moves_.size() > 0)
+              ? (static_cast<float>(std::get<0>(counts)) / moves_.size()) * 100
+              : 0;
+    float move_reject_rate
+        = (moves_.size() > 0)
+              ? (static_cast<float>(std::get<1>(counts)) / moves_.size()) * 100
+              : 0;
+    float move_commit_rate
+        = (moves_.size() > 0)
+              ? (static_cast<float>(std::get<2>(counts)) / moves_.size()) * 100
               : 0;
     debugPrint(logger_,
                RSZ,
                "move_summary",
                1,
-               "{} {:.2f}% ({}/{})",
+               "{} attempt_rate: {:.2f}% ({}/{}) reject_rate: {:.2f}% ({}/{})  "
+               "commit_rate: {:.2f}% ({}/{})",
                move_type,
-               accept_rate,
-               counts.first,
-               total_moves);
+               move_attempt_rate,
+               std::get<0>(counts),
+               moves_.size(),
+               move_reject_rate,
+               std::get<1>(counts),
+               moves_.size(),
+               move_commit_rate,
+               std::get<2>(counts),
+               moves_.size());
   }
+
+  clearMoveSummary();
 }
 
 void ViolatorCollector::trackViolators(const Pin* pin)
@@ -198,15 +243,38 @@ void ViolatorCollector::trackViolators(const Pin* pin)
   }
   visit_count_.at(pin)++;
 }
+void ViolatorCollector::commitMoves()
+{
+  for (const auto& pending_move : pending_moves_) {
+    moves_.emplace_back(pending_move.pin,
+                        move_count_++,
+                        pending_move.move_type,
+                        MoveStateType::ATTEMPT_COMMIT);
+  }
+  pending_moves_.clear();
+}
 
-void ViolatorCollector::trackMove(const Pin* pin, string move_type, bool accept)
+void ViolatorCollector::rejectMoves()
+{
+  for (const auto& pending_move : pending_moves_) {
+    moves_.emplace_back(pending_move.pin,
+                        move_count_++,
+                        pending_move.move_type,
+                        MoveStateType::ATTEMPT_REJECT);
+  }
+  pending_moves_.clear();
+}
+
+void ViolatorCollector::trackMove(const Pin* pin,
+                                  string move_type,
+                                  MoveStateType state)
 {
   if (!logger_->debugCheck(RSZ, "move_summary", 1)) {
     return;
   }
   assert(visit_count_.find(pin) != visit_count_.end()
          && "Pin must be visited before tracking moves.");
-  moves_.emplace_back(pin, move_count_++, move_type, accept);
+  pending_moves_.emplace_back(pin, move_type, state);
 }
 
 void ViolatorCollector::printHistogram(int numBins) const
@@ -291,6 +359,8 @@ void ViolatorCollector::init(float slack_margin)
   pin_data_.clear();
   violating_pins_.clear();
   move_count_ = 0;
+  pending_moves_.clear();
+  moves_.clear();
 }
 
 void ViolatorCollector::collectBySlack()
