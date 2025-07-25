@@ -976,6 +976,25 @@ bool RepairSetup::repairPins(std::vector<const Pin*>& pins,
   return changed > 0;
 }
 
+void RepairSetup::repairPinsDebug(std::vector<const Pin*>& pins, std::vector<MoveType>& sequence)
+{
+  init();
+  resizer_->rebuffer_->init();
+  resizer_->rebuffer_->initOnCorner(sta_->cmdCorner());
+  violator_collector_->init(0);
+  resizer_->buffer_moved_into_core_ = false;
+  setupMoveSequence(sequence, false, false, false, false, false);
+  resizer_->journalBegin();
+  for (const Pin* pin : pins) {
+    for (BaseMove* move : move_sequence) {
+      if (move->doMove(pin, 0)) {
+        violator_collector_->trackMove(pin, move->name(), true);
+      }
+    }
+  }
+  resizer_->journalEnd();
+}
+
 /* This is the main routine for repairing setup violations. We have
  - remove driver (step 1)
  - upsize driver (step 2)

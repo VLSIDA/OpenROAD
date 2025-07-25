@@ -100,6 +100,7 @@ class RepairSetup : public sta::dbStaState
   void reportSwappablePins();
   // Rebuffer one net (for testing).
   // resizerPreamble() required.
+  void repairPinsDebug(std::vector<const Pin*>& pins, std::vector<MoveType>& sequence);
 
  private:
   void init();

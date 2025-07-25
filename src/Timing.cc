@@ -420,6 +420,37 @@ std::vector<odb::dbMaster*> Timing::equivCells(odb::dbMaster* master)
   }
   return master_seq;
 }
+
+void Timing::repairPins(std::string inst_names, std::string moves)
+{
+  ensureLinked();
+  sta::dbSta* sta = getSta();
+  // Parse the list of gates and obtain their driver pins
+  std::vector<const sta::Pin*> sta_pins;
+  std::vector<rsz::MoveType> result;
+  std::stringstream ss(inst_names);
+  std::string item;
+  while (std::getline(ss, item, ',')) {
+    odb::dbInst* inst = design_->getBlock()->findInst(item.c_str());
+    for (odb::dbITerm* db_pin : inst->getITerms()) {
+      if (db_pin->getSigType().isSupply()) {
+        continue;
+      }
+      if (db_pin->isInputSignal()) {
+        continue;
+      }
+      const sta::Pin* sta_pin = sta->getDbNetwork()->dbToSta(db_pin);
+      sta_pins.push_back(sta_pin);
+      break;
+    }
+  }
+  // Parse the move sequence
+  rsz::Resizer* resizer = design_->getResizer();
+  std::vector<rsz::MoveType> sequence = rsz::Resizer::parseMoveSequence(moves);
+  // Run timing repair
+  resizer->repairPins(sta_pins, sequence);
+}
+
 float Timing::getWorstNegativeSlack()
 {
   return getSta()->worstSlack(sta::MinMax::max());
