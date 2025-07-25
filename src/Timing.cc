@@ -420,4 +420,15 @@ std::vector<odb::dbMaster*> Timing::equivCells(odb::dbMaster* master)
   }
   return master_seq;
 }
+float Timing::getWorstNegativeSlack()
+{
+  return getSta()->worstSlack(sta::MinMax::max());
+}
+
+
+float Timing::getTotalNegativeSlack()
+{
+  return getSta()->totalNegativeSlack(sta::MinMax::max());
+}
+
 }  // namespace ord

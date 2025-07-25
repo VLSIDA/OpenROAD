@@ -82,6 +82,9 @@ class Timing
   void makeEquivCells();
   std::vector<odb::dbMaster*> equivCells(odb::dbMaster* master);
 
+  float getWorstNegativeSlack();
+  float getTotalNegativeSlack();
+
  private:
   sta::dbSta* getSta();
   const sta::MinMax* getMinMax(MinMax type);
