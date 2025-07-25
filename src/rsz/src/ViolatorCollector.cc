@@ -199,17 +199,14 @@ void ViolatorCollector::printMoveSummary()
              RSZ,
              "move_summary",
              1,
-             "Overall attempt_rate: {:.2f}% ({}/{}) reject_rate: {:0.2f}% "
-             "({}/{}) commit_rate: {:0.2f}% ({}/{})",
+             "Overall attempt_rate: {:.2f}% ({}) reject_rate: {:0.2f}% "
+             "({}) commit_rate: {:0.2f}% ({})",
              attempt_rate_,
              attempted_pins.size(),
-             moves_.size(),
              reject_rate_,
              rejected_pins.size(),
-             moves_.size(),
              commit_rate_,
-             committed_pins.size(),
-             moves_.size());
+             committed_pins.size());
 
   total_no_attempt_count_ += no_attempt_count;
   total_attempt_count_ += attempted_pins.size();
@@ -234,18 +231,15 @@ void ViolatorCollector::printMoveSummary()
                RSZ,
                "move_summary",
                1,
-               "{} attempt_rate: {:.2f}% ({}/{}) reject_rate: {:.2f}% ({}/{})  "
-               "commit_rate: {:.2f}% ({}/{})",
+               "{} attempt_rate: {:.2f}% ({}) reject_rate: {:.2f}% ({})  "
+               "commit_rate: {:.2f}% ({})",
                move_type,
                move_attempt_rate,
                move_attempt_count,
-               moves_.size(),
                move_reject_rate,
                move_reject_count,
-               moves_.size(),
                move_commit_rate,
-               move_commit_count,
-               moves_.size());
+               move_commit_count);
   }
 
   debugPrint(logger_, RSZ, "move_summary", 2, "Total statistics:");
@@ -278,17 +272,14 @@ void ViolatorCollector::printMoveSummary()
              RSZ,
              "move_summary",
              1,
-             "Overall attempt_rate: {:.2f}% ({}/{}) reject_rate: {:0.2f}% "
-             "({}/{}) commit_rate: {:0.2f}% ({}/{})",
+             "Overall attempt_rate: {:.2f}% ({}) reject_rate: {:0.2f}% "
+             "({}) commit_rate: {:0.2f}% ({})",
              total_attempt_rate_,
              total_attempt_count_,
-             total_move_count_,
              total_reject_rate_,
              total_reject_count_,
-             total_move_count_,
              total_commit_rate_,
-             total_commit_count_,
-             total_move_count_);
+             total_commit_count_);
 
   for (const auto& [move_type, counts] : total_move_type_counts_) {
     float total_move_attempt_count
@@ -314,18 +305,15 @@ void ViolatorCollector::printMoveSummary()
                RSZ,
                "move_summary",
                1,
-               "{} attempt_rate: {:.2f}% ({}/{}) reject_rate: {:.2f}% ({}/{})  "
-               "commit_rate: {:.2f}% ({}/{})",
+               "{} attempt_rate: {:.2f}% ({}) reject_rate: {:.2f}% ({})  "
+               "commit_rate: {:.2f}% ({})",
                move_type,
                total_move_attempt_rate,
                total_move_attempt_count,
-               total_move_count_,
                total_move_reject_rate,
                total_move_reject_count,
-               total_move_count_,
                total_move_commit_rate,
-               total_move_commit_count,
-               total_move_count_);
+               total_move_commit_count);
   }
   clearMoveSummary();
 }
