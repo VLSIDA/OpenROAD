@@ -142,6 +142,12 @@ class ViolatorCollector
   std::map<const Pin*, int> visit_count_;
   std::vector<moveStateData> moves_;
   std::vector<moveStateData> pending_moves_;
+  int total_move_count_ = 0;
+  int total_no_attempt_count_ = 0;
+  int total_attempt_count_ = 0;
+  int total_reject_count_ = 0;
+  int total_commit_count_ = 0;
+  std::map<std::string, std::tuple<int, int, int>> total_move_type_counts_;
 };
 
 }  // namespace rsz

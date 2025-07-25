@@ -112,9 +112,10 @@ void ViolatorCollector::printMoveSummary()
   if (!logger_->debugCheck(RSZ, "move_summary", 1)) {
     return;
   }
-  if (move_count_ == 0) {
+  if (moves_.size() == 0) {
     return;
   }
+
   // attempt, reject, commit
   std::map<std::string, std::tuple<int, int, int>> move_type_counts;
   // We tried a move
@@ -132,54 +133,65 @@ void ViolatorCollector::printMoveSummary()
         attempted_pins.push_back(pin);
         std::get<(int) MoveStateType::ATTEMPT>(
             move_type_counts[move.move_type])++;
+        std::get<(int) MoveStateType::ATTEMPT>(
+            total_move_type_counts_[move.move_type])++;
         break;
       case MoveStateType::ATTEMPT_REJECT:
         attempted_pins.push_back(pin);
         std::get<(int) MoveStateType::ATTEMPT>(
             move_type_counts[move.move_type])++;
+        std::get<(int) MoveStateType::ATTEMPT>(
+            total_move_type_counts_[move.move_type])++;
         rejected_pins.push_back(pin);
         std::get<(int) MoveStateType::ATTEMPT_REJECT>(
             move_type_counts[move.move_type])++;
+        std::get<(int) MoveStateType::ATTEMPT_REJECT>(
+            total_move_type_counts_[move.move_type])++;
         break;
       case MoveStateType::ATTEMPT_COMMIT:
         attempted_pins.push_back(pin);
         std::get<(int) MoveStateType::ATTEMPT>(
             move_type_counts[move.move_type])++;
+        std::get<(int) MoveStateType::ATTEMPT>(
+            total_move_type_counts_[move.move_type])++;
         committed_pins.push_back(pin);
         std::get<(int) MoveStateType::ATTEMPT_COMMIT>(
             move_type_counts[move.move_type])++;
+        std::get<(int) MoveStateType::ATTEMPT_COMMIT>(
+            total_move_type_counts_[move.move_type])++;
         break;
     }
   }
 
-  int not_attempted_count = 0;
+  int no_attempt_count = 0;
   for (const auto& [pin, visit_count] : visit_count_) {
     if (std::find(attempted_pins.begin(), attempted_pins.end(), pin)
         != attempted_pins.end()) {
       continue;
     }
-    not_attempted_count++;
+    no_attempt_count++;
   }
 
+  debugPrint(logger_, RSZ, "move_summary", 2, "Current pass statistics:");
   debugPrint(logger_,
              RSZ,
              "move_summary",
              1,
-             "Move Summary: Not Attempted: {} Attempts: {} Rejects: "
+             "Current Summary: Not Attempted: {} Attempts: {} Rejects: "
              "{} Commits: {} ",
-             not_attempted_count,
+             no_attempt_count,
              attempted_pins.size(),
              rejected_pins.size(),
              committed_pins.size());
-  float total_attempt_rate_
+  float attempt_rate_
       = (moves_.size() > 0)
             ? (static_cast<float>(attempted_pins.size()) / moves_.size()) * 100
             : 0;
-  float total_reject_rate_
+  float reject_rate_
       = (moves_.size() > 0)
             ? (static_cast<float>(rejected_pins.size()) / moves_.size()) * 100
             : 0;
-  float total_commit_rate_
+  float commit_rate_
       = (moves_.size() > 0)
             ? (static_cast<float>(committed_pins.size()) / moves_.size()) * 100
             : 0;
@@ -187,31 +199,37 @@ void ViolatorCollector::printMoveSummary()
              RSZ,
              "move_summary",
              1,
-             "Overall: attempt_rate: {:.2f}% ({}/{}) reject_rate: {:0.2f}% "
+             "Overall attempt_rate: {:.2f}% ({}/{}) reject_rate: {:0.2f}% "
              "({}/{}) commit_rate: {:0.2f}% ({}/{})",
-             total_attempt_rate_,
+             attempt_rate_,
              attempted_pins.size(),
              moves_.size(),
-             total_reject_rate_,
+             reject_rate_,
              rejected_pins.size(),
              moves_.size(),
-             total_commit_rate_,
+             commit_rate_,
              committed_pins.size(),
              moves_.size());
 
+  total_no_attempt_count_ += no_attempt_count;
+  total_attempt_count_ += attempted_pins.size();
+  total_reject_count_ += rejected_pins.size();
+  total_commit_count_ += committed_pins.size();
+  total_move_count_ += move_count_;
+
   for (const auto& [move_type, counts] : move_type_counts) {
+    float move_attempt_count
+        = static_cast<float>(std::get<(int) MoveStateType::ATTEMPT>(counts));
+    float move_reject_count = static_cast<float>(
+        std::get<(int) MoveStateType::ATTEMPT_REJECT>(counts));
+    float move_commit_count = static_cast<float>(
+        std::get<(int) MoveStateType::ATTEMPT_COMMIT>(counts));
     float move_attempt_rate
-        = (moves_.size() > 0)
-              ? (static_cast<float>(std::get<0>(counts)) / moves_.size()) * 100
-              : 0;
+        = (moves_.size() > 0) ? (move_attempt_count / moves_.size()) * 100 : 0;
     float move_reject_rate
-        = (moves_.size() > 0)
-              ? (static_cast<float>(std::get<1>(counts)) / moves_.size()) * 100
-              : 0;
+        = (moves_.size() > 0) ? (move_reject_count / moves_.size()) * 100 : 0;
     float move_commit_rate
-        = (moves_.size() > 0)
-              ? (static_cast<float>(std::get<2>(counts)) / moves_.size()) * 100
-              : 0;
+        = (moves_.size() > 0) ? (move_commit_count / moves_.size()) * 100 : 0;
     debugPrint(logger_,
                RSZ,
                "move_summary",
@@ -220,16 +238,95 @@ void ViolatorCollector::printMoveSummary()
                "commit_rate: {:.2f}% ({}/{})",
                move_type,
                move_attempt_rate,
-               std::get<0>(counts),
+               move_attempt_count,
                moves_.size(),
                move_reject_rate,
-               std::get<1>(counts),
+               move_reject_count,
                moves_.size(),
                move_commit_rate,
-               std::get<2>(counts),
+               move_commit_count,
                moves_.size());
   }
 
+  debugPrint(logger_, RSZ, "move_summary", 2, "Total statistics:");
+  debugPrint(logger_,
+             RSZ,
+             "move_summary",
+             1,
+             "Total Summary: Not Attempted: {} Attempts: {} Rejects: "
+             "{} Commits: {} ",
+             total_no_attempt_count_,
+             total_attempt_count_,
+             total_reject_count_,
+             total_commit_count_);
+  float total_attempt_rate_
+      = (total_move_count_ > 0)
+            ? (static_cast<float>(total_attempt_count_) / total_move_count_)
+                  * 100
+            : 0;
+  float total_reject_rate_
+      = (total_move_count_ > 0)
+            ? (static_cast<float>(total_reject_count_) / total_move_count_)
+                  * 100
+            : 0;
+  float total_commit_rate_
+      = (total_move_count_ > 0)
+            ? (static_cast<float>(total_commit_count_) / total_move_count_)
+                  * 100
+            : 0;
+  debugPrint(logger_,
+             RSZ,
+             "move_summary",
+             1,
+             "Overall attempt_rate: {:.2f}% ({}/{}) reject_rate: {:0.2f}% "
+             "({}/{}) commit_rate: {:0.2f}% ({}/{})",
+             total_attempt_rate_,
+             total_attempt_count_,
+             total_move_count_,
+             total_reject_rate_,
+             total_reject_count_,
+             total_move_count_,
+             total_commit_rate_,
+             total_commit_count_,
+             total_move_count_);
+
+  for (const auto& [move_type, counts] : total_move_type_counts_) {
+    float total_move_attempt_count
+        = static_cast<float>(std::get<(int) MoveStateType::ATTEMPT>(counts));
+    float total_move_reject_count = static_cast<float>(
+        std::get<(int) MoveStateType::ATTEMPT_REJECT>(counts));
+    float total_move_commit_count = static_cast<float>(
+        std::get<(int) MoveStateType::ATTEMPT_COMMIT>(counts));
+
+    float total_move_attempt_rate
+        = (total_move_count_ > 0)
+              ? (total_move_attempt_count / total_move_count_) * 100
+              : 0;
+    float total_move_reject_rate
+        = (total_move_count_ > 0)
+              ? (total_move_reject_count / total_move_count_) * 100
+              : 0;
+    float total_move_commit_rate
+        = (total_move_count_ > 0)
+              ? (total_move_commit_count / total_move_count_) * 100
+              : 0;
+    debugPrint(logger_,
+               RSZ,
+               "move_summary",
+               1,
+               "{} attempt_rate: {:.2f}% ({}/{}) reject_rate: {:.2f}% ({}/{})  "
+               "commit_rate: {:.2f}% ({}/{})",
+               move_type,
+               total_move_attempt_rate,
+               total_move_attempt_count,
+               total_move_count_,
+               total_move_reject_rate,
+               total_move_reject_count,
+               total_move_count_,
+               total_move_commit_rate,
+               total_move_commit_count,
+               total_move_count_);
+  }
   clearMoveSummary();
 }
 
