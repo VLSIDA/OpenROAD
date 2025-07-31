@@ -305,6 +305,7 @@ bool RepairSetup::repairSetup2(const float setup_slack_margin,
                      "Restoring best slack worst slack {} tns {}",
                      delayAsString(prev_worst_slack, sta_, digits),
                      delayAsString(prev_worst_tns, sta_, digits));
+          violator_collector_->rejectMoves();
           resizer_->journalRestore();
           break;
         }
@@ -322,8 +323,10 @@ bool RepairSetup::repairSetup2(const float setup_slack_margin,
                        "Restoring best slack worst slack {} tns {}",
                        delayAsString(prev_worst_slack, sta_, digits),
                        delayAsString(prev_worst_tns, sta_, digits));
+            violator_collector_->rejectMoves();
             resizer_->journalRestore();
           } else {
+            violator_collector_->commitMoves();
             resizer_->journalEnd();
           }
           // clang-format off
@@ -352,8 +355,10 @@ bool RepairSetup::repairSetup2(const float setup_slack_margin,
                        "Restoring best slack worst slack {} tns {}",
                        delayAsString(prev_worst_slack, sta_, digits),
                        delayAsString(prev_worst_tns, sta_, digits));
+            violator_collector_->rejectMoves();
             resizer_->journalRestore();
           } else {
+            violator_collector_->commitMoves();
             resizer_->journalEnd();
           }
           // clang-format off
@@ -384,6 +389,7 @@ bool RepairSetup::repairSetup2(const float setup_slack_margin,
           prev_worst_slack = worst_slack;
           prev_worst_tns = worst_tns;
           decreasing_slack_passes = 0;
+          violator_collector_->commitMoves();
           resizer_->journalEnd();
           // Progress, Save checkpoint so we can back up to here.
           resizer_->journalBegin();
@@ -408,6 +414,7 @@ bool RepairSetup::repairSetup2(const float setup_slack_margin,
                        "Restoring best worst slack {} tns {}",
                        delayAsString(prev_worst_slack, sta_, digits),
                        delayAsString(prev_worst_tns, sta_, digits));
+            violator_collector_->rejectMoves();
             resizer_->journalRestore();
             // clang-format off
           debugPrint(logger_, RSZ, "repair_setup", 1, "bailing out {} decreasing"
@@ -423,6 +430,7 @@ bool RepairSetup::repairSetup2(const float setup_slack_margin,
         debugPrint(logger_, RSZ, "repair_setup", 1, "bailing out {} resizer"
                    " over max area", end->name(network_));
           // clang-format on
+          violator_collector_->commitMoves();
           resizer_->journalEnd();
           break;
         }
@@ -440,7 +448,6 @@ bool RepairSetup::repairSetup2(const float setup_slack_margin,
       }
 
       violator_collector_->printMoveSummary();
-      violator_collector_->clearMoveSummary();
     }  // for each violating endpoint
 
   }  // for each sort type
@@ -623,6 +630,7 @@ bool RepairSetup::repairSetup(const float setup_slack_margin,
                    "Restoring best slack end slack {} worst slack {}",
                    delayAsString(prev_end_slack, sta_, digits),
                    delayAsString(prev_worst_slack, sta_, digits));
+        violator_collector_->rejectMoves();
         resizer_->journalRestore();
         break;
       }
@@ -640,8 +648,10 @@ bool RepairSetup::repairSetup(const float setup_slack_margin,
                      "Restoring best slack end slack {} worst slack {}",
                      delayAsString(prev_end_slack, sta_, digits),
                      delayAsString(prev_worst_slack, sta_, digits));
+          violator_collector_->rejectMoves();
           resizer_->journalRestore();
         } else {
+          violator_collector_->commitMoves();
           resizer_->journalEnd();
         }
         // clang-format off
@@ -670,8 +680,10 @@ bool RepairSetup::repairSetup(const float setup_slack_margin,
                      "Restoring best slack end slack {} worst slack {}",
                      delayAsString(prev_end_slack, sta_, digits),
                      delayAsString(prev_worst_slack, sta_, digits));
+          violator_collector_->rejectMoves();
           resizer_->journalRestore();
         } else {
+          violator_collector_->commitMoves();
           resizer_->journalEnd();
         }
         // clang-format off
@@ -705,6 +717,7 @@ bool RepairSetup::repairSetup(const float setup_slack_margin,
         prev_end_slack = end_slack;
         prev_worst_slack = worst_slack;
         decreasing_slack_passes = 0;
+        violator_collector_->commitMoves();
         resizer_->journalEnd();
         // Progress, Save checkpoint so we can back up to here.
         resizer_->journalBegin();
@@ -728,6 +741,7 @@ bool RepairSetup::repairSetup(const float setup_slack_margin,
                      "Restoring best end slack {} worst slack {}",
                      delayAsString(prev_end_slack, sta_, digits),
                      delayAsString(prev_worst_slack, sta_, digits));
+          violator_collector_->rejectMoves();
           resizer_->journalRestore();
           // clang-format off
           debugPrint(logger_, RSZ, "repair_setup", 1, "bailing out {} decreasing"
@@ -743,6 +757,7 @@ bool RepairSetup::repairSetup(const float setup_slack_margin,
         debugPrint(logger_, RSZ, "repair_setup", 1, "bailing out {} resizer"
                    " over max area", end->name(network_));
         // clang-format on
+        violator_collector_->commitMoves();
         resizer_->journalEnd();
         break;
       }
@@ -761,8 +776,6 @@ bool RepairSetup::repairSetup(const float setup_slack_margin,
       // clang-format on
       break;
     }
-    violator_collector_->printMoveSummary();
-    violator_collector_->clearMoveSummary();
   }  // for each violating endpoint
 
   if (!skip_last_gasp) {
@@ -949,6 +962,8 @@ bool RepairSetup::repairPins(std::vector<const Pin*>& pins,
                  move->name(),
                  network_->pathName(drvr_pin));
 
+      violator_collector_->trackMove(
+          drvr_pin, string(move->name()), MoveStateType::ATTEMPT);
       if (move->doMove(drvr_pin, setup_slack_margin)) {
         if (move == resizer_->unbuffer_move_.get()) {
           // Only allow one unbuffer move per pass to
@@ -957,12 +972,9 @@ bool RepairSetup::repairPins(std::vector<const Pin*>& pins,
         } else {
           changed++;
         }
-        violator_collector_->trackMove(drvr_pin, move->name(), true);
-
         // Move on to the next gate
         break;
       }
-      violator_collector_->trackMove(drvr_pin, move->name(), false);
 
       debugPrint(logger_,
                  RSZ,
@@ -1107,6 +1119,8 @@ bool RepairSetup::repairPath(Path* path,
                    move->name(),
                    network_->pathName(drvr_pin));
 
+        violator_collector_->trackMove(
+            drvr_pin, string(move->name()), MoveStateType::ATTEMPT);
         if (move->doMove(drvr_pin, setup_slack_margin)) {
           if (move == resizer_->unbuffer_move_.get()) {
             // Only allow one unbuffer move per pass to
@@ -1115,11 +1129,9 @@ bool RepairSetup::repairPath(Path* path,
           } else {
             changed++;
           }
-          violator_collector_->trackMove(drvr_pin, move->name(), true);
           // Move on to the next gate
           break;
         }
-        violator_collector_->trackMove(drvr_pin, move->name(), false);
         debugPrint(logger_,
                    RSZ,
                    "repair_setup",
@@ -1316,6 +1328,7 @@ void RepairSetup::repairSetupLastGasp(const OptoParams& params, int& num_viols)
         } else {
           prev_termination = true;
         }
+        violator_collector_->commitMoves();
         resizer_->journalEnd();
         break;
       }
@@ -1327,6 +1340,7 @@ void RepairSetup::repairSetupLastGasp(const OptoParams& params, int& num_viols)
       }
       if (end_slack > params.setup_slack_margin) {
         --num_viols;
+        violator_collector_->commitMoves();
         resizer_->journalEnd();
         break;
       }
@@ -1337,8 +1351,10 @@ void RepairSetup::repairSetupLastGasp(const OptoParams& params, int& num_viols)
 
       if (!changed) {
         if (pass != 1) {
+          violator_collector_->rejectMoves();
           resizer_->journalRestore();
         } else {
+          violator_collector_->commitMoves();
           resizer_->journalEnd();
         }
         break;
@@ -1363,15 +1379,18 @@ void RepairSetup::repairSetupLastGasp(const OptoParams& params, int& num_viols)
         if (end_slack > params.setup_slack_margin) {
           --num_viols;
         }
+        violator_collector_->commitMoves();
         resizer_->journalEnd();
         resizer_->journalBegin();
       } else {
         fallback_ = true;
+        violator_collector_->rejectMoves();
         resizer_->journalRestore();
         break;
       }
 
       if (resizer_->overMaxArea()) {
+        violator_collector_->commitMoves();
         resizer_->journalEnd();
         break;
       }
@@ -1390,6 +1409,7 @@ void RepairSetup::repairSetupLastGasp(const OptoParams& params, int& num_viols)
       // clang-format on
       break;
     }
+    violator_collector_->printMoveSummary();
   }  // for each violating endpoint
 }
 
