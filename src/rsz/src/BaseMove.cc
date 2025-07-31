@@ -167,6 +167,10 @@ void BaseMove::getPrevNextPins(const Pin* drvr_pin,
   VertexOutEdgeIterator edge_iter(drvr_vertex, graph_);
   while (edge_iter.hasNext()) {
     Edge* edge = edge_iter.next();
+    // FIXME: Ignore the ASAP7 problematic output->output timing arc
+    if (!edge->isWire()) {
+        continue;
+    }
     Vertex* fanout_vertex = edge->to(graph_);
     Slack fanout_slack = sta_->vertexSlack(fanout_vertex, resizer_->max_);
     if (fanout_slack < load_slack) {
