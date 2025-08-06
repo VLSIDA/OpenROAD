@@ -3743,14 +3743,15 @@ void Resizer::rebufferNet(const Pin* drvr_pin)
   buffer_move_->rebufferNet(drvr_pin);
 }
 
-void Resizer::repairPins(std::vector<const Pin*>& pins, std::vector<MoveType>& sequence)
+int Resizer::repairPins(std::vector<const Pin*>& pins, std::vector<MoveType>& sequence)
 {
+  utl::SetAndRestore set_match_footprint(match_cell_footprint_, false);
   resizePreamble();
   if (parasitics_src_ == ParasiticsSrc::global_routing
       || parasitics_src_ == ParasiticsSrc::detailed_routing) {
     opendp_->initMacrosAndGrid();
   }
-  repair_setup_->repairPinsDebug(pins, sequence);
+  return repair_setup_->repairPinsDebug(pins, sequence);
 }
 
 ////////////////////////////////////////////////////////////////

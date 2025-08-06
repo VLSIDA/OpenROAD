@@ -988,23 +988,29 @@ bool RepairSetup::repairPins(std::vector<const Pin*>& pins,
   return changed > 0;
 }
 
-void RepairSetup::repairPinsDebug(std::vector<const Pin*>& pins, std::vector<MoveType>& sequence)
+int RepairSetup::repairPinsDebug(std::vector<const Pin*>& pins, std::vector<MoveType>& sequence)
 {
   init();
   resizer_->rebuffer_->init();
   resizer_->rebuffer_->initOnCorner(sta_->cmdCorner());
-  violator_collector_->init(0);
   resizer_->buffer_moved_into_core_ = false;
   setupMoveSequence(sequence, false, false, false, false, false);
-  resizer_->journalBegin();
+  sta_->checkCapacitanceLimitPreamble();
+  sta_->checkFanoutLimitPreamble();
+  IncrementalParasiticsGuard guard(resizer_);
+  int count = 0;
   for (const Pin* pin : pins) {
+    resizer_->journalBegin();
     for (BaseMove* move : move_sequence) {
       if (move->doMove(pin, 0)) {
-        violator_collector_->trackMove(pin, move->name(), true);
+        count++;
+        resizer_->updateParasitics();
+        sta_->findRequireds();
       }
     }
+    resizer_->journalEnd();
   }
-  resizer_->journalEnd();
+  return count;
 }
 
 /* This is the main routine for repairing setup violations. We have
