@@ -121,6 +121,10 @@ LibertyCell* SizeUpMove::upsizeCell(LibertyPort* in_port,
           + (prev_drive * in_port->cornerPort(lib_ap)->capacitance());
 
     for (LibertyCell* swappable : swappable_cells) {
+      // Ignore if swappable is actually the same cell
+      if (swappable == cell) {
+        continue;
+      }
       LibertyCell* swappable_corner = swappable->cornerCell(lib_ap);
       LibertyPort* swappable_drvr
           = swappable_corner->findLibertyPort(drvr_port_name);
