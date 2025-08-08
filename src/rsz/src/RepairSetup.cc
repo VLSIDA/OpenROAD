@@ -999,14 +999,14 @@ int RepairSetup::repairPinsDebug(std::vector<const Pin*>& pins, std::vector<Move
   sta_->checkFanoutLimitPreamble();
   IncrementalParasiticsGuard guard(resizer_);
   int count = 0;
-  for (const Pin* pin : pins) {
+  for (int i = 0; i < pins.size(); i++) {
+    const Pin* pin = pins[i];
+    BaseMove* move = move_sequence[i];
     resizer_->journalBegin();
-    for (BaseMove* move : move_sequence) {
-      if (move->doMove(pin, 0)) {
-        count++;
-        resizer_->updateParasitics();
-        sta_->findRequireds();
-      }
+    if (move->doMove(pin, 0)) {
+      count++;
+      resizer_->updateParasitics();
+      sta_->findRequireds();
     }
     resizer_->journalEnd();
   }
