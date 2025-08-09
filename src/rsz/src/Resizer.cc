@@ -3754,6 +3754,11 @@ int Resizer::repairPins(std::vector<const Pin*>& pins, std::vector<MoveType>& se
   return repair_setup_->repairPinsDebug(pins, sequence);
 }
 
+int Resizer::attackedPinIndex()
+{
+  return repair_setup_->attackedPinIndex();
+}
+
 ////////////////////////////////////////////////////////////////
 
 bool Resizer::repairHold(

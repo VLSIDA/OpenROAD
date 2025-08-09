@@ -101,6 +101,7 @@ class RepairSetup : public sta::dbStaState
   // Rebuffer one net (for testing).
   // resizerPreamble() required.
   int repairPinsDebug(std::vector<const Pin*>& pins, std::vector<MoveType>& sequence);
+  int attackedPinIndex();
 
  private:
   void init();
@@ -143,6 +144,8 @@ class RepairSetup : public sta::dbStaState
   double initial_design_area_ = 0;
 
   std::vector<BaseMove*> move_sequence;
+
+  int attacked_pin_idx_;
 
   const MinMax* min_ = MinMax::min();
   const MinMax* max_ = MinMax::max();

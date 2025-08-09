@@ -998,6 +998,7 @@ int RepairSetup::repairPinsDebug(std::vector<const Pin*>& pins, std::vector<Move
   sta_->checkCapacitanceLimitPreamble();
   sta_->checkFanoutLimitPreamble();
   IncrementalParasiticsGuard guard(resizer_);
+  attacked_pin_idx_ = 0;
   int count = 0;
   for (int i = 0; i < pins.size(); i++) {
     const Pin* pin = pins[i];
@@ -1009,8 +1010,14 @@ int RepairSetup::repairPinsDebug(std::vector<const Pin*>& pins, std::vector<Move
       sta_->findRequireds();
     }
     resizer_->journalEnd();
+    attacked_pin_idx_++;
   }
   return count;
+}
+
+int RepairSetup::attackedPinIndex()
+{
+  return attacked_pin_idx_;
 }
 
 /* This is the main routine for repairing setup violations. We have

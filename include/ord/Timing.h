@@ -83,6 +83,7 @@ class Timing
   void makeEquivCells();
   std::vector<odb::dbMaster*> equivCells(odb::dbMaster* master);
   int repairPins(std::string inst_names, std::string moves);
+  int attackedPinIndex();
 
   float getWorstNegativeSlack();
   float getTotalNegativeSlack();

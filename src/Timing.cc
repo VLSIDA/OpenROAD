@@ -467,6 +467,12 @@ int Timing::repairPins(std::string inst_names, std::string moves)
   return resizer->repairPins(sta_pins, sequence);
 }
 
+int Timing::attackedPinIndex()
+{
+  rsz::Resizer* resizer = design_->getResizer();
+  return resizer->attackedPinIndex();
+}
+
 float Timing::getWorstNegativeSlack()
 {
   return getSta()->worstSlack(sta::MinMax::max());
