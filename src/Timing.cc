@@ -270,6 +270,21 @@ float Timing::getPinSlack(sta::Pin* sta_pin, RiseFall rf, MinMax minmax)
   return sta->pinSlack(sta_pin, sta_rf, getMinMax(minmax));
 }
 
+float Timing::getInstSlack(odb::dbInst* inst)
+{
+  float worst_slack = sta::INF;
+  for (odb::dbITerm* iterm : inst->getITerms()) {
+    if (design_->isInSupply(iterm)) {
+      continue;
+    }
+    worst_slack = std::min(worst_slack, getPinSlack(iterm, Rise, Min));
+    worst_slack = std::min(worst_slack, getPinSlack(iterm, Fall, Min));
+    worst_slack = std::min(worst_slack, getPinSlack(iterm, Rise, Max));
+    worst_slack = std::min(worst_slack, getPinSlack(iterm, Fall, Max));
+  }
+  return worst_slack;
+}
+
 // I'd like to return a std::set but swig gave me way too much grief
 // so I just copy the set to a vector.
 std::vector<odb::dbMTerm*> Timing::getTimingFanoutFrom(odb::dbMTerm* input)

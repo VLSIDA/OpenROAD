@@ -63,6 +63,7 @@ class Timing
 
   float getPinSlack(odb::dbITerm* db_pin, RiseFall rf, MinMax minmax = Max);
   float getPinSlack(odb::dbBTerm* db_pin, RiseFall rf, MinMax minmax = Max);
+  float getInstSlack(odb::dbInst* inst);
 
   bool isEndpoint(odb::dbITerm* db_pin);
   bool isEndpoint(odb::dbBTerm* db_pin);
