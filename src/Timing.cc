@@ -436,7 +436,7 @@ std::vector<odb::dbMaster*> Timing::equivCells(odb::dbMaster* master)
   return master_seq;
 }
 
-int Timing::repairPins(std::string inst_names, std::string moves)
+std::vector<int> Timing::repairPins(std::string inst_names, std::string moves)
 {
   sta::dbSta* sta = getSta();
   if (!sta->getDbNetwork()->isLinked()) {

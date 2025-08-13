@@ -988,7 +988,7 @@ bool RepairSetup::repairPins(std::vector<const Pin*>& pins,
   return changed > 0;
 }
 
-int RepairSetup::repairPinsDebug(std::vector<const Pin*>& pins, std::vector<MoveType>& sequence)
+std::vector<int> RepairSetup::repairPinsDebug(std::vector<const Pin*>& pins, std::vector<MoveType>& sequence)
 {
   init();
   resizer_->rebuffer_->init();
@@ -999,20 +999,22 @@ int RepairSetup::repairPinsDebug(std::vector<const Pin*>& pins, std::vector<Move
   sta_->checkFanoutLimitPreamble();
   IncrementalParasiticsGuard guard(resizer_);
   attacked_pin_idx_ = 0;
-  int count = 0;
+  std::vector<int> accepted;
   for (int i = 0; i < pins.size(); i++) {
     const Pin* pin = pins[i];
     BaseMove* move = move_sequence[i];
     resizer_->journalBegin();
     if (move->doMove(pin, 0)) {
-      count++;
+      accepted.push_back(1);
       resizer_->updateParasitics();
       sta_->findRequireds();
+    } else {
+      accepted.push_back(0);
     }
     resizer_->journalEnd();
     attacked_pin_idx_++;
   }
-  return count;
+  return accepted;
 }
 
 int RepairSetup::attackedPinIndex()

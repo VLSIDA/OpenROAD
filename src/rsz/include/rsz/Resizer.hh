@@ -298,7 +298,7 @@ class Resizer : public dbStaState, public dbNetworkObserver
   // Rebuffer one net (for testing).
   // resizerPreamble() required.
   void rebufferNet(const Pin* drvr_pin);
-  int repairPins(std::vector<const Pin*>& pins, std::vector<MoveType>& sequence);
+  std::vector<int> repairPins(std::vector<const Pin*>& pins, std::vector<MoveType>& sequence);
   int attackedPinIndex();
 
   ////////////////////////////////////////////////////////////////
