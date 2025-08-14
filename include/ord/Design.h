@@ -43,6 +43,10 @@ namespace gpl {
 class Replace;
 }
 
+namespace gui {
+class Gui;
+}
+
 namespace dpl {
 class Opendp;
 }
@@ -189,6 +193,8 @@ class Design
   // This is useful if you need a second database for specialized
   // use cases and is not ordinarily required.
   static odb::dbDatabase* createDetachedDb();
+
+  void dumpCongestionMap(std::string file_name);
 
  private:
   sta::dbSta* getSta();

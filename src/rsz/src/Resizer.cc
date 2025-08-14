@@ -3759,6 +3759,11 @@ int Resizer::attackedPinIndex()
   return repair_setup_->attackedPinIndex();
 }
 
+void Resizer::updateCongestion()
+{
+  global_router_->updateDbCongestion();
+}
+
 ////////////////////////////////////////////////////////////////
 
 bool Resizer::repairHold(

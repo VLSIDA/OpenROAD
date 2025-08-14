@@ -1014,6 +1014,7 @@ std::vector<int> RepairSetup::repairPinsDebug(std::vector<const Pin*>& pins, std
     resizer_->journalEnd();
     attacked_pin_idx_++;
   }
+  resizer_->updateCongestion();
   return accepted;
 }
 

@@ -11,6 +11,8 @@
 #include "db_sta/dbNetwork.hh"
 #include "db_sta/dbSta.hh"
 #include "grt/GlobalRouter.h"
+#include "gui/gui.h"
+#include "gui/heatMap.h"
 #include "ifp/InitFloorplan.hh"
 #include "odb/db.h"
 #include "ord/OpenRoad.hh"
@@ -340,6 +342,16 @@ odb::dbDatabase* Design::createDetachedDb()
   auto db = odb::dbDatabase::create();
   db->setLogger(app->getLogger());
   return db;
+}
+
+void Design::dumpCongestionMap(std::string file_name)
+{
+  auto gui = gui::Gui::get();
+  gui::HeatMapDataSource* heatmap = gui->getHeatMap("Routing");
+  heatmap->setBlock(getBlock());
+  heatmap->update();
+  heatmap->ensureMap();
+  heatmap->dumpToFile(file_name);
 }
 
 }  // namespace ord

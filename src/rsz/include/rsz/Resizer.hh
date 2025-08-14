@@ -300,6 +300,7 @@ class Resizer : public dbStaState, public dbNetworkObserver
   void rebufferNet(const Pin* drvr_pin);
   std::vector<int> repairPins(std::vector<const Pin*>& pins, std::vector<MoveType>& sequence);
   int attackedPinIndex();
+  void updateCongestion();
 
   ////////////////////////////////////////////////////////////////
 

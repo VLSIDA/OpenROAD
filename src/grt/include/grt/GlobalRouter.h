@@ -290,6 +290,8 @@ class GlobalRouter
 
   void writePinLocations(const char* file_name);
 
+  void updateDbCongestion();
+
  private:
   // Net functions
   Net* addNet(odb::dbNet* db_net);
@@ -402,7 +404,6 @@ class GlobalRouter
   void removeWireUsage(odb::dbWire* wire);
   void removeRectUsage(const odb::Rect& rect, odb::dbTechLayer* tech_layer);
   bool isDetailedRouted(odb::dbNet* db_net);
-  void updateDbCongestion();
 
   // db functions
   void initGrid(int max_layer);
