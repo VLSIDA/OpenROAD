@@ -92,6 +92,10 @@ bool UnbufferMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
   Pin* drvr_input_pin;
   Pin* load_pin;
   getPrevNextPins(drvr_pin, prev_drvr_pin, drvr_input_pin, load_pin);
+  // Unconstrained driver
+  if (prev_drvr_pin == nullptr) {
+    return false;
+  }
   float curr_fanout, max_fanout, fanout_slack;
   sta_->checkFanout(
       prev_drvr_pin, resizer_->max_, curr_fanout, max_fanout, fanout_slack);

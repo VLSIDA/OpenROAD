@@ -173,7 +173,7 @@ void BaseMove::getPrevNextPins(const Pin* drvr_pin,
     }
     Vertex* fanout_vertex = edge->to(graph_);
     Slack fanout_slack = sta_->vertexSlack(fanout_vertex, resizer_->max_);
-    if (fanout_slack < load_slack) {
+    if (load_vertex == nullptr || fanout_slack < load_slack) {
       load_vertex = fanout_vertex;
       load_slack = fanout_slack;
     }

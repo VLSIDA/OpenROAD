@@ -64,6 +64,10 @@ bool SwapPinsMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
   Pin* drvr_input_pin;
   Pin* load_pin;
   getPrevNextPins(drvr_pin, prev_drvr_pin, drvr_input_pin, load_pin);
+  // Unconstrained driver
+  if (drvr_input_pin == nullptr) {
+    return false;
+  }
 
   if (resizer_->dontTouch(drvr)) {
     return false;

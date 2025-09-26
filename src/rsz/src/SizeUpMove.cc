@@ -36,6 +36,10 @@ bool SizeUpMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
   Pin* drvr_input_pin;
   Pin* load_pin;
   getPrevNextPins(drvr_pin, prev_drvr_pin, drvr_input_pin, load_pin);
+  // Unconstrained driver
+  if (drvr_input_pin == nullptr) {
+    return false;
+  }
   LibertyPort* in_port = network_->libertyPort(drvr_input_pin);
 
   // We always size the cloned gates for some reason, but it would be good if we
