@@ -50,6 +50,7 @@
 #include "rsz/MakeResizer.hh"
 #include "sta/VerilogReader.hh"
 #include "sta/VerilogWriter.hh"
+#include "sta/Search.hh"
 #include "stt/MakeSteinerTreeBuilder.h"
 #include "tap/MakeTapcell.h"
 #include "triton_route/MakeTritonRoute.h"
@@ -107,6 +108,7 @@ OpenRoad::~OpenRoad()
   deletePDNSim(pdnsim_);
   deleteFinale(finale_);
   deleteAntennaChecker(antenna_checker_);
+  db_->clear();
   odb::dbDatabase::destroy(db_);
   deletePartitionMgr(partitionMgr_);
   deletePdnGen(pdngen_);
@@ -114,6 +116,11 @@ OpenRoad::~OpenRoad()
   deleteDistributed(distributer_);
   deleteSteinerTreeBuilder(stt_builder_);
   dft::deleteDft(dft_);
+  sta_->clear();
+  sta_->search()->clear();
+  sta_->network()->clear();
+  sta_->cmdNetwork()->clear();
+  deleteDbSta(sta_);
   delete logger_;
   delete verilog_reader_;
 }

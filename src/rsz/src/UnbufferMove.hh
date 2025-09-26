@@ -21,6 +21,7 @@ class UnbufferMove : public BaseMove
 {
  public:
   using BaseMove::BaseMove;
+  ~UnbufferMove() override = default;
 
   bool doMove(const Pin* drvr_pin,
               float setup_slack_margin) override;

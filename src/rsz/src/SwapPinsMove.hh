@@ -24,6 +24,7 @@ class SwapPinsMove : public BaseMove
 {
  public:
   using BaseMove::BaseMove;
+  ~SwapPinsMove() override = default;
 
   bool doMove(const Pin* drvr_pin,
               float setup_slack_margin) override;
