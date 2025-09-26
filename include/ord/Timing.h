@@ -88,6 +88,8 @@ class Timing
   float getWorstNegativeSlack();
   float getTotalNegativeSlack();
 
+  float cellDriveResistance(odb::dbInst* inst);
+
  private:
   sta::dbSta* getSta();
   const sta::MinMax* getMinMax(MinMax type);

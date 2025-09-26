@@ -484,4 +484,14 @@ float Timing::getTotalNegativeSlack()
   return getSta()->totalNegativeSlack(sta::MinMax::max());
 }
 
+float Timing::cellDriveResistance(odb::dbInst* inst)
+{
+  rsz::Resizer* resizer = design_->getResizer();
+  sta::dbSta* sta = getSta();
+  sta::dbNetwork* network = sta->getDbNetwork();
+  sta::Cell* cell = network->dbToSta(inst->getMaster());
+  sta::LibertyCell* libcell = network->libertyCell(cell);
+  return resizer->cellDriveResistance(libcell);
+}
+
 }  // namespace ord
