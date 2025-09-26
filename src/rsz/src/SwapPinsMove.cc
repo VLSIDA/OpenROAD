@@ -315,6 +315,10 @@ void SwapPinsMove::findSwapPinCandidate(LibertyPort* input_port,
     if (arc_set->to() != drvr_port || arc_set->role()->isTimingCheck()) {
       continue;
     }
+    // Avoid problematic ASAP7 output->output timing arcs
+    if (arc_set->to()->direction()->isOutput() && arc_set->from()->direction()->isOutput()) {
+      continue;
+    }
     for (TimingArc* arc : arc_set->arcs()) {
       const RiseFall* in_rf = arc->fromEdge()->asRiseFall();
       LibertyPort* port = arc->from();
