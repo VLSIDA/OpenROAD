@@ -3,8 +3,10 @@
 
 #pragma once
 #include <boost/functional/hash.hpp>
+#include <unordered_set>
 #include <vector>
 
+#include "boost/functional/hash.hpp"
 #include "db_sta/dbNetwork.hh"
 #include "db_sta/dbSta.hh"
 #include "rsz/Resizer.hh"
@@ -14,6 +16,10 @@
 
 namespace sta {
 class PathExpanded;
+}
+
+namespace est {
+class EstimateParasitics;
 }
 
 namespace rsz {
@@ -79,7 +85,8 @@ class RepairSetup : public sta::dbStaState
                    bool skip_size_down,
                    bool skip_buffering,
                    bool skip_buffer_removal,
-                   bool skip_last_gasp);
+                   bool skip_last_gasp,
+                   bool skip_vt_swap);
   bool repairSetup2(float setup_slack_margin,
                     // Percent of violating ends to repair to
                     // reduce tns (0.0-1.0).
@@ -93,7 +100,8 @@ class RepairSetup : public sta::dbStaState
                     bool skip_size_down,
                     bool skip_buffering,
                     bool skip_buffer_removal,
-                    bool skip_last_gasp);
+                    bool skip_last_gasp,
+                    bool skip_vt_swap);
   // For testing.
   void repairSetup(const Pin* end_pin);
   // For testing.
@@ -110,7 +118,8 @@ class RepairSetup : public sta::dbStaState
                          bool skip_gate_cloning,
                          bool skip_size_down,
                          bool skip_buffering,
-                         bool skip_buffer_removal);
+                         bool skip_buffer_removal,
+                         bool skip_vt_swap);
   bool repairSetupPostlog(float setup_slack_margin);
   bool repairPath(Path* path, Slack path_slack, float setup_slack_margin);
   bool repairPins(std::vector<const Pin*>& pins, float setup_slack_margin);
@@ -133,6 +142,7 @@ class RepairSetup : public sta::dbStaState
   Logger* logger_ = nullptr;
   dbNetwork* db_network_ = nullptr;
   Resizer* resizer_;
+  est::EstimateParasitics* estimate_parasitics_;
 
   std::unique_ptr<ViolatorCollector> violator_collector_;
 

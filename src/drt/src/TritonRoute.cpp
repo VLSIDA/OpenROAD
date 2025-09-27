@@ -4,12 +4,12 @@
 #include "triton_route/TritonRoute.h"
 
 #include <algorithm>
-#include <boost/asio/post.hpp>
-#include <boost/bind/bind.hpp>
 #include <fstream>
 #include <iostream>
+#include <iterator>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <set>
 #include <string>
 #include <thread>
@@ -18,6 +18,13 @@
 
 #include "AbstractGraphicsFactory.h"
 #include "DesignCallBack.h"
+#include "PACallBack.h"
+#include "boost/asio/post.hpp"
+#include "boost/bind/bind.hpp"
+#include "boost/geometry/geometry.hpp"
+#include "db/infra/frSegStyle.h"
+#include "db/obj/frVia.h"
+#include "db/tech/frLayer.h"
 #include "db/tech/frTechObject.h"
 #include "distributed/PinAccessJobDescription.h"
 #include "distributed/RoutingCallBack.h"
@@ -26,6 +33,7 @@
 #include "dr/AbstractDRGraphics.h"
 #include "dr/FlexDR.h"
 #include "dst/Distributed.h"
+#include "frBaseTypes.h"
 #include "frDesign.h"
 #include "frProfileTask.h"
 #include "gc/FlexGC.h"
@@ -33,6 +41,8 @@
 #include "gr/FlexGR.h"
 #include "io/GuideProcessor.h"
 #include "io/io.h"
+#include "odb/db.h"
+#include "odb/dbId.h"
 #include "odb/dbShape.h"
 #include "pa/AbstractPAGraphics.h"
 #include "pa/FlexPA.h"
@@ -41,21 +51,40 @@
 #include "stt/SteinerTreeBuilder.h"
 #include "ta/AbstractTAGraphics.h"
 #include "ta/FlexTA.h"
+#include "utl/CallBackHandler.h"
 #include "utl/ScopedTemporaryFile.h"
 
 namespace drt {
 
-TritonRoute::TritonRoute()
+TritonRoute::TritonRoute(odb::dbDatabase* db,
+                         utl::Logger* logger,
+                         utl::CallBackHandler* callback_handler,
+                         dst::Distributed* dist,
+                         stt::SteinerTreeBuilder* stt_builder)
     : debug_(std::make_unique<frDebugSettings>()),
       db_callback_(std::make_unique<DesignCallBack>(this)),
+      pa_callback_(std::make_unique<PACallBack>(this)),
       router_cfg_(std::make_unique<RouterConfiguration>())
 {
   if (distributed_) {
     dist_pool_.emplace(1);
   }
+  db_ = db;
+  logger_ = logger;
+  dist_ = dist;
+  stt_builder_ = stt_builder;
+  design_ = std::make_unique<frDesign>(logger_, router_cfg_.get());
+  dist->addCallBack(new RoutingCallBack(this, dist, logger));
+  pa_callback_->setOwner(callback_handler);
 }
 
 TritonRoute::~TritonRoute() = default;
+
+void TritonRoute::initGraphics(
+    std::unique_ptr<AbstractGraphicsFactory> graphics_factory)
+{
+  graphics_factory_ = std::move(graphics_factory);
+}
 
 void TritonRoute::setDebugDR(bool on)
 {
@@ -521,22 +550,6 @@ void TritonRoute::applyUpdates(
       }
     }
   }
-}
-
-void TritonRoute::init(
-    odb::dbDatabase* db,
-    Logger* logger,
-    dst::Distributed* dist,
-    stt::SteinerTreeBuilder* stt_builder,
-    std::unique_ptr<AbstractGraphicsFactory> graphics_factory)
-{
-  db_ = db;
-  logger_ = logger;
-  dist_ = dist;
-  stt_builder_ = stt_builder;
-  design_ = std::make_unique<frDesign>(logger_, router_cfg_.get());
-  dist->addCallBack(new RoutingCallBack(this, dist, logger));
-  graphics_factory_ = std::move(graphics_factory);
 }
 
 bool TritonRoute::initGuide()
@@ -1275,12 +1288,6 @@ void TritonRoute::setParams(const ParamStruct& params)
   }
   router_cfg_->OR_SEED = params.orSeed;
   router_cfg_->OR_K = params.orK;
-  if (!params.bottomRoutingLayer.empty()) {
-    router_cfg_->BOTTOM_ROUTING_LAYER_NAME = params.bottomRoutingLayer;
-  }
-  if (!params.topRoutingLayer.empty()) {
-    router_cfg_->TOP_ROUTING_LAYER_NAME = params.topRoutingLayer;
-  }
   if (params.minAccessPoints > 0) {
     router_cfg_->MINNUMACCESSPOINT_STDCELLPIN = params.minAccessPoints;
     router_cfg_->MINNUMACCESSPOINT_MACROCELLPIN = params.minAccessPoints;

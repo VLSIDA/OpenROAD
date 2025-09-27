@@ -24,4 +24,15 @@ class SizeUpMove : public BaseMove
                           const DcalcAnalysisPt* dcalc_ap);
 };
 
+// Upsize cells to match drive strength with previous stage
+class SizeUpMatchMove : public BaseMove
+{
+ public:
+  using BaseMove::BaseMove;
+
+  bool doMove(const Pin* drvr_pin, float setup_slack_margin) override;
+
+  const char* name() override { return "SizeUpMoveMatch"; }
+};
+
 }  // namespace rsz

@@ -5,11 +5,14 @@
 
 #include <algorithm>
 #include <cmath>
+#include <memory>
 #include <string>
 
 #include "BufferMove.hh"
 #include "SplitLoadMove.hh"
 #include "sta/PortDirection.hh"
+#include "odb/db.h"
+#include "odb/geom.h"
 
 namespace rsz {
 
@@ -65,12 +68,8 @@ bool CloneMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
   if (fanout <= split_load_min_fanout_) {
     return false;
   }
-  const bool tristate_drvr = resizer_->isTristateDriver(drvr_pin);
-  if (tristate_drvr) {
-    return false;
-  }
-  const Net* net = db_network_->dbToSta(db_network_->flatNet(drvr_pin));
-  if (resizer_->dontTouch(net)) {
+
+  if (!resizer_->okToBufferNet(drvr_pin)) {
     return false;
   }
   // We can probably relax this with the new ECO code
@@ -140,8 +139,6 @@ bool CloneMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
     return false;
   }
 
-  const string clone_name = resizer_->makeUniqueInstName("clone");
-
   // Hierarchy fix
   Instance* parent = db_network_->getOwningInstanceParent(drvr_vertex->pin());
 
@@ -158,8 +155,8 @@ bool CloneMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
   }
 
   Point drvr_loc = computeCloneGateLocation(drvr_pin, fanout_slacks);
-  Instance* clone_inst = resizer_->makeInstance(
-      clone_cell, clone_name.c_str(), parent, drvr_loc);
+  Instance* clone_inst
+      = resizer_->makeInstance(clone_cell, "clone", parent, drvr_loc);
 
   debugPrint(logger_,
              RSZ,
@@ -186,9 +183,7 @@ bool CloneMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
 
   // Hierarchy fix, make out_net in parent.
 
-  //  Net* out_net = resizer_->makeUniqueNet();
-  std::string out_net_name = resizer_->makeUniqueNetName();
-  Net* out_net = db_network_->makeNet(out_net_name.c_str(), parent);
+  Net* out_net = db_network_->makeNet(parent);
 
   std::unique_ptr<InstancePinIterator> inst_pin_iter{
       network_->pinIterator(drvr_inst)};
@@ -240,6 +235,15 @@ bool CloneMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
   // hierarchical wiring
 
   odb::dbITerm* clone_output_iterm = db_network_->flatPin(clone_output_pin);
+  if (clone_output_iterm == nullptr) {
+    logger_->error(
+        RSZ,
+        100,
+        "Cannot find output pin of the clone instance. Driver pin: {}, "
+        "Clone output pin: {}",
+        (drvr_pin) ? network_->pathName(drvr_pin) : "Null",
+        (clone_output_pin) ? network_->pathName(clone_output_pin) : "Null");
+  }
 
   // Divide the list of pins in half and connect them to the new net we
   // created as part of gate cloning. Skip ports connected to the original net
@@ -265,9 +269,7 @@ bool CloneMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
     // hierarchy fix: if load and clone in different modules
     // do the cross module wiring.
     if (load_parent_inst != parent) {
-      std::string unique_connection_name = resizer_->makeUniqueNetName();
-      db_network_->hierarchicalConnect(
-          clone_output_iterm, load_iterm, unique_connection_name.c_str());
+      db_network_->hierarchicalConnect(clone_output_iterm, load_iterm);
     } else {
       sta_->connectPin(load, load_port, out_net);
     }

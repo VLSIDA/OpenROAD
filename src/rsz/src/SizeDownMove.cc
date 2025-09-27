@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cmath>
 #include <string>
+#include <tuple>
 
 #include "BaseMove.hh"
 #include "sta/GraphDelayCalc.hh"
@@ -112,7 +113,8 @@ bool SizeDownMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
     LibertyCell* load_cell = load_port->libertyCell();
     Instance* load_inst = network_->instance(load_pin);
 
-    if (resizer_->dontTouch(load_inst)) {
+    if (resizer_->dontTouch(load_inst)
+        || !resizer_->isLogicStdCell(load_inst)) {
       continue;
     }
 

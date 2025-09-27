@@ -4,28 +4,32 @@
 #include <omp.h>
 
 #include <algorithm>
-#include <chrono>
 #include <cmath>
-#include <fstream>
+#include <cstdint>
 #include <iostream>
 #include <limits>
 #include <map>
 #include <memory>
 #include <set>
-#include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
 
-#include "AbstractPAGraphics.h"
-#include "FlexPA.h"
 #include "db/infra/frTime.h"
+#include "db/obj/frBlockObject.h"
+#include "db/obj/frInst.h"
+#include "db/obj/frInstTerm.h"
+#include "db/obj/frMPin.h"
+#include "db/obj/frVia.h"
 #include "distributed/PinAccessJobDescription.h"
 #include "distributed/frArchive.h"
 #include "dst/Distributed.h"
 #include "dst/JobMessage.h"
+#include "frBaseTypes.h"
 #include "frProfileTask.h"
 #include "gc/FlexGC.h"
+#include "pa/AbstractPAGraphics.h"
+#include "pa/FlexPA.h"
 #include "serialization.h"
 #include "utl/exception.h"
 
@@ -60,10 +64,10 @@ void FlexPA::buildInstsSet()
 
 void FlexPA::prepPatternInst(frInst* unique_inst)
 {
+  auto unique_class = unique_insts_.getUniqueClass(unique_inst);
 #pragma omp critical
-  unique_inst_patterns_[unique_inst]
+  unique_inst_patterns_[unique_class]
       = std::vector<std::unique_ptr<FlexPinAccessPattern>>();
-
   int num_valid_pattern = prepPatternInstHelper(unique_inst, true);
 
   if (num_valid_pattern > 0) {
@@ -655,7 +659,8 @@ bool FlexPA::genPatternsCommit(
   if (target_obj != nullptr
       && genPatternsGC({target_obj}, objs, Commit, &owners)) {
     pin_access_pattern->updateCost();
-    unique_inst_patterns_[unique_inst].push_back(std::move(pin_access_pattern));
+    unique_inst_patterns_[unique_insts_.getUniqueClass(unique_inst)].push_back(
+        std::move(pin_access_pattern));
     // genPatternsPrint(nodes, pins);
     is_valid = true;
   } else {

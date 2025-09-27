@@ -5,8 +5,6 @@
 
 #include <algorithm>
 #include <bitset>
-#include <boost/functional/hash.hpp>
-#include <boost/unordered/unordered_map.hpp>
 #include <cassert>
 #include <chrono>
 #include <cstddef>
@@ -18,12 +16,17 @@
 #include <memory>
 #include <set>
 #include <string>
+#include <tuple>
 #include <unordered_map>
 #include <utility>
 #include <vector>
 
 #include "CtsOptions.h"
+#include "boost/functional/hash.hpp"
+#include "boost/unordered/unordered_map.hpp"
 #include "db_sta/dbNetwork.hh"
+#include "est/EstimateParasitics.h"
+#include "odb/db.h"
 #include "rsz/Resizer.hh"
 #include "sta/Corner.hh"
 
@@ -128,6 +131,7 @@ class TechChar
            odb::dbDatabase* db,
            sta::dbSta* sta,
            rsz::Resizer* resizer,
+           est::EstimateParasitics* estimate_parasitics,
            sta::dbNetwork* db_network,
            Logger* logger);
 
@@ -303,6 +307,7 @@ class TechChar
   CtsOptions* options_;
   odb::dbDatabase* db_;
   rsz::Resizer* resizer_;
+  est::EstimateParasitics* estimate_parasitics_;
   sta::dbSta* openSta_;
   std::unique_ptr<sta::dbSta> openStaChar_;
   sta::dbNetwork* db_network_;

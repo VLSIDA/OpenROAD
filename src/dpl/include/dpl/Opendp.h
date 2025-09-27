@@ -3,8 +3,7 @@
 
 #pragma once
 
-#include <boost/geometry.hpp>
-#include <boost/geometry/index/rtree.hpp>
+#include <cstdint>
 #include <functional>
 #include <map>
 #include <memory>
@@ -16,7 +15,11 @@
 #include <utility>  // pair
 #include <vector>
 
+#include "boost/geometry/geometry.hpp"
+#include "boost/geometry/index/rtree.hpp"
 #include "odb/db.h"
+#include "odb/dbTypes.h"
+#include "odb/geom.h"
 
 namespace utl {
 class Logger;
@@ -85,7 +88,7 @@ struct IRDrop;
 class Opendp
 {
  public:
-  Opendp();
+  Opendp(dbDatabase* db, Logger* logger);
   ~Opendp();
 
   Opendp(const Opendp&) = delete;
@@ -94,7 +97,6 @@ class Opendp
   void legalCellPos(dbInst* db_inst);  // call from rsz
   void initMacrosAndGrid();            // call from rsz
 
-  void init(dbDatabase* db, Logger* logger);
   // legalize/report
   // max_displacment is in sites. use zero for defaults.
   void detailedPlacement(int max_displacement_x,
@@ -240,9 +242,6 @@ class Opendp
   Node* checkOneSiteGaps(Node& cell) const;
   bool overlap(const Node* cell1, const Node* cell2) const;
   bool checkRegionPlacement(const Node* cell) const;
-  static bool isOverlapPadded(const Node* cell1, const Node* cell2);
-  static bool isCrWtBlClass(const Node* cell);
-  static bool isWellTap(const Node* cell);
   void reportFailures(const std::vector<Node*>& failures,
                       int msg_id,
                       const char* msg,
@@ -257,6 +256,7 @@ class Opendp
   void saveFailures(const std::vector<Node*>& placed_failures,
                     const std::vector<Node*>& in_rows_failures,
                     const std::vector<Node*>& overlap_failures,
+                    const std::vector<Node*>& padding_failures,
                     const std::vector<Node*>& one_site_gap_failures,
                     const std::vector<Node*>& site_align_failures,
                     const std::vector<Node*>& region_placement_failures,
@@ -286,7 +286,6 @@ class Opendp
   void placeRowFillers(GridY row,
                        const std::string& prefix,
                        const MasterByImplant& filler_masters);
-  std::pair<odb::dbSite*, odb::dbOrientType> fillSite(Pixel* pixel);
   static bool isFiller(odb::dbInst* db_inst);
   bool isOneSiteCell(odb::dbMaster* db_master) const;
   const char* gridInstName(GridY row, GridX col);
@@ -309,7 +308,7 @@ class Opendp
   void prepareDecapAndGaps();
   void placeCell(Node* cell, GridX x, GridY y);
   void unplaceCell(Node* cell);
-  void setGridPaddedLoc(Node* cell, GridX x, GridY y);
+  void setGridLoc(Node* cell, GridX x, GridY y);
 
   Logger* logger_ = nullptr;
   dbDatabase* db_ = nullptr;

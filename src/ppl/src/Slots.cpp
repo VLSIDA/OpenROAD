@@ -4,9 +4,13 @@
 #include "Slots.h"
 
 #include <algorithm>
-#include <boost/container_hash/hash.hpp>
+#include <cstddef>
 #include <limits>
+#include <tuple>
 #include <vector>
+
+#include "boost/container_hash/hash.hpp"
+#include "ppl/IOPlacer.h"
 
 namespace ppl {
 

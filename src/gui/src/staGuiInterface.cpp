@@ -3,10 +3,21 @@
 
 #include "staGuiInterface.h"
 
+#include <algorithm>
+#include <cstddef>
+#include <limits>
+#include <map>
+#include <memory>
+#include <set>
+#include <string>
+#include <utility>
 #include <vector>
 
 #include "db_sta/dbNetwork.hh"
+#include "odb/db.h"
+#include "odb/dbObject.h"
 #include "odb/dbTransform.h"
+#include "odb/geom.h"
 #include "sta/ArcDelayCalc.hh"
 #include "sta/ClkNetwork.hh"
 #include "sta/ExceptionPath.hh"
@@ -723,10 +734,8 @@ void ClockTree::addPath(sta::PathExpanded& path, const sta::StaState* sta)
 sta::Net* ClockTree::getNet(const sta::Pin* pin) const
 {
   sta::Term* term = network_->term(pin);
-  if (term != nullptr) {
-    return network_->net(term);
-  }
-  return network_->net(pin);
+  sta::Net* net = term ? network_->net(term) : network_->net(pin);
+  return network_->findFlatNet(net);
 }
 
 bool ClockTree::isLeaf(const sta::Pin* pin) const
@@ -833,6 +842,9 @@ class PathGroupSlackEndVisitor : public sta::PathEndVisitor
  public:
   PathGroupSlackEndVisitor(const sta::PathGroup* path_group,
                            sta::StaState* sta);
+  PathGroupSlackEndVisitor(const sta::PathGroup* path_group,
+                           const sta::Clock* clk,
+                           sta::StaState* sta);
   PathGroupSlackEndVisitor(const PathGroupSlackEndVisitor&) = default;
   PathEndVisitor* copy() const override;
   void visit(sta::PathEnd* path_end) override;
@@ -843,6 +855,7 @@ class PathGroupSlackEndVisitor : public sta::PathEndVisitor
  private:
   const sta::PathGroup* path_group_;
   sta::StaState* sta_;
+  const sta::Clock* clk_;
   bool has_slack_{false};
   float worst_slack_{std::numeric_limits<float>::max()};
 };
@@ -850,7 +863,15 @@ class PathGroupSlackEndVisitor : public sta::PathEndVisitor
 PathGroupSlackEndVisitor::PathGroupSlackEndVisitor(
     const sta::PathGroup* path_group,
     sta::StaState* sta)
-    : path_group_(path_group), sta_(sta)
+    : path_group_(path_group), sta_(sta), clk_(nullptr)
+{
+}
+
+PathGroupSlackEndVisitor::PathGroupSlackEndVisitor(
+    const sta::PathGroup* path_group,
+    const sta::Clock* clk,
+    sta::StaState* sta)
+    : path_group_(path_group), sta_(sta), clk_(clk)
 {
 }
 
@@ -863,6 +884,12 @@ void PathGroupSlackEndVisitor::visit(sta::PathEnd* path_end)
 {
   sta::Search* search = sta_->search();
   if (search->pathGroup(path_end) == path_group_) {
+    if (clk_ != nullptr) {
+      sta::Path* path = path_end->path();
+      if (path->clock(sta_) != clk_) {
+        return;
+      }
+    }
     worst_slack_ = std::min(worst_slack_, path_end->slack(sta_));
     if (!has_slack_) {
       has_slack_ = true;
@@ -909,8 +936,7 @@ StaPins STAGuiInterface::getEndPoints() const
 
 float STAGuiInterface::getPinSlack(const sta::Pin* pin) const
 {
-  return sta_->pinSlack(pin,
-                        use_max_ ? sta::MinMax::max() : sta::MinMax::min());
+  return sta_->pinSlack(pin, minMax());
 }
 
 std::set<std::string> STAGuiInterface::getGroupPathsNames() const
@@ -945,7 +971,8 @@ void STAGuiInterface::updatePathGroups()
 }
 
 EndPointSlackMap STAGuiInterface::getEndPointToSlackMap(
-    const std::string& path_group_name)
+    const std::string& path_group_name,
+    const sta::Clock* clk)
 {
   updatePathGroups();
 
@@ -953,10 +980,31 @@ EndPointSlackMap STAGuiInterface::getEndPointToSlackMap(
   sta::VisitPathEnds visit_ends(sta_);
   sta::Search* search = sta_->search();
   sta::PathGroup* path_group
-      = search->findPathGroup(path_group_name.c_str(), sta::MinMax::max());
+      = search->findPathGroup(path_group_name.c_str(), minMax());
+  PathGroupSlackEndVisitor path_group_visitor(path_group, clk, sta_);
+  for (sta::Vertex* vertex : *sta_->endpoints()) {
+    visit_ends.visitPathEnds(
+        vertex, nullptr, minMaxAll(), false, &path_group_visitor);
+    if (path_group_visitor.hasSlack()) {
+      end_point_to_slack[vertex->pin()] = path_group_visitor.worstSlack();
+      path_group_visitor.resetWorstSlack();
+    }
+  }
+  return end_point_to_slack;
+}
+
+EndPointSlackMap STAGuiInterface::getEndPointToSlackMap(const sta::Clock* clk)
+{
+  updatePathGroups();
+
+  EndPointSlackMap end_point_to_slack;
+  sta::VisitPathEnds visit_ends(sta_);
+  sta::Search* search = sta_->search();
+  sta::PathGroup* path_group = search->findPathGroup(clk, minMax());
   PathGroupSlackEndVisitor path_group_visitor(path_group, sta_);
   for (sta::Vertex* vertex : *sta_->endpoints()) {
-    visit_ends.visitPathEnds(vertex, &path_group_visitor);
+    visit_ends.visitPathEnds(
+        vertex, nullptr, minMaxAll(), false, &path_group_visitor);
     if (path_group_visitor.hasSlack()) {
       end_point_to_slack[vertex->pin()] = path_group_visitor.worstSlack();
       path_group_visitor.resetWorstSlack();
@@ -989,26 +1037,42 @@ std::unique_ptr<TimingPathNode> STAGuiInterface::getTimingNode(
 
 TimingPathList STAGuiInterface::getTimingPaths(const sta::Pin* thru) const
 {
-  return getTimingPaths({}, {{thru}}, {}, "" /* path group name */);
+  return getTimingPaths(
+      {}, {{thru}}, {}, "" /* path group name */, nullptr /* clockset */);
 }
 
 TimingPathList STAGuiInterface::getTimingPaths(
     const StaPins& from,
     const std::vector<StaPins>& thrus,
     const StaPins& to,
-    const std::string& path_group_name) const
+    const std::string& path_group_name,
+    const sta::ClockSet* clks) const
 {
   TimingPathList paths;
 
   initSTA();
 
+  sta::ClockSet* clks_from = nullptr;
+  sta::ClockSet* clks_to = nullptr;
+  if (clks) {
+    clks_from = new sta::ClockSet;
+    clks_to = new sta::ClockSet;
+    for (auto clk : *clks) {
+      clks_from->insert(clk);
+      clks_to->insert(clk);
+    }
+  }
   sta::ExceptionFrom* e_from = nullptr;
   if (!from.empty()) {
     sta::PinSet* pins = new sta::PinSet(getNetwork());
     pins->insert(from.begin(), from.end());
     e_from = sta_->makeExceptionFrom(
-        pins, nullptr, nullptr, sta::RiseFallBoth::riseFall());
+        pins, clks_from, nullptr, sta::RiseFallBoth::riseFall());
+  } else if (clks_from) {
+    e_from = sta_->makeExceptionFrom(
+        nullptr, clks_from, nullptr, sta::RiseFallBoth::riseFall());
   }
+
   sta::ExceptionThruSeq* e_thrus = nullptr;
   if (!thrus.empty()) {
     for (const auto& thru_set : thrus) {
@@ -1029,7 +1093,13 @@ TimingPathList STAGuiInterface::getTimingPaths(
     sta::PinSet* pins = new sta::PinSet(getNetwork());
     pins->insert(to.begin(), to.end());
     e_to = sta_->makeExceptionTo(pins,
+                                 clks_to,
                                  nullptr,
+                                 sta::RiseFallBoth::riseFall(),
+                                 sta::RiseFallBoth::riseFall());
+  } else if (clks_to) {
+    e_to = sta_->makeExceptionTo(nullptr,
+                                 clks_to,
                                  nullptr,
                                  sta::RiseFallBoth::riseFall(),
                                  sta::RiseFallBoth::riseFall());
@@ -1050,7 +1120,7 @@ TimingPathList STAGuiInterface::getTimingPaths(
           include_unconstrained_,
           // corner, min_max,
           corner_,
-          use_max_ ? sta::MinMaxAll::max() : sta::MinMaxAll::min(),
+          minMaxAll(),
           // group_count, endpoint_count, unique_pins
           max_path_count_,
           one_path_per_endpoint_ ? 1 : max_path_count_,
@@ -1138,7 +1208,7 @@ ConeDepthMapPinSet STAGuiInterface::getFaninCone(const sta::Pin* pin) const
                                   true);  // thru_constants
 
   ConeDepthMapPinSet depth_map;
-  for (auto& [level, pin_list] : getCone(pin, pins, true)) {
+  for (auto& [level, pin_list] : getCone(pin, std::move(pins), true)) {
     depth_map[-level].insert(pin_list.begin(), pin_list.end());
   }
 

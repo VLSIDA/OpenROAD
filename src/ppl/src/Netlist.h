@@ -3,14 +3,13 @@
 
 #pragma once
 
-#include <functional>
-#include <iostream>
-#include <limits>
 #include <map>
 #include <string>
 #include <vector>
 
 #include "odb/db.h"
+#include "odb/dbTypes.h"
+#include "odb/geom.h"
 #include "ppl/IOPlacer.h"
 
 namespace ppl {
@@ -96,6 +95,8 @@ class IOPin
   odb::dbBTerm* getBTerm() const { return bterm_; }
   int getLayer() const { return layer_; }
   void setLayer(const int layer) { layer_ = layer; }
+  odb::Line getLine() const { return line_; }
+  void setLine(const odb::Line line) { line_ = line; }
   int getGroupIdx() const { return group_idx_; }
   void setGroupIdx(const int group_idx) { group_idx_ = group_idx; }
   int getConstraintIdx() const { return constraint_idx_; }
@@ -131,6 +132,7 @@ class IOPin
   odb::Point lower_bound_;
   odb::Point upper_bound_;
   odb::dbPlacementStatus placement_status_;
+  odb::Line line_;
   int layer_{-1};
   int group_idx_{-1};
   int constraint_idx_{-1};

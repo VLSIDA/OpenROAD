@@ -2,22 +2,23 @@
 // Copyright (c) 2019-2025, The OpenROAD Authors
 
 #include <algorithm>
-#include <boost/graph/connected_components.hpp>
-#include <boost/polygon/polygon.hpp>
-#include <chrono>
-#include <fstream>
-#include <iostream>
 #include <map>
 #include <memory>
 #include <set>
-#include <sstream>
+#include <tuple>
 #include <utility>
 #include <vector>
 
+#include "boost/graph/connected_components.hpp"
+#include "boost/polygon/polygon.hpp"
+#include "db/obj/frAccess.h"
+#include "db/obj/frFig.h"
+#include "db/obj/frVia.h"
 #include "frBaseTypes.h"
 #include "frProfileTask.h"
 #include "global.h"
 #include "io/io.h"
+#include "odb/dbTypes.h"
 
 namespace drt {
 
@@ -856,6 +857,9 @@ void io::Parser::checkPins()
   bool hasPolys = false;
   // Check BTerms on grid
   for (const auto& bTerm : getBlock()->getTerms()) {
+    if (!bTerm->hasNet() || bTerm->getNet()->isSpecial()) {
+      continue;
+    }
     foundTracks = false;
     foundCenterTracks = false;
     hasPolys = false;
@@ -952,6 +956,9 @@ void io::Parser::initRPin()
 void io::Parser::initRPin_rpin()
 {
   for (auto& net : getBlock()->getNets()) {
+    if (net->isConnectedByAbutment()) {
+      continue;
+    }
     // instTerm
     for (auto& instTerm : net->getInstTerms()) {
       auto inst = instTerm->getInst();

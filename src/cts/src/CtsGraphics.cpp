@@ -3,12 +3,12 @@
 
 #include "CtsGraphics.h"
 
-#include <algorithm>
+#include <cmath>
 #include <cstdio>
-#include <limits>
 #include <string>
 #include <vector>
 
+#include "odb/geom.h"
 #include "utl/Logger.h"
 
 namespace cts {

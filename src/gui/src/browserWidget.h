@@ -10,7 +10,9 @@
 #include <QStandardItemModel>
 #include <QTreeView>
 #include <array>
+#include <map>
 #include <memory>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -114,6 +116,7 @@ class BrowserWidget : public QDockWidget,
   QTreeView* view_;
   QStandardItemModel* model_;
   bool model_modified_;
+  bool initial_load_;
 
   bool ignore_selection_;
 

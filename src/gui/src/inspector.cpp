@@ -9,7 +9,15 @@
 #include <QHeaderView>
 #include <QLineEdit>
 #include <QPushButton>
+#include <algorithm>
+#include <any>
+#include <cmath>
+#include <iterator>
+#include <map>
+#include <set>
+#include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "gui/gui.h"
@@ -836,16 +844,6 @@ void Inspector::unsetReadOnly()
   reload();
 }
 
-void Inspector::highlightChanged()
-{
-  loadActions();
-}
-
-void Inspector::focusNetsChanged()
-{
-  loadActions();
-}
-
 void Inspector::loadActions()
 {
   // remove action buttons and ensure delete
@@ -1057,6 +1055,7 @@ void Inspector::handleAction(QWidget* action)
   }
 
   if (new_selection && new_selection == selection_) {
+    loadActions();
     return;
   }
 

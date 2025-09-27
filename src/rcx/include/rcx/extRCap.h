@@ -3,24 +3,33 @@
 
 #pragma once
 
+#include <algorithm>
+#include <array>
+#include <cstdio>
+#include <cstdlib>
+#include <list>
 #include <map>
+#include <memory>
 #include <string>
 #include <vector>
 
-#include "ext2dBox.h"
-#include "extSegment.h"
-#include "extViaModel.h"
-#include "extprocess.h"
 #include "odb/db.h"
 #include "odb/dbExtControl.h"
 #include "odb/dbShape.h"
+#include "odb/dbTypes.h"
+#include "odb/dbWireCodec.h"
+#include "odb/geom.h"
 #include "odb/odb.h"
 #include "odb/util.h"
 #include "rcx/dbUtil.h"
+#include "rcx/ext2dBox.h"
 #include "rcx/extPattern.h"
+#include "rcx/extSegment.h"
 #include "rcx/extSolverGen.h"
+#include "rcx/extViaModel.h"
 #include "rcx/ext_options.h"
-#include "util.h"
+#include "rcx/extprocess.h"
+#include "rcx/util.h"
 
 namespace utl {
 class Logger;
@@ -1775,7 +1784,7 @@ class extMain
                    const char* old_new);
   dbRSeg* addRSeg_v2(dbNet* net,
                      uint& srcId,
-                     Point& prevPoint,
+                     odb::Point& prevPoint,
                      const dbWirePath& path,
                      const dbWirePathShape& pshape,
                      const bool isBranch,
@@ -1785,11 +1794,11 @@ class extMain
   void loopWarning(dbNet* net, const dbWirePathShape& pshape);
   void getShapeRC_v2(dbNet* net,
                      const dbShape& s,
-                     Point& prevPoint,
+                     odb::Point& prevPoint,
                      const dbWirePathShape& pshape);
   void getShapeRC_v3(dbNet* net,
                      const dbShape& s,
-                     Point& prevPoint,
+                     odb::Point& prevPoint,
                      const dbWirePathShape& pshape);
   double getViaRes_v2(dbNet* net, dbTechVia* tvia);
   double getDbViaRes_v2(dbNet* net, const dbShape& s);
