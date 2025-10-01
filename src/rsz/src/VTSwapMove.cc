@@ -28,22 +28,18 @@ using sta::Slew;
 #define debugMovePrint3(format_str, ...) \
   debugPrint(logger_, utl::RSZ, "repair_setup", 3, format_str, ##__VA_ARGS__)
 
-bool VTSwapSpeedMove::doMove(const Path* drvr_path,
-                             int drvr_index,
-                             Slack drvr_slack,
-                             PathExpanded* expanded,
-                             float setup_slack_margin)
+bool VTSwapSpeedMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
 {
-  Pin* drvr_pin;
-  Instance* drvr;
   LibertyCell* drvr_cell;
   LibertyCell* best_cell;
-  if (!isSwappable(drvr_path, drvr_pin, drvr, drvr_cell, best_cell)) {
+
+  Instance* drvr_inst = network_->instance(drvr_pin);
+  if (!isSwappable(drvr_pin, drvr_cell, best_cell)) {
     return false;
   }
 
-  // TODO: Avoid swapping to the lowest VT by considering slack
-  if (replaceCell(drvr, best_cell)) {
+  if (replaceCell(drvr_inst, best_cell)) {
+    // TODO: Avoid swapping to the lowest VT by considering slack
     debugMovePrint1("ACCEPT vt_swap {}: {} -> {}",
                     network_->pathName(drvr_pin),
                     drvr_cell->name(),
@@ -52,7 +48,7 @@ bool VTSwapSpeedMove::doMove(const Path* drvr_path,
                     network_->pathName(drvr_pin),
                     drvr_cell->name(),
                     best_cell->name());
-    addMove(drvr);
+    addMove(drvr_inst);
     return true;
   }
 
@@ -84,40 +80,36 @@ bool VTSwapSpeedMove::doMove(Instance* drvr,
   return false;
 }
 
-bool VTSwapSpeedMove::isSwappable(const Path*& drvr_path,
-                                  Pin*& drvr_pin,
-                                  Instance*& drvr,
+bool VTSwapSpeedMove::isSwappable(const Pin*& drvr_pin,
                                   LibertyCell*& drvr_cell,
                                   LibertyCell*& best_cell)
 {
-  drvr_pin = nullptr;
-  drvr = nullptr;
   drvr_cell = nullptr;
   best_cell = nullptr;
 
-  drvr_pin = drvr_path->pin(this);
   if (drvr_pin == nullptr) {
     debugMovePrint1("REJECT vt_swap: no drvr_pin found");
     return false;
   }
+
+  Instance* drvr_inst = network_->instance(drvr_pin);
   int num_vt = resizer_->lib_data_->sorted_vt_categories.size();
   if (num_vt < 2) {
     debugMovePrint1("REJECT vt_swap {}: insufficient VT types",
                     network_->pathName(drvr_pin));
     return false;
   }
-  drvr = network_->instance(drvr_pin);
-  if (drvr == nullptr) {
+  if (drvr_inst == nullptr) {
     debugMovePrint1("REJECT vt_swap {}: drvr_pin has no instance",
                     network_->pathName(drvr_pin));
     return false;
   }
-  if (resizer_->dontTouch(drvr)) {
+  if (resizer_->dontTouch(drvr_inst)) {
     debugMovePrint1("REJECT vt_swap {}: drvr instance is dont-touch",
                     network_->pathName(drvr_pin));
     return false;
   }
-  if (!resizer_->isLogicStdCell(drvr)) {
+  if (!resizer_->isLogicStdCell(drvr_inst)) {
     debugMovePrint1("REJECT vt_swap {}: drvr instance is not a standard cell",
                     network_->pathName(drvr_pin));
     return false;

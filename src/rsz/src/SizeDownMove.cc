@@ -50,18 +50,10 @@ using sta::Slew;
 using sta::Vertex;
 using sta::VertexOutEdgeIterator;
 
-bool SizeDownMove::doMove(const Path* drvr_path,
-                          int drvr_index,
-                          Slack drvr_slack,
-                          PathExpanded* expanded,
-                          float setup_slack_margin)
+bool SizeDownMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
 {
-  Pin* drvr_pin = drvr_path->pin(this);
-  LibertyPort* drvr_port = network_->libertyPort(drvr_pin);
-  Vertex* drvr_vertex = drvr_path->vertex(sta_);
-  const Path* load_path = expanded->path(drvr_index + 1);
-  Vertex* load_vertex = load_path->vertex(sta_);
-  Pin* load_pin = load_vertex->pin();
+  Vertex* drvr_vertex = graph_->pinDrvrVertex(drvr_pin);
+  const Slack drvr_slack = sta_->vertexSlack(drvr_vertex, resizer_->max_);
 
   // Skip nets with large fanout because we will need to buffer them.
   const int fanout = this->fanout(drvr_vertex);
@@ -74,11 +66,11 @@ bool SizeDownMove::doMove(const Path* drvr_path,
              RSZ,
              "size_down",
              2,
-             "sizing down for crit fanout {} -> {}",
-             network_->pathName(drvr_pin),
-             network_->pathName(load_pin));
+             "sizing down {}",
+             network_->pathName(drvr_pin));
 
-  const DcalcAnalysisPt* dcalc_ap = drvr_path->dcalcAnalysisPt(sta_);
+  const DcalcAnalysisPt* dcalc_ap = resizer_->tgt_slew_dcalc_ap_;
+  LibertyPort* drvr_port = network_->libertyPort(drvr_pin);
 
   // Sort fanouts of the drvr by slack
   vector<pair<Vertex*, Slack>> fanout_slacks;
@@ -95,7 +87,16 @@ bool SizeDownMove::doMove(const Path* drvr_path,
       // If we already have a move on the fanout gate, don't try to size down
       // again
       if (!hasMoves(fanout_inst)) {
-        fanout_slacks.emplace_back(fanout_vertex, fanout_slack);
+        debugPrint(logger_,
+                   RSZ,
+                   "size_down",
+                   3,
+                   " unsorted {} slack: {} drvr slack: {}",
+                   network_->pathName(fanout_vertex->pin()),
+                   delayAsString(fanout_slack, sta_, 3),
+                   delayAsString(drvr_slack, sta_, 3))
+            // If we already have a move on the load, don't try to size down
+            fanout_slacks.emplace_back(fanout_vertex, fanout_slack);
       }
     }
   }

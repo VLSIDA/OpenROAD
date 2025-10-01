@@ -56,21 +56,15 @@ using sta::Vertex;
 // 2) it doesn't create new max fanout violations
 // 3) it doesn't create new max cap violations
 // 4) it doesn't worsen slack
-bool UnbufferMove::doMove(const Path* drvr_path,
-                          int drvr_index,
-                          Slack drvr_slack,
-                          PathExpanded* expanded,
-                          float setup_slack_margin)
+bool UnbufferMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
 {
-  Vertex* drvr_vertex = drvr_path->vertex(sta_);
-  const Pin* drvr_pin = drvr_vertex->pin();
+  Vertex* drvr_vertex = graph_->pinDrvrVertex(drvr_pin);
   LibertyPort* drvr_port = network_->libertyPort(drvr_pin);
   LibertyCell* drvr_cell = drvr_port ? drvr_port->libertyCell() : nullptr;
 
   // TODO:
   // 1. add max slew check
   if (drvr_cell && drvr_cell->isBuffer()) {
-    Pin* drvr_pin = drvr_path->pin(this);
     Instance* drvr = network_->instance(drvr_pin);
 
     // Don't remove buffers from previous sizing, pin swapping, rebuffering, or
@@ -99,10 +93,11 @@ bool UnbufferMove::doMove(const Path* drvr_path,
     }
 
     // Don't remove buffer if new max fanout violations are created
-    Vertex* drvr_vertex = drvr_path->vertex(sta_);
-    const Path* prev_drvr_path = expanded->path(drvr_index - 2);
-    Vertex* prev_drvr_vertex = prev_drvr_path->vertex(sta_);
-    Pin* prev_drvr_pin = prev_drvr_vertex->pin();
+    Pin* prev_drvr_pin;
+    Pin* drvr_input_pin;
+    Pin* load_pin;
+    getPrevNextPins(drvr_pin, prev_drvr_pin, drvr_input_pin, load_pin);
+
     float curr_fanout, max_fanout, fanout_slack;
     sta_->checkFanout(
         prev_drvr_pin, resizer_->max_, curr_fanout, max_fanout, fanout_slack);
@@ -174,15 +169,11 @@ bool UnbufferMove::doMove(const Path* drvr_path,
       }
     }
 
-    const Path* drvr_input_path = expanded->path(drvr_index - 1);
-    Vertex* drvr_input_vertex = drvr_input_path->vertex(sta_);
     SlackEstimatorParams params(setup_slack_margin, corner);
-    params.driver_pin = drvr_pin;
+    params.driver_pin = drvr_vertex->pin();
     params.prev_driver_pin = prev_drvr_pin;
-    params.driver_input_pin = drvr_input_vertex->pin();
+    params.driver_input_pin = drvr_input_pin;
     params.driver = drvr;
-    params.driver_path = drvr_path;
-    params.prev_driver_path = prev_drvr_path;
     params.driver_cell = drvr_cell;
     if (!estimatedSlackOK(params)) {
       return false;

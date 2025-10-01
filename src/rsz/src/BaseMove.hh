@@ -108,11 +108,7 @@ class BaseMove : public sta::dbStaState
   BaseMove(Resizer* resizer);
   ~BaseMove() override = default;
 
-  virtual bool doMove(const Path* drvr_path,
-                      int drvr_index,
-                      Slack drvr_slack,
-                      PathExpanded* expanded,
-                      float setup_slack_margin)
+  virtual bool doMove(const Pin* drvr_pin, float setup_slack_margin)
   {
     return false;
   }
@@ -171,6 +167,13 @@ class BaseMove : public sta::dbStaState
   double area(Cell* cell);
   double area(dbMaster* master);
   double dbuToMeters(int dist) const;
+
+  // Return the previous and next pins of the driver along a path
+  void getPrevNextPins(const Pin* drvr_pin,
+                       // Return values
+                       Pin*& prev_drvr_pin,
+                       Pin*& input_pin,
+                       Pin*& load_pin);
 
   void gateDelays(const LibertyPort* drvr_port,
                   float load_cap,

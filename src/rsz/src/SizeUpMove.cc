@@ -36,68 +36,62 @@ using sta::Pin;
 using sta::Slack;
 using sta::Slew;
 
-bool SizeUpMove::doMove(const Path* drvr_path,
-                        int drvr_index,
-                        Slack drvr_slack,
-                        PathExpanded* expanded,
-                        float setup_slack_margin)
+bool SizeUpMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
 {
-  Pin* drvr_pin = drvr_path->pin(this);
   Instance* drvr = network_->instance(drvr_pin);
-  const DcalcAnalysisPt* dcalc_ap = drvr_path->dcalcAnalysisPt(sta_);
+  const DcalcAnalysisPt* dcalc_ap = resizer_->tgt_slew_dcalc_ap_;
   const float load_cap = graph_delay_calc_->loadCap(drvr_pin, dcalc_ap);
-  const int in_index = drvr_index - 1;
-  const Path* in_path = expanded->path(in_index);
-  Pin* in_pin = in_path->pin(sta_);
-  LibertyPort* in_port = network_->libertyPort(in_pin);
+  Pin* prev_drvr_pin;
+  Pin* drvr_input_pin;
+  Pin* load_pin;
+  getPrevNextPins(drvr_pin, prev_drvr_pin, drvr_input_pin, load_pin);
+  LibertyPort* in_port = network_->libertyPort(drvr_input_pin);
 
-  if (!resizer_->dontTouch(drvr) && resizer_->isLogicStdCell(drvr)) {
-    float prev_drive;
-    if (drvr_index >= 2) {
-      const int prev_drvr_index = drvr_index - 2;
-      const Path* prev_drvr_path = expanded->path(prev_drvr_index);
-      Pin* prev_drvr_pin = prev_drvr_path->pin(sta_);
-      prev_drive = 0.0;
-      LibertyPort* prev_drvr_port = network_->libertyPort(prev_drvr_pin);
-      if (prev_drvr_port) {
-        prev_drive = prev_drvr_port->driveResistance();
-      }
-    } else {
-      prev_drive = 0.0;
+  if (!resizer_->dontTouch(drvr) && !resizer_->isLogicStdCell(drvr)) {
+    return false;
+  }
+  float prev_drive;
+  if (prev_drvr_pin) {
+    prev_drive = 0.0;
+    LibertyPort* prev_drvr_port = network_->libertyPort(prev_drvr_pin);
+    if (prev_drvr_port) {
+      prev_drive = prev_drvr_port->driveResistance();
     }
+  } else {
+    prev_drive = 0.0;
+  }
 
-    LibertyPort* drvr_port = network_->libertyPort(drvr_pin);
-    LibertyCell* upsize
-        = upsizeCell(in_port, drvr_port, load_cap, prev_drive, dcalc_ap);
+  LibertyPort* drvr_port = network_->libertyPort(drvr_pin);
+  LibertyCell* upsize
+      = upsizeCell(in_port, drvr_port, load_cap, prev_drive, dcalc_ap);
 
-    if (upsize && !resizer_->dontTouch(drvr) && replaceCell(drvr, upsize)) {
-      debugPrint(logger_,
-                 RSZ,
-                 "opt_moves",
-                 1,
-                 "ACCEPT size_up {} {} -> {}",
-                 network_->pathName(drvr_pin),
-                 drvr_port->libertyCell()->name(),
-                 upsize->name());
-      debugPrint(logger_,
-                 RSZ,
-                 "repair_setup",
-                 3,
-                 "size_up {} {} -> {}",
-                 network_->pathName(drvr_pin),
-                 drvr_port->libertyCell()->name(),
-                 upsize->name());
-      addMove(drvr);
-      return true;
-    }
+  if (upsize && !resizer_->dontTouch(drvr) && replaceCell(drvr, upsize)) {
     debugPrint(logger_,
                RSZ,
                "opt_moves",
-               3,
-               "REJECT size_up {} {}",
+               1,
+               "ACCEPT size_up {} {} -> {}",
                network_->pathName(drvr_pin),
-               drvr_port->libertyCell()->name());
+               drvr_port->libertyCell()->name(),
+               upsize->name());
+    debugPrint(logger_,
+               RSZ,
+               "repair_setup",
+               3,
+               "size_up {} {} -> {}",
+               network_->pathName(drvr_pin),
+               drvr_port->libertyCell()->name(),
+               upsize->name());
+    addMove(drvr);
+    return true;
   }
+  debugPrint(logger_,
+             RSZ,
+             "opt_moves",
+             3,
+             "REJECT size_up {} {}",
+             network_->pathName(drvr_pin),
+             drvr_port->libertyCell()->name());
 
   return false;
 }
@@ -105,21 +99,20 @@ bool SizeUpMove::doMove(const Path* drvr_path,
 // Compare drive strength with previous stage
 // and match if needed
 // For example, if BUFX16 drives BUFX1, replace BUFX1 with BUFX16
-bool SizeUpMatchMove::doMove(const Path* drvr_path,
-                             int drvr_index,
-                             Slack drvr_slack,
-                             PathExpanded* expanded,
-                             float setup_slack_margin)
+bool SizeUpMatchMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
 {
-  if (drvr_index < 2) {
+  Instance* drvr = network_->instance(drvr_pin);
+  Pin* prev_drvr_pin;
+  Pin* drvr_input_pin;
+  Pin* load_pin;
+  getPrevNextPins(drvr_pin, prev_drvr_pin, drvr_input_pin, load_pin);
+
+  if (prev_drvr_pin == nullptr) {
     return false;
   }
-
-  Pin* drvr_pin = drvr_path->pin(this);
   if (drvr_pin == nullptr) {
     return false;
   }
-  Instance* drvr = network_->instance(drvr_pin);
   if (drvr == nullptr) {
     return false;
   }
@@ -134,12 +127,6 @@ bool SizeUpMatchMove::doMove(const Path* drvr_path,
       return false;
     }
 
-    const int prev_drvr_index = drvr_index - 2;
-    const Path* prev_drvr_path = expanded->path(prev_drvr_index);
-    Pin* prev_drvr_pin = prev_drvr_path->pin(sta_);
-    if (prev_drvr_pin == nullptr) {
-      return false;
-    }
     LibertyPort* prev_drvr_port = network_->libertyPort(prev_drvr_pin);
     if (prev_drvr_port == nullptr) {
       return false;

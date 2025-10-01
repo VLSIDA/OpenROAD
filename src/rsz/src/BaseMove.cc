@@ -432,7 +432,6 @@ bool BaseMove::estimatedSlackOK(const SlackEstimatorParams& params)
   }
   LibertyPort *buffer_input_port, *buffer_output_port;
   params.driver_cell->bufferPorts(buffer_input_port, buffer_output_port);
-  const RiseFall* prev_driver_rf = params.prev_driver_path->transition(sta_);
 
   // Compute delay degradation at prev driver due to increased load cap
   resizer_->annotateInputSlews(network_->instance(params.prev_driver_pin),
@@ -445,10 +444,10 @@ bool BaseMove::estimatedSlackOK(const SlackEstimatorParams& params)
                   - resizer_->portCapacitance(buffer_input_port, params.corner);
   resizer_->gateDelays(prev_drvr_port, new_cap, dcalc_ap, new_delay, new_slew);
   float delay_degrad
-      = new_delay[prev_driver_rf->index()] - old_delay[prev_driver_rf->index()];
+      = *std::max_element(new_delay, new_delay + RiseFall::index_count)
+        - *std::max_element(old_delay, old_delay + RiseFall::index_count);
   float delay_imp
       = resizer_->bufferDelay(params.driver_cell,
-                              params.driver_path->transition(sta_),
                               dcalc->loadCap(params.driver_pin, dcalc_ap),
                               dcalc_ap);
   resizer_->resetInputSlews();
@@ -893,6 +892,51 @@ LibertyCellSeq BaseMove::getSwappableCells(LibertyCell* base)
   return resizer_->getSwappableCells(base);
 }
 
-////////////////////////////////////////////////////////////////
-// namespace rsz
+void BaseMove::getPrevNextPins(const Pin* drvr_pin,
+                               // Return values
+                               Pin*& prev_drvr_pin,
+                               Pin*& input_pin,
+                               Pin*& load_pin)
+{
+  Vertex* drvr_vertex = graph_->vertex(network_->vertexId(drvr_pin));
+  // Find the worst slack vertex of all fanouts
+  // IMPROVE ME: We can add different policies of picking the path
+  Vertex* load_vertex = nullptr;
+  Slack load_slack = sta::INF;
+  VertexOutEdgeIterator edge_iter(drvr_vertex, graph_);
+  while (edge_iter.hasNext()) {
+    Edge* edge = edge_iter.next();
+    Vertex* fanout_vertex = edge->to(graph_);
+    Slack fanout_slack = sta_->vertexSlack(fanout_vertex, resizer_->max_);
+    if (fanout_slack < load_slack) {
+      load_vertex = fanout_vertex;
+      load_slack = fanout_slack;
+    }
+  }
+  // Get the worst slack path of this fanout vertex
+  Path* load_path = sta_->vertexWorstSlackPath(load_vertex, resizer_->max_);
+  Path* drvr_path;
+  Path* input_path;
+  Path* prev_drvr_path;
+  if (load_path) {
+    drvr_path = load_path->prevPath();
+  } else {
+    drvr_path = nullptr;
+  }
+  if (drvr_path) {
+    input_path = drvr_path->prevPath();
+  } else {
+    input_path = nullptr;
+  }
+  if (input_path) {
+    prev_drvr_path = input_path->prevPath();
+  } else {
+    prev_drvr_path = nullptr;
+  }
+  // Set the return values
+  load_pin = load_path ? load_path->pin(sta_) : nullptr;
+  input_pin = input_path ? input_path->pin(sta_) : nullptr;
+  prev_drvr_pin = prev_drvr_path ? prev_drvr_path->pin(sta_) : nullptr;
+}
+
 }  // namespace rsz

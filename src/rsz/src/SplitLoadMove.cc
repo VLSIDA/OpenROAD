@@ -50,17 +50,10 @@ using sta::Slew;
 using sta::Vertex;
 using sta::VertexOutEdgeIterator;
 
-bool SplitLoadMove::doMove(const Path* drvr_path,
-                           int drvr_index,
-                           Slack drvr_slack,
-                           PathExpanded* expanded,
-                           float setup_slack_margin)
+bool SplitLoadMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
 {
-  Pin* drvr_pin = drvr_path->pin(this);
-  Vertex* drvr_vertex = drvr_path->vertex(sta_);
-  const Path* load_path = expanded->path(drvr_index + 1);
-  Vertex* load_vertex = load_path->vertex(sta_);
-  Pin* load_pin = load_vertex->pin();
+  Vertex* drvr_vertex = graph_->pinDrvrVertex(drvr_pin);
+  const Slack drvr_slack = sta_->vertexSlack(drvr_vertex, resizer_->max_);
 
   const int fanout = this->fanout(drvr_vertex);
   // Don't split loads on low fanout nets.
@@ -76,19 +69,16 @@ bool SplitLoadMove::doMove(const Path* drvr_path,
              RSZ,
              "repair_setup",
              3,
-             "split loads {} -> {}",
-             network_->pathName(drvr_pin),
-             network_->pathName(load_pin));
+             "split loads {}",
+             network_->pathName(drvr_pin));
 
   debugPrint(logger_,
              RSZ,
              "split_load",
              3,
-             "split loads {} -> {}",
-             network_->pathName(drvr_pin),
-             network_->pathName(load_pin));
+             "split loads {}",
+             network_->pathName(drvr_pin));
 
-  const RiseFall* rf = drvr_path->transition(sta_);
   // Sort fanouts of the drvr on the critical path by slack margin
   // wrt the critical path slack.
   vector<pair<Vertex*, Slack>> fanout_slacks;
@@ -99,7 +89,7 @@ bool SplitLoadMove::doMove(const Path* drvr_path,
     if (edge->isWire()) {
       Vertex* fanout_vertex = edge->to(graph_);
       const Slack fanout_slack
-          = sta_->vertexSlack(fanout_vertex, rf, resizer_->max_);
+          = sta_->vertexSlack(fanout_vertex, resizer_->max_);
       const Slack slack_margin = fanout_slack - drvr_slack;
       debugPrint(logger_,
                  RSZ,
@@ -128,7 +118,7 @@ bool SplitLoadMove::doMove(const Path* drvr_path,
   db_network_->net(drvr_pin, db_drvr_net, db_mod_drvr_net);
 
   // H-Fix Use driver parent for hierarchy, not the top instance
-  Instance* parent = db_network_->getOwningInstanceParent(drvr_pin);
+  Instance* parent = db_network_->getOwningInstanceParent(drvr_vertex->pin());
 
   LibertyCell* buffer_cell = resizer_->buffer_lowest_drive_;
   const Point drvr_loc = db_network_->location(drvr_pin);
