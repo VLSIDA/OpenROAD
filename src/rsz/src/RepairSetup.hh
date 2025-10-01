@@ -91,6 +91,13 @@ class RepairSetup : public sta::dbStaState
 {
  public:
   RepairSetup(Resizer* resizer);
+  void setupMoveSequence(const std::vector<MoveType>& sequence,
+                         bool skip_pin_swap,
+                         bool skip_gate_cloning,
+                         bool skip_size_down,
+                         bool skip_buffering,
+                         bool skip_buffer_removal,
+                         bool skip_vt_swap);
   bool repairSetup(float setup_slack_margin,
                    // Percent of violating ends to repair to
                    // reduce tns (0.0-1.0).

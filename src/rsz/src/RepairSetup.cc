@@ -82,31 +82,14 @@ void RepairSetup::init()
   initial_design_area_ = resizer_->computeDesignArea();
 }
 
-bool RepairSetup::repairSetup(const float setup_slack_margin,
-                              const double repair_tns_end_percent,
-                              const int max_passes,
-                              const int max_iterations,
-                              const int max_repairs_per_pass,
-                              const bool verbose,
-                              const std::vector<MoveType>& sequence,
-                              const bool skip_pin_swap,
-                              const bool skip_gate_cloning,
-                              const bool skip_size_down,
-                              const bool skip_buffering,
-                              const bool skip_buffer_removal,
-                              const bool skip_last_gasp,
-                              const bool skip_vt_swap,
-                              const bool skip_crit_vt_swap)
+void RepairSetup::setupMoveSequence(const std::vector<MoveType>& sequence,
+                                    const bool skip_pin_swap,
+                                    const bool skip_gate_cloning,
+                                    const bool skip_size_down,
+                                    const bool skip_buffering,
+                                    const bool skip_buffer_removal,
+                                    const bool skip_vt_swap)
 {
-  bool repaired = false;
-  init();
-  resizer_->rebuffer_->init();
-  // IMPROVE ME: rebuffering always looks at cmd corner
-  resizer_->rebuffer_->initOnCorner(sta_->cmdCorner());
-  constexpr int digits = 3;
-  max_repairs_per_pass_ = max_repairs_per_pass;
-  resizer_->buffer_moved_into_core_ = false;
-
   if (!sequence.empty()) {
     move_sequence.clear();
     for (MoveType move : sequence) {
@@ -161,7 +144,6 @@ bool RepairSetup::repairSetup(const float setup_slack_margin,
           break;
       }
     }
-
   } else {
     move_sequence.clear();
     if (!skip_buffer_removal) {
@@ -196,6 +178,40 @@ bool RepairSetup::repairSetup(const float setup_slack_margin,
     repair_moves += move->name() + string(" ");
   }
   logger_->info(RSZ, 100, repair_moves);
+}
+
+bool RepairSetup::repairSetup(const float setup_slack_margin,
+                              const double repair_tns_end_percent,
+                              const int max_passes,
+                              const int max_iterations,
+                              const int max_repairs_per_pass,
+                              const bool verbose,
+                              const std::vector<MoveType>& sequence,
+                              const bool skip_pin_swap,
+                              const bool skip_gate_cloning,
+                              const bool skip_size_down,
+                              const bool skip_buffering,
+                              const bool skip_buffer_removal,
+                              const bool skip_last_gasp,
+                              const bool skip_vt_swap,
+                              const bool skip_crit_vt_swap)
+{
+  bool repaired = false;
+  init();
+  resizer_->rebuffer_->init();
+  // IMPROVE ME: rebuffering always looks at cmd corner
+  resizer_->rebuffer_->initOnCorner(sta_->cmdCorner());
+  constexpr int digits = 3;
+  max_repairs_per_pass_ = max_repairs_per_pass;
+  resizer_->buffer_moved_into_core_ = false;
+
+  setupMoveSequence(sequence,
+                    skip_pin_swap,
+                    skip_gate_cloning,
+                    skip_size_down,
+                    skip_buffering,
+                    skip_buffer_removal,
+                    skip_vt_swap);
 
   // Sort failing endpoints by slack.
   const VertexSet* endpoints = sta_->endpoints();
