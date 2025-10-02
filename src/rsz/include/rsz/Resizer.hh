@@ -849,6 +849,7 @@ class Resizer : public dbStaState, public dbNetworkObserver
   friend class ConcreteSwapArithModules;
   friend class Rebuffer;
   friend class OdbCallBack;
+  friend class ViolatorCollector;
 };
 
 }  // namespace rsz

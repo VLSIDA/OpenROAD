@@ -27,6 +27,8 @@ namespace rsz {
 class Resizer;
 class RemoveBuffer;
 class BaseMove;
+class ViolatorCollector;
+class MoveTracker;
 
 using odb::Point;
 using utl::Logger;
@@ -91,6 +93,7 @@ class RepairSetup : public sta::dbStaState
 {
  public:
   RepairSetup(Resizer* resizer);
+  ~RepairSetup();
   void setupMoveSequence(const std::vector<MoveType>& sequence,
                          bool skip_pin_swap,
                          bool skip_gate_cloning,
@@ -125,7 +128,8 @@ class RepairSetup : public sta::dbStaState
  private:
   void init();
   bool repairPath(Path* path, Slack path_slack, float setup_slack_margin);
-  bool repairPins(std::vector<const Pin*>& pins, float setup_slack_margin);
+  bool repairPins(const std::vector<const Pin*>& pins,
+                  float setup_slack_margin);
   int fanout(Vertex* vertex);
   bool hasTopLevelOutputPort(Net* net);
 
@@ -155,6 +159,8 @@ class RepairSetup : public sta::dbStaState
   dbNetwork* db_network_ = nullptr;
   Resizer* resizer_;
   est::EstimateParasitics* estimate_parasitics_;
+  std::unique_ptr<ViolatorCollector> violator_collector_;
+  std::unique_ptr<MoveTracker> move_tracker_;
 
   bool fallback_ = false;
   float min_viol_ = 0.0;
