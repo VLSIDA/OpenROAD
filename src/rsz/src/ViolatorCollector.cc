@@ -258,6 +258,10 @@ void ViolatorCollector::updatePinData(const Pin* pin, pinData& pd)
     const TimingArcSet* arc_set = prev_edge->timingArcSet();
     for (const RiseFall* rf : RiseFall::range()) {
       TimingArc* prev_arc = arc_set->arcTo(rf);
+      // This can happen for flops with only one transition type arc.
+      if (!prev_arc) {
+        continue;
+      }
       const TimingArc* corner_arc = prev_arc->cornerArc(lib_ap_);
       const Delay intrinsic_delay = corner_arc->intrinsicDelay();
       const Delay delay
@@ -733,11 +737,8 @@ int ViolatorCollector::getEndpointPassCount(const Pin* endpoint_pin) const
 void ViolatorCollector::resetEndpointPasses()
 {
   endpoint_pass_count_.clear();
-  debugPrint(logger_,
-             RSZ,
-             "violator_collector",
-             2,
-             "Reset endpoint pass tracking");
+  debugPrint(
+      logger_, RSZ, "violator_collector", 2, "Reset endpoint pass tracking");
 }
 
 }  // namespace rsz
