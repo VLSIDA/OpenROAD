@@ -4,6 +4,7 @@
 #include "SizeUpMove.hh"
 
 #include <cmath>
+#include <string>
 
 #include "BaseMove.hh"
 #include "CloneMove.hh"
@@ -44,19 +45,19 @@ bool SizeUpMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
 
   // We always size the cloned gates for some reason, but it would be good if we
   // also down-sized here instead since we might want smaller original.
-  if (resizer_->dontTouch(drvr)
-      && !resizer_->clone_move_->hasPendingMoves(drvr)) {
+  if (resizer_->dontTouch(drvr)) {
     return false;
   }
-  float prev_drive;
+  if (!resizer_->clone_move_->hasPendingMoves(drvr)) {
+    return false;
+  }
+
+  float prev_drive = 0.0;
   if (prev_drvr_pin) {
-    prev_drive = 0.0;
     LibertyPort* prev_drvr_port = network_->libertyPort(prev_drvr_pin);
     if (prev_drvr_port) {
       prev_drive = prev_drvr_port->driveResistance();
     }
-  } else {
-    prev_drive = 0.0;
   }
 
   LibertyPort* drvr_port = network_->libertyPort(drvr_pin);
@@ -147,5 +148,88 @@ LibertyCell* SizeUpMove::upsizeCell(LibertyPort* in_port,
   return nullptr;
 };
 
-// namespace rsz
+// Compare drive strength with previous stage
+// and match if needed
+// For example, if BUFX16 drives BUFX1, replace BUFX1 with BUFX16
+bool SizeUpMatchMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
+{
+  if (drvr_pin == nullptr) {
+    return false;
+  }
+
+  Instance* drvr = network_->instance(drvr_pin);
+  if (drvr == nullptr) {
+    return false;
+  }
+
+  Pin* prev_drvr_pin;
+  Pin* drvr_input_pin;
+  Pin* load_pin;
+  getPrevNextPins(drvr_pin, prev_drvr_pin, drvr_input_pin, load_pin);
+  if (prev_drvr_pin == nullptr) {
+    return false;
+  }
+
+  if (resizer_->dontTouch(drvr) || !resizer_->isLogicStdCell(drvr)) {
+    return false;
+  }
+
+  LibertyPort* drvr_port = network_->libertyPort(drvr_pin);
+  if (drvr_port == nullptr) {
+    return false;
+  }
+  const LibertyCell* drvr_cell = drvr_port->libertyCell();
+  if (drvr_cell == nullptr) {
+    return false;
+  }
+
+  LibertyPort* prev_drvr_port = network_->libertyPort(prev_drvr_pin);
+  if (prev_drvr_port == nullptr) {
+    return false;
+  }
+  const LibertyCell* prev_cell = prev_drvr_port->libertyCell();
+  if (prev_cell == nullptr) {
+    return false;
+  }
+
+  if (prev_cell == drvr_cell) {
+    return false;
+  }
+
+  if (((prev_cell->isBuffer() && drvr_cell->isBuffer())
+          || (prev_cell->isInverter() && drvr_cell->isInverter()))
+      && (resizer_->bufferDriveResistance(prev_cell)
+          < resizer_->bufferDriveResistance(drvr_cell))) {
+    if (replaceCell(drvr, prev_cell)) {
+      debugPrint(logger_,
+                 RSZ,
+                 "opt_moves",
+                 1,
+                 "ACCEPT size_up_match {} {} -> {}",
+                 network_->pathName(drvr_pin),
+                 drvr_cell->name(),
+                 prev_cell->name());
+      debugPrint(logger_,
+                 RSZ,
+                 "repair_setup",
+                 3,
+                 "size_up_match {} {} -> {}",
+                 network_->pathName(drvr_pin),
+                 drvr_cell->name(),
+                 prev_cell->name());
+      addMove(drvr);
+      return true;
+    }
+  }
+  debugPrint(logger_,
+             RSZ,
+             "opt_moves",
+             1,
+             "REJECT size_up_match {} {}",
+             network_->pathName(drvr_pin),
+             drvr_cell->name());
+
+  return false;
+}
+
 }  // namespace rsz

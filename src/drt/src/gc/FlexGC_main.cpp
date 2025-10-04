@@ -2,16 +2,24 @@
 // Copyright (c) 2019-2025, The OpenROAD Authors
 
 #include <algorithm>
-#include <boost/geometry.hpp>
-#include <iostream>
+#include <cmath>
+#include <cstdint>
+#include <list>
 #include <map>
 #include <memory>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 
+#include "boost/geometry/geometry.hpp"
+#include "boost/polygon/polygon.hpp"
+#include "db/obj/frBlockObject.h"
+#include "db/obj/frMarker.h"
+#include "frBaseTypes.h"
 #include "frProfileTask.h"
 #include "gc/FlexGC_impl.h"
+#include "odb/dbTypes.h"
 
 namespace drt {
 
@@ -3801,7 +3809,8 @@ void FlexGCWorker::Impl::patchMetalShape_minStep()
     auto layer = tech_->getLayer(lNum);
     if (!layer->hasVia2ViaMinStepViol()
         && !tech_->getLayer(lNum - 1)->hasLef58MaxSpacingConstraints()
-        && !tech_->getLayer(lNum + 1)->hasLef58MaxSpacingConstraints()) {
+        && (lNum + 1 >= tech_->getLayers().size()
+            || !tech_->getLayer(lNum + 1)->hasLef58MaxSpacingConstraints())) {
       continue;
     }
 

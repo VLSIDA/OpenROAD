@@ -9,12 +9,20 @@
 #include <QLocale>
 #include <QMouseEvent>
 #include <QString>
+#include <algorithm>
+#include <any>
+#include <cstdint>
+#include <map>
+#include <optional>
+#include <set>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "dbDescriptors.h"
 #include "db_sta/dbSta.hh"
 #include "displayControls.h"
+#include "odb/db.h"
 #include "utl/Logger.h"
 
 Q_DECLARE_METATYPE(odb::dbInst*);
@@ -100,6 +108,7 @@ BrowserWidget::BrowserWidget(
       view_(new QTreeView(this)),
       model_(new QStandardItemModel(this)),
       model_modified_(false),
+      initial_load_(true),
       ignore_selection_(false),
       menu_(new QMenu(this))
 {
@@ -114,7 +123,7 @@ BrowserWidget::BrowserWidget(
   display_controls_warning_->setStyleSheet("color: red;");
 
   model_->setHorizontalHeaderLabels({"Instance",
-                                     "Master",
+                                     "Module",
                                      "Instances",
                                      "Macros",
                                      "Modules",
@@ -382,7 +391,10 @@ void BrowserWidget::updateModel()
   }
   addInstanceItems(insts, "Physical only", root);
 
-  view_->header()->resizeSections(QHeaderView::ResizeToContents);
+  if (initial_load_) {
+    view_->header()->resizeSections(QHeaderView::ResizeToContents);
+    initial_load_ = false;
+  }
   model_modified_ = false;
   setUpdatesEnabled(true);
   view_->setSortingEnabled(true);

@@ -1,15 +1,18 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2019-2025, The OpenROAD Authors
 
-#include "FlexGRCMap.h"
+#include "gr/FlexGRCMap.h"
 
 #include <algorithm>
 #include <fstream>
 #include <iostream>
-#include <iterator>
 #include <memory>
 #include <set>
 #include <vector>
+
+#include "db/obj/frBTerm.h"
+#include "db/obj/frBlockObject.h"
+#include "frBaseTypes.h"
 
 namespace drt {
 

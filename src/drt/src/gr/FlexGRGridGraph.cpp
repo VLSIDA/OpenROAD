@@ -3,9 +3,9 @@
 
 #include "gr/FlexGRGridGraph.h"
 
-#include <iostream>
 #include <map>
 
+#include "frBaseTypes.h"
 #include "gr/FlexGR.h"
 
 namespace drt {

@@ -14,6 +14,10 @@
 #include "sta/NetworkClass.hh"
 #include "utl/Logger.h"
 
+namespace est {
+class EstimateParasitics;
+}
+
 namespace rsz {
 
 class Resizer;
@@ -99,19 +103,22 @@ class RepairDesign : dbStaState
                           float& violation);
   bool repairDriverSlew(const Corner* corner, const Pin* drvr_pin);
 
-  void repairNet(Net* net,
-                 const Pin* drvr_pin,
-                 Vertex* drvr,
-                 bool check_slew,
-                 bool check_cap,
-                 bool check_fanout,
-                 int max_length,  // dbu
-                 bool resize_drvr,
-                 int& repaired_net_count,
-                 int& slew_violations,
-                 int& cap_violations,
-                 int& fanout_violations,
-                 int& length_violations);
+  void repairNet(
+      Net* net,
+      const Pin* drvr_pin,
+      Vertex* drvr,
+      bool check_slew,
+      bool check_cap,
+      bool check_fanout,
+      int max_length,  // dbu
+      bool resize_drvr,
+      Corner* corner_w_load_slew_viol,  // if not null, signals a violation
+                                        // hidden by an annotation
+      int& repaired_net_count,
+      int& slew_violations,
+      int& cap_violations,
+      int& fanout_violations,
+      int& length_violations);
   bool needRepairCap(const Pin* drvr_pin,
                      int& cap_violations,
                      float& max_cap,
@@ -220,9 +227,10 @@ class RepairDesign : dbStaState
   dbNetwork* db_network_ = nullptr;
   std::unique_ptr<PreChecks> pre_checks_ = nullptr;
   Resizer* resizer_;
+  est::EstimateParasitics* estimate_parasitics_;
   int dbu_ = 0;
   double initial_design_area_ = 0;
-  ParasiticsSrc parasitics_src_ = ParasiticsSrc::none;
+  est::ParasiticsSrc parasitics_src_ = est::ParasiticsSrc::none;
 
   // Gain buffering
   std::vector<LibertyCell*> buffer_sizes_;

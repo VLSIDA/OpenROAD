@@ -4,25 +4,40 @@
 #include "io/io.h"
 
 #include <algorithm>
+#include <cassert>
 #include <cmath>
-#include <exception>
-#include <fstream>
-#include <iostream>
+#include <cstddef>
+#include <iterator>
 #include <limits>
+#include <list>
 #include <map>
 #include <memory>
 #include <set>
 #include <sstream>
+#include <tuple>
 #include <utility>
 #include <vector>
 
+#include "boost/geometry/geometry.hpp"
+#include "boost/polygon/polygon.hpp"
+#include "db/infra/frSegStyle.h"
+#include "db/obj/frAccess.h"
+#include "db/obj/frFig.h"
+#include "db/obj/frInstBlockage.h"
+#include "db/obj/frTrackPattern.h"
+#include "db/obj/frVia.h"
 #include "db/tech/frConstraint.h"
+#include "db/tech/frViaRuleGenerate.h"
+#include "frBaseTypes.h"
 #include "frProfileTask.h"
 #include "frRTree.h"
 #include "global.h"
 #include "odb/db.h"
+#include "odb/dbObject.h"
 #include "odb/dbShape.h"
+#include "odb/dbTypes.h"
 #include "odb/dbWireCodec.h"
+#include "odb/geom.h"
 #include "triton_route/TritonRoute.h"
 #include "utl/Logger.h"
 
@@ -30,7 +45,7 @@ namespace drt {
 
 io::Parser::Parser(odb::dbDatabase* dbIn,
                    frDesign* designIn,
-                   Logger* loggerIn,
+                   utl::Logger* loggerIn,
                    RouterConfiguration* router_cfg)
     : db_(dbIn),
       design_(designIn),
@@ -3029,7 +3044,8 @@ void io::Parser::readTechAndLibs(odb::dbDatabase* db)
   }
 
   auto tech = db->getTech();
-  if (tech == nullptr) {
+  auto block = db_->getChip()->getBlock();
+  if (tech == nullptr || block == nullptr) {
     logger_->error(DRT, 136, "Load design first.");
   }
   getTech()->setDBUPerUU(tech->getDbUnitsPerMicron());
@@ -3039,27 +3055,32 @@ void io::Parser::readTechAndLibs(odb::dbDatabase* db)
   setLayers(tech);
 
   auto fr_tech = getTech();
-  if (!router_cfg_->BOTTOM_ROUTING_LAYER_NAME.empty()) {
-    frLayer* layer = fr_tech->getLayer(router_cfg_->BOTTOM_ROUTING_LAYER_NAME);
+
+  const int min_routing_layer = block->getMinRoutingLayer();
+  if (min_routing_layer > 0) {
+    odb::dbTechLayer* tech_layer = tech->findRoutingLayer(min_routing_layer);
+    frLayer* layer = fr_tech->getLayer(tech_layer->getName());
     if (layer) {
       router_cfg_->BOTTOM_ROUTING_LAYER = layer->getLayerNum();
     } else {
       logger_->warn(utl::DRT,
                     272,
                     "bottomRoutingLayer {} not found.",
-                    router_cfg_->BOTTOM_ROUTING_LAYER_NAME);
+                    tech_layer->getName());
     }
   }
 
-  if (!router_cfg_->TOP_ROUTING_LAYER_NAME.empty()) {
-    frLayer* layer = fr_tech->getLayer(router_cfg_->TOP_ROUTING_LAYER_NAME);
+  const int max_routing_layer = block->getMaxRoutingLayer();
+  if (max_routing_layer > 0) {
+    odb::dbTechLayer* tech_layer = tech->findRoutingLayer(max_routing_layer);
+    frLayer* layer = fr_tech->getLayer(tech_layer->getName());
     if (layer) {
       router_cfg_->TOP_ROUTING_LAYER = layer->getLayerNum();
     } else {
       logger_->warn(utl::DRT,
                     273,
                     "topRoutingLayer {} not found.",
-                    router_cfg_->TOP_ROUTING_LAYER_NAME);
+                    tech_layer->getName());
     }
   } else {
     for (frLayerNum layer_num = fr_tech->getTopLayerNum();
@@ -3929,8 +3950,9 @@ Point io::TopLayerBTermHandler::getBestViaPosition(Rect pin_rect)
 int io::TopLayerBTermHandler::countNetBTermsAboveMaxLayer(odb::dbNet* net)
 {
   odb::dbTech* tech = db_->getTech();
-  odb::dbTechLayer* top_tech_layer
-      = tech->findLayer(router_cfg_->TOP_ROUTING_LAYER_NAME.c_str());
+  odb::dbBlock* block = db_->getChip()->getBlock();
+  const int max_routing_layer = block->getMaxRoutingLayer();
+  odb::dbTechLayer* top_tech_layer = tech->findRoutingLayer(max_routing_layer);
   int bterm_count = 0;
   for (auto bterm : net->getBTerms()) {
     int bterm_bottom_layer_idx = std::numeric_limits<int>::max();
@@ -4046,14 +4068,14 @@ void io::TopLayerBTermHandler::stackVias(odb::dbBTerm* bterm,
 
 void io::TopLayerBTermHandler::processBTermsAboveTopLayer(bool has_routing)
 {
-  if (router_cfg_->TOP_ROUTING_LAYER_NAME.empty()) {
+  odb::dbBlock* block = db_->getChip()->getBlock();
+  const int max_routing_layer = block->getMaxRoutingLayer();
+  if (max_routing_layer < 0) {
     return;
   }
   odb::dbTech* tech = db_->getTech();
-  odb::dbBlock* block = db_->getChip()->getBlock();
 
-  odb::dbTechLayer* top_tech_layer
-      = tech->findLayer(router_cfg_->TOP_ROUTING_LAYER_NAME.c_str());
+  odb::dbTechLayer* top_tech_layer = tech->findRoutingLayer(max_routing_layer);
   if (top_tech_layer != nullptr) {
     int top_layer_idx = top_tech_layer->getRoutingLevel();
     for (auto bterm : block->getBTerms()) {

@@ -7,12 +7,14 @@
 #include <memory>
 #include <queue>
 #include <set>
+#include <string>
 #include <unordered_map>
 #include <utility>
 #include <vector>
 
+#include "mpl-util.h"
 #include "object.h"
-#include "util.h"
+#include "odb/db.h"
 
 namespace par {
 class PartitionMgr;
@@ -106,6 +108,7 @@ struct PhysicalHierarchy
   bool has_only_macros{false};
   bool has_std_cells{true};
   bool has_unfixed_macros{true};
+  bool has_fixed_macros{false};
 
   int base_max_macro{0};
   int base_min_macro{0};
@@ -169,6 +172,8 @@ class ClusteringEngine
 
   void init();
   Metrics* computeModuleMetrics(odb::dbModule* module);
+  std::string generateMacroAndCoreDimensionsTable(const HardMacro* hard_macro,
+                                                  const odb::Rect& core) const;
   std::vector<odb::dbInst*> getUnfixedMacros();
   void setDieArea();
   void setFloorplanShape();
@@ -215,7 +220,7 @@ class ClusteringEngine
   void mapMacroInCluster2HardMacro(Cluster* cluster);
   void getHardMacros(odb::dbModule* module,
                      std::vector<HardMacro*>& hard_macros);
-  void createOneClusterForEachMacro(Cluster* parent,
+  void createOneClusterForEachMacro(Cluster* mixed_leaf_parent,
                                     const std::vector<HardMacro*>& hard_macros,
                                     std::vector<Cluster*>& macro_clusters);
   void classifyMacrosBySize(const std::vector<HardMacro*>& hard_macros,
@@ -230,9 +235,6 @@ class ClusteringEngine
                                 const std::vector<int>& signature_class,
                                 std::vector<int>& interconn_class,
                                 std::vector<int>& macro_class);
-  void addStdCellClusterToSubTree(Cluster* parent,
-                                  Cluster* mixed_leaf,
-                                  std::vector<int>& virtual_conn_clusters);
   void replaceByStdCellCluster(Cluster* mixed_leaf,
                                std::vector<int>& virtual_conn_clusters);
 

@@ -4,11 +4,15 @@
 #include "layoutTabs.h"
 
 #include <functional>
+#include <memory>
+#include <string>
 #include <utility>
 #include <vector>
 
 #include "colorGenerator.h"
 #include "layoutViewer.h"
+#include "odb/db.h"
+#include "odb/geom.h"
 #include "utl/Logger.h"
 
 namespace gui {
@@ -258,6 +262,7 @@ void LayoutTabs::addRouteGuides(odb::dbNet* net)
 {
   const auto& [itr, inserted] = route_guides_.insert(net);
   if (inserted) {
+    emit routeGuidesChanged();
     fullRepaint();
   }
 }
@@ -266,6 +271,7 @@ void LayoutTabs::addNetTracks(odb::dbNet* net)
 {
   const auto& [itr, inserted] = net_tracks_.insert(net);
   if (inserted) {
+    emit netTracksChanged();
     fullRepaint();
   }
 }
@@ -281,6 +287,7 @@ void LayoutTabs::removeFocusNet(odb::dbNet* net)
 void LayoutTabs::removeRouteGuides(odb::dbNet* net)
 {
   if (route_guides_.erase(net) > 0) {
+    emit routeGuidesChanged();
     fullRepaint();
   }
 }
@@ -288,6 +295,7 @@ void LayoutTabs::removeRouteGuides(odb::dbNet* net)
 void LayoutTabs::removeNetTracks(odb::dbNet* net)
 {
   if (net_tracks_.erase(net) > 0) {
+    emit netTracksChanged();
     fullRepaint();
   }
 }
@@ -305,6 +313,7 @@ void LayoutTabs::clearRouteGuides()
 {
   if (!route_guides_.empty()) {
     route_guides_.clear();
+    emit routeGuidesChanged();
     fullRepaint();
   }
 }
@@ -313,6 +322,7 @@ void LayoutTabs::clearNetTracks()
 {
   if (!net_tracks_.empty()) {
     net_tracks_.clear();
+    emit netTracksChanged();
     fullRepaint();
   }
 }

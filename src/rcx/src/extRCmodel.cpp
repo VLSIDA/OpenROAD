@@ -1,11 +1,17 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2019-2025, The OpenROAD Authors
 
+#include <string.h>
+
+#include <cassert>
+#include <cmath>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <filesystem>
 #include <limits>
-#include <map>
-#include <vector>
 
+#include "odb/db.h"
 #include "parse.h"
 #include "rcx/extRCap.h"
 #include "rcx/extprocess.h"
@@ -2742,14 +2748,6 @@ void extRCModel::mkNet_prefix(extMeasure* m, const char* wiresNameSuffix)
     sprintf(overUnder, "Unknown");
   }
 
-  sprintf(_wireDirName,
-          "%s_%s_W%gW%g_S%gS%g",
-          _patternName,
-          overUnder,
-          get_nm(m, m->_w_m),
-          get_nm(m, m->_w2_m),
-          get_nm(m, m->_s_m),
-          get_nm(m, m->_s2_m));
   sprintf(_wireDirName,
           "%s_%s_W%gW%g_S%05dS%05d",
           _patternName,

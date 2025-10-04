@@ -1,0 +1,26 @@
+// SPDX-License-Identifier: BSD-3-Clause
+// Copyright (c) 2025-2025, The OpenROAD Authors
+
+#include <cmath>
+
+#include "BaseMove.hh"
+
+namespace rsz {
+
+class VTSwapSpeedMove : public BaseMove
+{
+ public:
+  using BaseMove::BaseMove;
+
+  bool doMove(const Pin* drvr_pin, float setup_slack_margin) override;
+
+  const char* name() override { return "VTSwapSpeed"; }
+
+ private:
+  bool isSwappable(const Pin*& drvr_pin,
+                   Instance*& drvr,
+                   LibertyCell*& drvr_cell,
+                   LibertyCell*& best_cell);
+};
+
+}  // namespace rsz
