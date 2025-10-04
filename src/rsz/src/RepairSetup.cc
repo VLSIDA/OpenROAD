@@ -240,7 +240,7 @@ bool RepairSetup::repairSetup2(const float setup_slack_margin,
   // Always repair the worst endpoint, even if tns percent is zero.
   max_end_count = max(max_end_count, 1);
   logger_->info(RSZ,
-                99,
+                101,
                 "Repairing {} out of {} ({:0.2f}%) violating endpoints...",
                 max_end_count,
                 num_viols,
@@ -568,7 +568,7 @@ bool RepairSetup::repairSetup(const float setup_slack_margin,
   // Always repair the worst endpoint, even if tns percent is zero.
   max_end_count = max(max_end_count, 1);
   logger_->info(RSZ,
-                101,
+                99,
                 "Repairing {} out of {} ({:0.2f}%) violating endpoints...",
                 max_end_count,
                 violating_ends.size(),

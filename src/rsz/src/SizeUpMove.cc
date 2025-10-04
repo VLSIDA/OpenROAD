@@ -48,7 +48,7 @@ bool SizeUpMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
   if (resizer_->dontTouch(drvr)) {
     return false;
   }
-  if (!resizer_->clone_move_->hasPendingMoves(drvr)) {
+  if (!resizer_->isLogicStdCell(drvr)) {
     return false;
   }
 
@@ -64,7 +64,7 @@ bool SizeUpMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
   LibertyCell* upsize
       = upsizeCell(in_port, drvr_port, load_cap, prev_drive, dcalc_ap);
 
-  if (upsize && !resizer_->dontTouch(drvr) && replaceCell(drvr, upsize)) {
+  if (upsize && replaceCell(drvr, upsize)) {
     debugPrint(logger_,
                RSZ,
                "opt_moves",
