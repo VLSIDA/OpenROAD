@@ -263,17 +263,13 @@ bool RepairSetup::repairSetup(const float setup_slack_margin,
     return false;
   }
 
-  int end_index = 0;
-  int max_end_count = violating_ends.size() * repair_tns_end_percent;
   float initial_tns = sta_->totalNegativeSlack(max_);
   float prev_tns = initial_tns;
   int num_viols = violating_ends.size();
-  // Always repair the worst endpoint, even if tns percent is zero.
-  max_end_count = max(max_end_count, 1);
   logger_->info(RSZ,
                 99,
                 "Repairing {} out of {} ({:0.2f}%) violating endpoints...",
-                max_end_count,
+                violator_collector_->getMaxEndpointCount(),
                 violating_ends.size(),
                 repair_tns_end_percent * 100.0);
 
@@ -292,10 +288,16 @@ bool RepairSetup::repairSetup(const float setup_slack_margin,
     min_viol_ = -violating_ends.back().second;
     max_viol_ = -violating_ends.front().second;
   }
-  for (const auto& end_original_slack : violating_ends) {
+
+  violator_collector_->setToEndpoint(0);
+  // Use ViolatorCollector's endpoint iteration
+  while (violator_collector_->hasMoreEndpoints()) {
     fallback_ = false;
-    Vertex* end = end_original_slack.first;
-    Slack end_slack = sta_->vertexSlack(end, max_);
+
+    Vertex* end = violator_collector_->getCurrentEndpoint();
+    Slack end_slack = violator_collector_->getCurrentEndpointSlack();
+    int end_index = violator_collector_->getCurrentEndpointIndex();
+    int max_end_count = violator_collector_->getMaxEndpointCount();
     Slack worst_slack;
     Vertex* worst_vertex;
     sta_->worstSlack(max_, worst_slack, worst_vertex);
@@ -307,7 +309,6 @@ bool RepairSetup::repairSetup(const float setup_slack_margin,
                end->name(network_),
                delayAsString(end_slack, sta_, digits),
                delayAsString(worst_slack, sta_, digits));
-    end_index++;
     debugPrint(logger_,
                RSZ,
                "repair_setup",
@@ -315,18 +316,10 @@ bool RepairSetup::repairSetup(const float setup_slack_margin,
                "Doing {} /{}",
                end_index,
                max_end_count);
-    if (end_index > max_end_count) {
-      // clang-format off
-      debugPrint(logger_, RSZ, "repair_setup", 1, "{} end_index {} is larger than"
-                 " max_end_count {}", end->name(network_), end_index,
-                 max_end_count);
-      // clang-format on
-      break;
-    }
     Slack prev_end_slack = end_slack;
     Slack prev_worst_slack = worst_slack;
     const Pin* endpoint_pin = end->pin();
-    int pass = violator_collector_->getEndpointPassCount(endpoint_pin) + 1;
+    int pass = violator_collector_->getCurrentEndpointPass() + 1;
     int decreasing_slack_passes = 0;
     resizer_->journalBegin();
     while (!violator_collector_->shouldSkipEndpoint(endpoint_pin)) {
@@ -380,12 +373,13 @@ bool RepairSetup::repairSetup(const float setup_slack_margin,
         debugPrint(logger_, RSZ, "repair_setup", 1, "bailing out at {}/{} "
                    "end_slack {} is larger than setup_slack_margin {}",
                    end_index, max_end_count, end_slack, setup_slack_margin);
+        violator_collector_->advanceToNextEndpoint();
         // clang-format on
         break;
       }
 
       vector<const Pin*> viol_pins = violator_collector_->collectViolators(
-          end_index, 1, 1, 1000, ViolatorSortType::SORT_BY_LOAD_DELAY);
+          1, 1000, ViolatorSortType::SORT_BY_LOAD_DELAY);
 
       const bool changed = repairPins(viol_pins, setup_slack_margin);
 
@@ -412,12 +406,13 @@ bool RepairSetup::repairSetup(const float setup_slack_margin,
         debugPrint(logger_, RSZ, "repair_setup", 1, "bailing out {} no changes"
                    " after {} decreasing passes", end->name(network_),
                    decreasing_slack_passes);
+        violator_collector_->advanceToNextEndpoint();
         // clang-format on
         break;
       }
       estimate_parasitics_->updateParasitics();
       sta_->findRequireds();
-      end_slack = sta_->vertexSlack(end, max_);
+      end_slack = violator_collector_->getCurrentEndpointSlack();
       sta_->worstSlack(max_, worst_slack, worst_vertex);
       const bool better
           = (fuzzyGreater(worst_slack, prev_worst_slack)
@@ -467,6 +462,7 @@ bool RepairSetup::repairSetup(const float setup_slack_margin,
           debugPrint(logger_, RSZ, "repair_setup", 1, "bailing out {} decreasing"
                      " passes {} > decreasig pass limit {}", end->name(network_),
                      decreasing_slack_passes, decreasing_slack_max_passes_);
+        violator_collector_->advanceToNextEndpoint();
           // clang-format on
           break;
         }
@@ -478,13 +474,14 @@ bool RepairSetup::repairSetup(const float setup_slack_margin,
                    " over max area", end->name(network_));
         // clang-format on
         resizer_->journalEnd();
+        violator_collector_->advanceToNextEndpoint();
         break;
       }
       if (end_index == 1) {
         end = worst_vertex;
       }
-      violator_collector_->incrementEndpointPass(endpoint_pin);
-      pass = violator_collector_->getEndpointPassCount(endpoint_pin) + 1;
+      // Pass count is now auto-incremented in collectViolators
+      pass = violator_collector_->getCurrentEndpointPass();
     }  // while shouldSkipEndpoint
     if (verbose || opto_iteration == 1) {
       printProgress(opto_iteration, true, false, false, num_viols);
@@ -493,6 +490,7 @@ bool RepairSetup::repairSetup(const float setup_slack_margin,
       // clang-format off
       debugPrint(logger_, RSZ, "repair_setup", 1, "bailing out of setup fixing"
                  "due to no TNS progress for two opto cycles");
+      violator_collector_->advanceToNextEndpoint();
       // clang-format on
       break;
     }
@@ -1063,8 +1061,11 @@ void RepairSetup::repairSetupLastGasp(const OptoParams& params,
         break;
       }
 
+      // TODO: Update this function to use ViolatorCollector's endpoint
+      // iteration For now, collect by slack since we're not using the endpoint
+      // iteration
       vector<const Pin*> viol_pins = violator_collector_->collectViolators(
-          end_index, 1, 1, 1000, ViolatorSortType::SORT_BY_LOAD_DELAY);
+          1, 1000, ViolatorSortType::SORT_BY_LOAD_DELAY);
 
       const bool changed = repairPins(viol_pins, params.setup_slack_margin);
 

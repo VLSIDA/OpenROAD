@@ -59,27 +59,35 @@ class ViolatorCollector
 
   // Endpoint pass tracking
   void setMaxPassesPerEndpoint(int max_passes);
-  void incrementEndpointPass(const Pin* endpoint_pin);
   bool shouldSkipEndpoint(const Pin* endpoint_pin) const;
   int getEndpointPassCount(const Pin* endpoint_pin) const;
   void resetEndpointPasses();
 
-  // For backwards compatibility to the old resizer
-  vector<const Pin*> collectViolatorsByEndpoint(
-      int endpoint_index,
-      ViolatorSortType sort_type = ViolatorSortType::SORT_BY_LOAD_DELAY);
+  // Endpoint iteration - ViolatorCollector manages iteration internally
+  bool hasMoreEndpoints() const;
+  void advanceToNextEndpoint();
+  void setToEndpoint(int index);
+  Vertex* getCurrentEndpoint() const { return current_endpoint_; }
+  Slack getCurrentEndpointSlack() const;
+  Slack getCurrentEndpointOriginalSlack() const
+  {
+    return current_end_original_slack_;
+  }
+  int getCurrentEndpointIndex() const { return current_endpoint_index_; }
+  int getMaxEndpointCount() const { return violating_ends_.size(); }
+  int getCurrentEndpointPass() const;
 
-  vector<const Pin*> collectViolators(int endPointIndex = -1,
-                                      int numEndpoints = 1,
-                                      int numPathsPerEndpoint = 1,
-                                      int numPins = 0,
+  // Collect violators for the current endpoint
+  vector<const Pin*> collectViolators(int numPathsPerEndpoint = 1,
+                                      int numPins = 1000,
                                       ViolatorSortType sort_type
                                       = ViolatorSortType::SORT_BY_LOAD_DELAY);
 
-  vector<const Pin*> collectViolatorsFromEndpoints(const vector<Vertex*>& endpoints,
-                                                   int numPathsPerEndpoint,
-                                                   int numPins,
-                                                   ViolatorSortType sort_type);
+  vector<const Pin*> collectViolatorsFromEndpoints(
+      const vector<Vertex*>& endpoints,
+      int numPathsPerEndpoint,
+      int numPins,
+      ViolatorSortType sort_type);
 
   // For statistics on critical paths
   int getTotalViolations() const;
@@ -130,6 +138,11 @@ class ViolatorCollector
   // Endpoint pass tracking
   int max_passes_per_endpoint_;
   std::map<const Pin*, int> endpoint_pass_count_;
+
+  // Current endpoint iteration state
+  Vertex* current_endpoint_;
+  Slack current_end_original_slack_;
+  int current_endpoint_index_;
 };
 
 }  // namespace rsz
