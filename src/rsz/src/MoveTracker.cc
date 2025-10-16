@@ -70,6 +70,9 @@ void MoveTracker::trackMove(const sta::Pin* pin,
 
 void MoveTracker::commitMoves()
 {
+  if (!logger_->debugCheck(RSZ, "move_summary", 1)) {
+    return;
+  }
   for (const auto& pending_move : pending_moves_) {
     moves_.emplace_back(pending_move.pin,
                         move_count_++,
@@ -81,6 +84,9 @@ void MoveTracker::commitMoves()
 
 void MoveTracker::rejectMoves()
 {
+  if (!logger_->debugCheck(RSZ, "move_summary", 1)) {
+    return;
+  }
   for (const auto& pending_move : pending_moves_) {
     moves_.emplace_back(pending_move.pin,
                         move_count_++,

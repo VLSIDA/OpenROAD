@@ -24,6 +24,7 @@
 #include "sta/Sdc.hh"
 #include "sta/Search.hh"
 #include "sta/Sta.hh"
+#include "sta/Transition.hh"
 #include "utl/Logger.h"
 
 namespace rsz {
@@ -39,6 +40,7 @@ using sta::NetConnectedPinIterator;
 using sta::Pin;
 using sta::Slew;
 using sta::TimingArcSet;
+using sta::Transition;
 using sta::VertexInEdgeIterator;
 
 const char* ViolatorCollector::getEnumString(ViolatorSortType sort_type)
@@ -50,6 +52,8 @@ const char* ViolatorCollector::getEnumString(ViolatorSortType sort_type)
       return "SORT_BY_WNS";
     case ViolatorSortType::SORT_BY_LOAD_DELAY:
       return "SORT_BY_LOAD_DELAY";
+    case ViolatorSortType::SORT_BY_HEURISTIC:
+      return "SORT_BY_HEURISTIC";
     default:
       return "UNKNOWN";
   }
@@ -65,7 +69,7 @@ void ViolatorCollector::printViolators(int numPrint = 0) const
   debugPrint(logger_,
              RSZ,
              "violator_collector",
-             3,
+             23,
              "============= Found {} violating pins. =================",
              violating_pins_.size());
   int count = 0;
@@ -83,8 +87,8 @@ void ViolatorCollector::printViolators(int numPrint = 0) const
     Vertex* vertex = graph_->pinDrvrVertex(pin);
     debugPrint(logger_,
                RSZ,
-               "vioolator_collector",
-               3,
+               "violator_collector",
+               2,
                "{} ({}) slack={} tns={} level={} delay={} "
                "(load_delay={} + "
                "intrinsic_delay={})",
@@ -97,23 +101,6 @@ void ViolatorCollector::printViolators(int numPrint = 0) const
                delayAsString(load_delay, sta_, 3),
                delayAsString(intrinsic_delay, sta_, 3));
   }
-}
-
-pair<int, int> ViolatorCollector::getMinMaxViolations() const
-{
-  float min_viol = 0.0f, max_viol = 0.0f;
-  bool first = true;
-  for (const auto& end_pair : violating_ends_) {
-    float viol = -end_pair.second;
-    if (first) {
-      min_viol = max_viol = viol;
-      first = false;
-    } else {
-      min_viol = std::min(min_viol, viol);
-      max_viol = std::max(max_viol, viol);
-    }
-  }
-  return pair<int, int>(min_viol, max_viol);
 }
 
 int ViolatorCollector::getTotalViolations() const
@@ -203,10 +190,11 @@ void ViolatorCollector::init(float slack_margin)
   pin_data_.clear();
   violating_pins_.clear();
 
-  // Initialize endpoint iteration
+  // Initialize endpoint iteration and reset pass tracking
   current_endpoint_ = nullptr;
   current_end_original_slack_ = 0.0;
   current_endpoint_index_ = 0;
+  endpoint_pass_count_.clear();
 }
 
 void ViolatorCollector::collectBySlack()
@@ -255,12 +243,16 @@ void ViolatorCollector::updatePinData(const Pin* pin, pinData& pd)
   pd.name = network_->pathName(pin);
 
   Vertex* path_vertex = graph_->pinDrvrVertex(pin);
-  Delay worst_load_delay = -sta::INF;
-  Delay worst_intrinsic_delay = -sta::INF;
+  Delay selected_load_delay = -sta::INF;
+  Delay selected_intrinsic_delay = -sta::INF;
+  Slack worst_slack = sta::INF;
 
+  // Find the arc (specific edge + rise/fall) with worst slack
   VertexInEdgeIterator edge_iter(path_vertex, graph_);
   while (edge_iter.hasNext()) {
     Edge* prev_edge = edge_iter.next();
+    Vertex* from_vertex = prev_edge->from(graph_);
+
     const TimingArcSet* arc_set = prev_edge->timingArcSet();
     for (const RiseFall* rf : RiseFall::range()) {
       TimingArc* prev_arc = arc_set->arcTo(rf);
@@ -268,41 +260,70 @@ void ViolatorCollector::updatePinData(const Pin* pin, pinData& pd)
       if (!prev_arc) {
         continue;
       }
+
+      // Get the input transition for this arc
+      const sta::Transition* from_trans = prev_arc->fromEdge();
+      const RiseFall* from_rf = from_trans->asRiseFall();
+
+      // Get slack for the input transition
+      Slack from_slack = sta_->vertexSlack(from_vertex, from_rf, max_);
+
       const TimingArc* corner_arc = prev_arc->cornerArc(lib_ap_);
       const Delay intrinsic_delay = corner_arc->intrinsicDelay();
       const Delay delay
           = graph_->arcDelay(prev_edge, prev_arc, dcalc_ap_->index());
       const Delay load_delay = delay - intrinsic_delay;
-      if (load_delay > worst_load_delay) {
-        worst_load_delay = load_delay;
-        worst_intrinsic_delay = intrinsic_delay;
+
+      // Select load_delay from arc with most negative slack
+      if (from_slack < worst_slack) {
+        worst_slack = from_slack;
+        selected_load_delay = load_delay;
+        selected_intrinsic_delay = intrinsic_delay;
       }
     }
   }
 
-  pd.load_delay = worst_load_delay;
-  pd.intrinsic_delay = worst_intrinsic_delay;
+  pd.load_delay = selected_load_delay;
+  pd.intrinsic_delay = selected_intrinsic_delay;
   Vertex* vertex = graph_->pinDrvrVertex(pin);
   pd.level = vertex->level();
   pd.slack = sta_->pinSlack(pin, max_);
   pd.tns = getLocalPinTNS(pin);
 }
 
+int ViolatorCollector::repairsPerPass(int max_repairs_per_pass)
+{
+  Slack min_viol_ = -sta::INF;
+  Slack max_viol_ = 0;
+  if (!violating_ends_.empty()) {
+    min_viol_ = -violating_ends_.back().second;
+    max_viol_ = -violating_ends_.front().second;
+  }
+
+  Slack path_slack = getCurrentEndpointSlack();
+  int repairs_per_pass = 1;
+  if (max_viol_ - min_viol_ != 0.0) {
+    repairs_per_pass
+        += std::round((max_repairs_per_pass - 1) * (-path_slack - min_viol_)
+                      / (max_viol_ - min_viol_));
+  }
+
+  return repairs_per_pass;
+}
+
 void ViolatorCollector::sortByLoadDelay()
 {
-  map<const Pin*, Delay> load_delays;
-
   std::sort(violating_pins_.begin(),
             violating_pins_.end(),
             [this](const Pin* a, const Pin* b) {
               Delay load_delay1 = pin_data_[a].load_delay;
               Delay load_delay2 = pin_data_[b].load_delay;
-              int level1 = pin_data_[a].level;
-              int level2 = pin_data_[b].level;
+              float tns1 = pin_data_[a].tns;
+              float tns2 = pin_data_[b].tns;
 
               return load_delay1 > load_delay2
-                     || (load_delay1 == load_delay2 && level1 > level2)
-                     || (load_delay1 == load_delay2 && level1 == level2
+                     || (load_delay1 == load_delay2 && tns1 < tns2)
+                     || (load_delay1 == load_delay2 && tns1 == tns2
                          && network_->pathNameLess(a, b));
             });
 
@@ -314,7 +335,7 @@ void ViolatorCollector::sortByLoadDelay()
     debugPrint(logger_,
                RSZ,
                "violator_collector",
-               3,
+               4,
                "{} load_delay = {} intrinsic_delay = {}",
                vertex->name(network_),
                delayAsString(worst_load_delay, sta_, 3),
@@ -346,7 +367,7 @@ vector<const Pin*> ViolatorCollector::collectViolators(
     debugPrint(logger_,
                RSZ,
                "violator_collector",
-               3,
+               4,
                "Endpoint {} pass count: {}/{}",
                network_->pathName(endpoint_pin),
                endpoint_pass_count_[endpoint_pin],
@@ -377,6 +398,9 @@ void ViolatorCollector::sortPins(int numPins, ViolatorSortType sort_type)
       break;
     case ViolatorSortType::SORT_BY_LOAD_DELAY:
       sortByLoadDelay();
+      break;
+    case ViolatorSortType::SORT_BY_HEURISTIC:
+      sortByHeuristic();
       break;
     default:
       logger_->error(
@@ -459,11 +483,30 @@ void ViolatorCollector::sortByLocalTNS()
             [this](const Pin* a, const Pin* b) {
               float tns1 = pin_data_[a].tns;
               float tns2 = pin_data_[b].tns;
-              float slack1 = pin_data_[a].slack;
-              float slack2 = pin_data_[b].slack;
-              return tns1 < tns2 || (tns1 == tns2 && slack1 < slack2)
-                     || (tns1 == tns2 && slack1 == slack2
+              Delay load_delay1 = pin_data_[a].load_delay;
+              Delay load_delay2 = pin_data_[b].load_delay;
+              return tns1 < tns2 || (tns1 == tns2 && load_delay1 > load_delay2)
+                     || (tns1 == tns2 && load_delay1 == load_delay2
                          && network_->pathNameLess(a, b));
+            });
+}
+
+void ViolatorCollector::sortByHeuristic()
+{
+  std::sort(violating_pins_.begin(),
+            violating_pins_.end(),
+            [this](const Pin* a, const Pin* b) {
+              // Linear combination: -TNS (to make it positive) + load_delay
+              float tns1 = -pin_data_[a].tns;
+              float tns2 = -pin_data_[b].tns;
+              Delay load_delay1 = pin_data_[a].load_delay;
+              Delay load_delay2 = pin_data_[b].load_delay;
+
+              float score1 = tns1 + load_delay1;
+              float score2 = tns2 + load_delay2;
+
+              return score1 > score2
+                     || (score1 == score2 && network_->pathNameLess(a, b));
             });
 }
 
@@ -508,9 +551,8 @@ void ViolatorCollector::collectByPaths(int endPointIndex,
     // Only count the critical endpoints
     if (end_original_slack.second < slack_margin_) {
       const Pin* endpoint_pin = end_original_slack.first;
-      Vertex* end = graph_->pinDrvrVertex(endpoint_pin);
       set<const Pin*> end_pins
-          = collectPinsByPathEndpoint(end->pin(), numPathsPerEndpoint);
+          = collectPinsByPathEndpoint(endpoint_pin, numPathsPerEndpoint);
       viol_pins.insert(end_pins.begin(), end_pins.end());
 
       debugPrint(
@@ -521,7 +563,7 @@ void ViolatorCollector::collectByPaths(int endPointIndex,
           "Collected {} pins ({} unique) for endpoint {} total collected {}",
           end_pins.size(),
           viol_pins.size() - old_size,
-          network_->pathName(end->pin()),
+          network_->pathName(endpoint_pin),
           viol_pins.size());
       old_size = viol_pins.size();
       endpoint_count++;
@@ -539,10 +581,45 @@ void ViolatorCollector::collectByPaths(int endPointIndex,
 set<const Pin*> ViolatorCollector::collectPinsByPathEndpoint(
     const sta::Pin* endpoint_pin,
     size_t paths_per_endpoint)
+
 {
   // Create a set to remove duplciates
   set<const Pin*> viol_pins;
 
+  // This uses the old method for a single path at a time
+  if (paths_per_endpoint == 1) {
+    Vertex* end = graph_->pinDrvrVertex(endpoint_pin);
+    Path* end_path = sta_->vertexWorstSlackPath(end, max_);
+    PathExpanded expanded(end_path, sta_);
+    if (expanded.size() > 1) {
+      const int path_length = expanded.size();
+      const int start_index = expanded.startIndex();
+      for (int i = start_index; i < path_length; i++) {
+        const Path* path = expanded.path(i);
+        const Pin* path_pin = path->pin(sta_);
+        Vertex* path_vertex = path->vertex(sta_);
+        if (!path_vertex->isDriver(network_)
+            || network_->isTopLevelPort(path_pin)) {
+          continue;
+        }
+        viol_pins.insert(path_pin);
+        debugPrint(logger_,
+                   RSZ,
+                   "violator_collector",
+                   3,
+                   "  - Pin: {}",
+                   network_->pathName(path_pin));
+      }
+      return viol_pins;
+    }
+  } else {
+    // FIXME later
+    return viol_pins;
+  }
+
+  // This code does not behave properly for single path case. At some points it
+  // does not match the above vertexWorstSlackPath method. It seems to be
+  // related to the use of the ExceptionTo object.
   // 1. Define the single endpoint for the path search.
   sta::PinSet* to_pins = new sta::PinSet(network_);
   to_pins->insert(endpoint_pin);
@@ -588,7 +665,7 @@ set<const Pin*> ViolatorCollector::collectPinsByPathEndpoint(
     debugPrint(logger_,
                RSZ,
                "violator_collector",
-               3,
+               4,
                "Critical path {} (Slack: {}ps) Pins: {}",
                path_num++,
                delayAsString(path_slack, sta_, 3),
@@ -609,7 +686,7 @@ set<const Pin*> ViolatorCollector::collectPinsByPathEndpoint(
         debugPrint(logger_,
                    RSZ,
                    "violator_collector",
-                   4,
+                   5,
                    "  - Port: {}",
                    network_->pathName(pin));
       } else if (inst) {
@@ -619,7 +696,7 @@ set<const Pin*> ViolatorCollector::collectPinsByPathEndpoint(
           debugPrint(logger_,
                      RSZ,
                      "violator_collector",
-                     4,
+                     5,
                      "  - Gate: {} (Type: {}) -> Pin: {} Slack: {}",
                      network_->pathName(inst),
                      lib_cell->name(),
@@ -629,7 +706,7 @@ set<const Pin*> ViolatorCollector::collectPinsByPathEndpoint(
         }
       }
     }
-    debugPrint(logger_, RSZ, "violator_collector", 4, "\n");
+    debugPrint(logger_, RSZ, "violator_collector", 5, "\n");
   }
 
   return viol_pins;
@@ -729,6 +806,7 @@ bool ViolatorCollector::hasMoreEndpoints() const
 
 void ViolatorCollector::setToEndpoint(int index)
 {
+  current_endpoint_index_ = index;
   const auto& end_slack_pair = violating_ends_[current_endpoint_index_];
   current_endpoint_ = graph_->pinLoadVertex(end_slack_pair.first);
   current_end_original_slack_ = end_slack_pair.second;

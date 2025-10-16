@@ -24,7 +24,8 @@ enum class ViolatorSortType
   SORT_BY_LOAD_DELAY = 0,
   SORT_BY_WNS = 1,
   SORT_BY_TNS = 2,
-  MAX = 3
+  SORT_BY_HEURISTIC = 3,
+  MAX = 4
 };
 
 struct pinData
@@ -56,6 +57,8 @@ class ViolatorCollector
   void init(float slack_margin);
   void printHistogram(int numBins = 20) const;
   void printViolators(int numPrint) const;
+
+  int repairsPerPass(int max_repairs_per_pass);
 
   // Endpoint pass tracking
   void setMaxPassesPerEndpoint(int max_passes);
@@ -91,7 +94,6 @@ class ViolatorCollector
 
   // For statistics on critical paths
   int getTotalViolations() const;
-  pair<int, int> getMinMaxViolations() const;
 
   // Public utility methods
   const char* getEnumString(ViolatorSortType sort_type);
@@ -113,6 +115,7 @@ class ViolatorCollector
   void sortByLoadDelay();
   void sortByWNS();
   void sortByLocalTNS();
+  void sortByHeuristic();
   std::map<const Pin*, Delay> getLocalTNS() const;
   Delay getLocalPinTNS(const Pin* pin) const;
 
