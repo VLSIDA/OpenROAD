@@ -62,8 +62,8 @@ class ViolatorCollector
 
   // Endpoint pass tracking
   void setMaxPassesPerEndpoint(int max_passes);
-  bool shouldSkipEndpoint(const Pin* endpoint_pin) const;
-  int getEndpointPassCount(const Pin* endpoint_pin) const;
+  bool shouldSkipEndpoint() const;
+  int getEndpointPassCount() const;
   void resetEndpointPasses();
 
   // Endpoint iteration - ViolatorCollector manages iteration internally
@@ -79,6 +79,7 @@ class ViolatorCollector
   int getCurrentEndpointIndex() const { return current_endpoint_index_; }
   int getMaxEndpointCount() const { return violating_ends_.size(); }
   int getCurrentEndpointPass() const;
+  void useWorstEndpoint(Vertex* end);
 
   // Collect violators for the current endpoint
   vector<const Pin*> collectViolators(int numPathsPerEndpoint = 1,
@@ -140,7 +141,7 @@ class ViolatorCollector
 
   // Endpoint pass tracking
   int max_passes_per_endpoint_;
-  std::map<const Pin*, int> endpoint_pass_count_;
+  int current_endpoint_pass_count_;
 
   // Current endpoint iteration state
   Vertex* current_endpoint_;

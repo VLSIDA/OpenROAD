@@ -154,6 +154,7 @@ class RepairSetup : public sta::dbStaState
                          std::unordered_set<Instance*>& notSwappable,
                          const OptoParams& params);
   Slack getInstanceSlack(Instance* inst);
+  void hitDebugCheckpoint();
 
   Logger* logger_ = nullptr;
   dbNetwork* db_network_ = nullptr;

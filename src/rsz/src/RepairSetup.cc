@@ -28,6 +28,7 @@
 #include "UnbufferMove.hh"
 #include "VTSwapMove.hh"
 #include "ViolatorCollector.hh"
+#include "odb/db.h"
 #include "rsz/Resizer.hh"
 #include "sta/Corner.hh"
 #include "sta/DcalcAnalysisPt.hh"
@@ -45,7 +46,6 @@
 #include "sta/Sta.hh"
 #include "sta/TimingArc.hh"
 #include "sta/Units.hh"
-#include "sta/VerilogWriter.hh"
 #include "utl/Logger.h"
 #include "utl/mem_stats.h"
 
@@ -451,11 +451,11 @@ bool RepairSetup::repairSetup(const float setup_slack_margin,
         violator_collector_->advanceToNextEndpoint();
         break;
       }
-      if (end_index == 1) {
-        end = worst_vertex;
-      }
+      // Always use the worst vertex for the next pass
+      violator_collector_->useWorstEndpoint(worst_vertex);
       // Pass count is now auto-incremented in collectViolators
       pass = violator_collector_->getCurrentEndpointPass() + 1;
+
     }  // while shouldSkipEndpoint
     if (verbose || opto_iteration == 1) {
       printProgress(opto_iteration, true, false, false, num_viols);
@@ -632,6 +632,11 @@ int RepairSetup::fanout(Vertex* vertex)
     }
   }
   return fanout;
+}
+
+void RepairSetup::hitDebugCheckpoint()
+{
+  logger_->info(RSZ, 9999, "Hit checkpoint");
 }
 
 bool RepairSetup::repairPins(const std::vector<const Pin*>& pins,

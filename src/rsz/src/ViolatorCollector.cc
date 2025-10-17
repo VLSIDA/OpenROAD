@@ -191,10 +191,11 @@ void ViolatorCollector::init(float slack_margin)
   violating_pins_.clear();
 
   // Initialize endpoint iteration and reset pass tracking
-  current_endpoint_ = nullptr;
-  current_end_original_slack_ = 0.0;
   current_endpoint_index_ = 0;
-  endpoint_pass_count_.clear();
+  current_endpoint_pass_count_ = 0;
+  if (!violating_ends_.empty()) {
+    setToEndpoint(0);
+  }
 }
 
 void ViolatorCollector::collectBySlack()
@@ -274,8 +275,24 @@ void ViolatorCollector::updatePinData(const Pin* pin, pinData& pd)
           = graph_->arcDelay(prev_edge, prev_arc, dcalc_ap_->index());
       const Delay load_delay = delay - intrinsic_delay;
 
+      debugPrint(logger_,
+                 RSZ,
+                 "violator_collector",
+                 5,
+                 "Arc: {}({})->{} ({}) Load Delay: {} Intrinsic "
+                 "Delay: {} Slack: {}",
+                 network_->pathName(from_vertex->pin()),
+                 from_rf->name(),
+                 network_->pathName(pin),
+                 rf->name(),
+                 delayAsString(load_delay, sta_, 3),
+                 delayAsString(intrinsic_delay, sta_, 3),
+                 delayAsString(from_slack, sta_, 3));
+
       // Select load_delay from arc with most negative slack
-      if (from_slack < worst_slack) {
+      // If slacks are equal, prefer arc with higher load_delay
+      if (from_slack < worst_slack
+          || (from_slack == worst_slack && load_delay > selected_load_delay)) {
         worst_slack = from_slack;
         selected_load_delay = load_delay;
         selected_intrinsic_delay = intrinsic_delay;
@@ -361,18 +378,15 @@ vector<const Pin*> ViolatorCollector::collectViolators(
   sortPins(numPins, sort_type);
 
   // Auto-increment pass count for current endpoint when collecting violators
-  if (current_endpoint_) {
-    const Pin* endpoint_pin = current_endpoint_->pin();
-    endpoint_pass_count_[endpoint_pin]++;
-    debugPrint(logger_,
-               RSZ,
-               "violator_collector",
-               4,
-               "Endpoint {} pass count: {}/{}",
-               network_->pathName(endpoint_pin),
-               endpoint_pass_count_[endpoint_pin],
-               max_passes_per_endpoint_);
-  }
+  current_endpoint_pass_count_++;
+  debugPrint(logger_,
+             RSZ,
+             "violator_collector",
+             4,
+             "Endpoint {} pass count: {}/{}",
+             network_->pathName(current_endpoint_->pin()),
+             current_endpoint_pass_count_,
+             max_passes_per_endpoint_);
 
   return violating_pins_;
 }
@@ -544,7 +558,7 @@ void ViolatorCollector::collectByPaths(int endPointIndex,
   // For skipping duplicates
   set<const Pin*> viol_pins;
 
-  size_t old_size = viol_pins.size();
+  size_t old_size = 0;
   int endpoint_count = 0;
   for (int i = endPointIndex; i < violating_ends_.size(); i++) {
     const auto end_original_slack = violating_ends_[i];
@@ -587,7 +601,7 @@ set<const Pin*> ViolatorCollector::collectPinsByPathEndpoint(
   set<const Pin*> viol_pins;
 
   // This uses the old method for a single path at a time
-  if (paths_per_endpoint == 1) {
+  /*if (paths_per_endpoint == 1) {
     Vertex* end = graph_->pinDrvrVertex(endpoint_pin);
     Path* end_path = sta_->vertexWorstSlackPath(end, max_);
     PathExpanded expanded(end_path, sta_);
@@ -616,6 +630,7 @@ set<const Pin*> ViolatorCollector::collectPinsByPathEndpoint(
     // FIXME later
     return viol_pins;
   }
+    */
 
   // This code does not behave properly for single path case. At some points it
   // does not match the above vertexWorstSlackPath method. It seems to be
@@ -774,27 +789,19 @@ void ViolatorCollector::setMaxPassesPerEndpoint(int max_passes)
   max_passes_per_endpoint_ = max_passes;
 }
 
-bool ViolatorCollector::shouldSkipEndpoint(const Pin* endpoint_pin) const
+bool ViolatorCollector::shouldSkipEndpoint() const
 {
-  auto it = endpoint_pass_count_.find(endpoint_pin);
-  if (it == endpoint_pass_count_.end()) {
-    return false;
-  }
-  return it->second >= max_passes_per_endpoint_;
+  return current_endpoint_pass_count_ >= max_passes_per_endpoint_;
 }
 
-int ViolatorCollector::getEndpointPassCount(const Pin* endpoint_pin) const
+int ViolatorCollector::getEndpointPassCount() const
 {
-  auto it = endpoint_pass_count_.find(endpoint_pin);
-  if (it == endpoint_pass_count_.end()) {
-    return 0;
-  }
-  return it->second;
+  return current_endpoint_pass_count_;
 }
 
 void ViolatorCollector::resetEndpointPasses()
 {
-  endpoint_pass_count_.clear();
+  current_endpoint_pass_count_ = 0;
   debugPrint(
       logger_, RSZ, "violator_collector", 2, "Reset endpoint pass tracking");
 }
@@ -815,6 +822,7 @@ void ViolatorCollector::advanceToNextEndpoint()
 {
   if (hasMoreEndpoints()) {
     current_endpoint_index_++;
+    current_endpoint_pass_count_ = 0;  // Reset pass count for new endpoint
     setToEndpoint(current_endpoint_index_);
     debugPrint(
         logger_,
@@ -836,13 +844,14 @@ Slack ViolatorCollector::getCurrentEndpointSlack() const
   return 0.0;
 }
 
+void ViolatorCollector::useWorstEndpoint(Vertex* end)
+{
+  current_endpoint_ = end;
+}
+
 int ViolatorCollector::getCurrentEndpointPass() const
 {
-  if (current_endpoint_) {
-    const Pin* endpoint_pin = current_endpoint_->pin();
-    return getEndpointPassCount(endpoint_pin);
-  }
-  return 0;
+  return current_endpoint_pass_count_;
 }
 
 }  // namespace rsz
