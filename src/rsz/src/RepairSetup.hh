@@ -141,7 +141,8 @@ class RepairSetup : public sta::dbStaState
                      bool force,
                      bool end,
                      bool last_gasp,
-                     int num_viols) const;
+                     int num_viols,
+                     bool phase2 = false) const;
   void printProgressHeader() const;
   void printProgressFooter() const;
   bool terminateProgress(int iteration,
@@ -150,9 +151,7 @@ class RepairSetup : public sta::dbStaState
                          float& fix_rate_threshold,
                          int endpt_index,
                          int num_endpts);
-  void repairSetupLastGasp(const OptoParams& params,
-                           int& num_viols,
-                           int max_iterations);
+  void repairSetupLastGasp(const OptoParams& params);
   bool swapVTCritCells(const OptoParams& params, int& num_viols);
   void traverseFaninCone(Vertex* endpoint,
                          std::unordered_map<Instance*, float>& crit_insts,

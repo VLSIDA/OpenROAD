@@ -299,7 +299,7 @@ bool RepairSetup::repairSetup(const float setup_slack_margin,
     }
   }
 
-  printProgress(opto_iteration, true, true, false, num_viols);
+  // Phase 2 already printed the final table row and footer
   // Last gasp disabled - function kept for potential future use
   // if (!skip_last_gasp) {
   //   OptoParams params(setup_slack_margin,
@@ -664,7 +664,8 @@ void RepairSetup::printProgress(const int iteration,
                                 const bool force,
                                 const bool end,
                                 const bool last_gasp,
-                                const int num_viols) const
+                                const int num_viols,
+                                const bool phase2) const
 {
   const bool start = iteration == 0;
 
@@ -687,7 +688,7 @@ void RepairSetup::printProgress(const int iteration,
     const Slack tns = sta_->totalNegativeSlack(max_);
 
     std::string itr_field
-        = fmt::format("{}{}", iteration, (last_gasp ? "*" : ""));
+        = fmt::format("{}{}", iteration, (phase2 || last_gasp ? "*" : ""));
     if (end) {
       itr_field = "final";
     }
@@ -748,13 +749,6 @@ void RepairSetup::printProgressFooter() const
   logger_->report(
       "-----------------------------------------------------------"
       "---------------------------------------------------");
-}
-
-bool RepairSetup::shouldSwitchEndpoint(Vertex* current_endpoint,
-                                       Vertex* worst_endpoint)
-{
-  // Switch if the worst endpoint is different from the current one
-  return current_endpoint != worst_endpoint;
 }
 
 // Terminate progress if incremental fix rate within an opto interval falls
@@ -973,8 +967,11 @@ void RepairSetup::repairSetupPhase1_WNS(const float setup_slack_margin,
   }
 
   // Print phase header and table
-  logger_->info(RSZ, 205, "Phase 1: Focusing on worst slack path...");
-  printProgressHeader();
+  debugPrint(logger_,
+             RSZ,
+             "repair_setup",
+             1,
+             "Phase 1: Focusing on worst slack path...");
   printProgress(opto_iteration, false, false, false, num_viols);
 
   // Initialize the violator collector with the actual worst endpoint
@@ -999,7 +996,7 @@ void RepairSetup::repairSetupPhase1_WNS(const float setup_slack_margin,
     }
 
     // Check if we should switch to a different endpoint
-    if (shouldSwitchEndpoint(current_endpoint, worst_endpoint)) {
+    if (current_endpoint != worst_endpoint) {
       debugPrint(logger_,
                  RSZ,
                  "repair_setup",
@@ -1163,11 +1160,13 @@ void RepairSetup::repairSetupPhase1_WNS(const float setup_slack_margin,
   sta_->worstSlack(max_, final_wns, final_worst);
   float final_tns = sta_->totalNegativeSlack(max_);
 
-  logger_->info(RSZ,
-                206,
-                "Phase 1 complete. WNS: {}, TNS: {}",
-                delayAsString(final_wns, sta_, digits),
-                delayAsString(final_tns, sta_, 1));
+  debugPrint(logger_,
+             RSZ,
+             "repair_setup",
+             1,
+             "Phase 1 complete. WNS: {}, TNS: {}",
+             delayAsString(final_wns, sta_, digits),
+             delayAsString(final_tns, sta_, 1));
 }
 
 // Phase 2: TNS-Focused Repair
@@ -1192,11 +1191,14 @@ void RepairSetup::repairSetupPhase2_TNS(const float setup_slack_margin,
   violator_collector_->resetEndpointPasses();
 
   // Print phase header (no table header - continue in same table from Phase 1)
-  logger_->info(
-      RSZ, 207, "Phase 2: Focusing on subcritical paths and endpoints...");
+  debugPrint(logger_,
+             RSZ,
+             "repair_setup",
+             1,
+             "Phase 2: Focusing on subcritical paths and endpoints...");
 
   // Mark the start of Phase 2 in the table with an asterisk
-  printProgress(opto_iteration, false, false, true, num_viols);
+  printProgress(opto_iteration, false, false, false, num_viols, true);
 
   // Track global WNS to ensure it doesn't get worse
   Slack prev_global_wns;
@@ -1300,7 +1302,7 @@ void RepairSetup::repairSetupPhase2_TNS(const float setup_slack_margin,
       opto_iteration++;
 
       if (verbose || opto_iteration % print_interval_ == 0) {
-        printProgress(opto_iteration, false, false, false, num_viols);
+        printProgress(opto_iteration, false, false, false, num_viols, true);
       }
 
       // Collect violators from this subcritical path
@@ -1379,7 +1381,7 @@ void RepairSetup::repairSetupPhase2_TNS(const float setup_slack_margin,
       if (resizer_->overMaxArea()) {
         debugPrint(
             logger_, RSZ, "repair_setup", 1, "Phase 2: Over max area, exiting");
-        printProgress(opto_iteration, true, false, false, num_viols);
+        printProgress(opto_iteration, true, false, false, num_viols, true);
         printProgressFooter();
         return;
       }
@@ -1424,7 +1426,7 @@ void RepairSetup::repairSetupPhase2_TNS(const float setup_slack_margin,
       opto_iteration++;
 
       if (verbose || opto_iteration % print_interval_ == 0) {
-        printProgress(opto_iteration, false, false, false, num_viols);
+        printProgress(opto_iteration, false, false, false, num_viols, true);
       }
 
       // Collect violators from critical path only
@@ -1501,7 +1503,7 @@ void RepairSetup::repairSetupPhase2_TNS(const float setup_slack_margin,
       if (resizer_->overMaxArea()) {
         debugPrint(
             logger_, RSZ, "repair_setup", 1, "Phase 2: Over max area, exiting");
-        printProgress(opto_iteration, true, false, false, num_viols);
+        printProgress(opto_iteration, true, false, false, num_viols, true);
         printProgressFooter();
         return;
       }
@@ -1520,20 +1522,22 @@ void RepairSetup::repairSetupPhase2_TNS(const float setup_slack_margin,
   }
 
   // Print phase completion
-  printProgress(opto_iteration, true, true, false, num_viols);
+  printProgress(opto_iteration, true, false, false, num_viols, true);
   printProgressFooter();
-  logger_->report("* Phase 2 began.");
+  logger_->report("* Phase 2: TNS");
 
   Slack final_wns;
   Vertex* final_worst;
   sta_->worstSlack(max_, final_wns, final_worst);
   float final_tns = sta_->totalNegativeSlack(max_);
 
-  logger_->info(RSZ,
-                208,
-                "Phase 2 complete. WNS: {}, TNS: {}",
-                delayAsString(final_wns, sta_, digits),
-                delayAsString(final_tns, sta_, 1));
+  debugPrint(logger_,
+             RSZ,
+             "repair_setup",
+             1,
+             "Phase 2 complete. WNS: {}, TNS: {}",
+             delayAsString(final_wns, sta_, digits),
+             delayAsString(final_tns, sta_, 1));
 }
 
 // Perform VT swap on remaining critical cells as a last resort
