@@ -192,7 +192,8 @@ void ViolatorCollector::init(float slack_margin)
 
   // Initialize endpoint iteration and reset pass tracking
   current_endpoint_index_ = 0;
-  current_endpoint_pass_count_ = 0;
+  current_pass_count_ = 0;
+  endpoint_times_considered_.clear();
   if (!violating_ends_.empty()) {
     setToEndpoint(0);
   }
@@ -360,6 +361,51 @@ void ViolatorCollector::sortByLoadDelay()
   }
 }
 
+// Helper to get the slack of a specific path (by index) for an endpoint
+Slack ViolatorCollector::getPathSlackByIndex(const Pin* endpoint_pin,
+                                              int path_index)
+{
+  // Create ExceptionTo for this endpoint
+  sta::PinSet* to_pins = new sta::PinSet(network_);
+  to_pins->insert(endpoint_pin);
+  sta::ExceptionTo* to = sdc_->makeExceptionTo(to_pins,
+                                               nullptr,
+                                               nullptr,
+                                               sta::RiseFallBoth::riseFall(),
+                                               sta::RiseFallBoth::riseFall());
+
+  // Find paths to the endpoint - request only up to path_index+1 paths
+  int num_paths_needed = path_index + 1;
+  sta::PathEndSeq path_ends
+      = search_->findPathEnds(nullptr,                // from
+                              nullptr,                // thrus
+                              to,                     // to
+                              false,                  // unconstrained
+                              corner_,                // corner
+                              sta::MinMaxAll::all(),  // min_max
+                              num_paths_needed,       // group_path_count
+                              num_paths_needed,       // endpoint_path_count
+                              false,                  // unique_pins
+                              -sta::INF,              // slack_min
+                              sta::INF,               // slack_max
+                              true,                   // sort_by_slack
+                              nullptr,                // group_names
+                              true,
+                              false,
+                              true,
+                              true,
+                              true,
+                              true);  // checks
+
+  // Return the slack of the requested path index
+  if (path_index < static_cast<int>(path_ends.size())) {
+    return path_ends[path_index]->slack(search_);
+  }
+
+  // If we don't have enough paths, return INF (no path available)
+  return sta::INF;
+}
+
 vector<const Pin*> ViolatorCollector::collectViolators(
     int numPathsPerEndpoint,
     int numPins,
@@ -368,24 +414,154 @@ vector<const Pin*> ViolatorCollector::collectViolators(
   dcalc_ap_ = corner_->findDcalcAnalysisPt(sta::MinMax::max());
   lib_ap_ = dcalc_ap_->libertyIndex();
 
-  // Use current endpoint managed internally
+  violating_pins_.clear();
+  set<const Pin*> collected_pins;
+
+  // If current_endpoint_ is set, collect only from that endpoint
   if (current_endpoint_) {
-    collectByPaths(current_endpoint_index_, 1, numPathsPerEndpoint);
+    const Pin* endpoint_pin = current_endpoint_->pin();
+    debugPrint(logger_,
+               RSZ,
+               "violator_collector",
+               2,
+               "Collecting from current endpoint {} (numPaths={})",
+               network_->pathName(endpoint_pin),
+               numPathsPerEndpoint);
+
+    // Collect pins from the specified number of paths for this endpoint
+    set<const Pin*> new_pins
+        = collectPinsByPathEndpoint(endpoint_pin, numPathsPerEndpoint);
+    collected_pins.insert(new_pins.begin(), new_pins.end());
+
+    debugPrint(logger_,
+               RSZ,
+               "violator_collector",
+               3,
+               "Collected {} unique pins from current endpoint's {} path(s)",
+               collected_pins.size(),
+               numPathsPerEndpoint);
+
+    // Increment the times this endpoint has been considered
+    endpoint_times_considered_[endpoint_pin]++;
   } else {
-    collectBySlack();
+    // Dynamic endpoint discovery mode - find worst paths across all endpoints
+    // Get fresh list of violating endpoints each iteration
+    collectViolatingEndpoints();
+
+    debugPrint(logger_,
+               RSZ,
+               "violator_collector",
+               2,
+               "Found {} violating endpoints this iteration",
+               violating_ends_.size());
+
+    // Track which endpoints we've already processed and how many paths
+    map<const Pin*, int> endpoint_paths_used;
+
+    // Collect pins by comparing actual path slacks across all endpoints
+    // If numPins is -1, collect all pins without limiting
+    while ((numPins == -1 || collected_pins.size() < static_cast<size_t>(numPins))
+           && !violating_ends_.empty()) {
+      // Find the worst actual path slack among all available paths
+      const Pin* best_endpoint = nullptr;
+      Slack best_slack = sta::INF;
+      int best_path_num = 0;
+
+      // Check each violating endpoint
+      for (const auto& [endpoint_pin, endpoint_slack] : violating_ends_) {
+        // Skip endpoints that have been considered too many times
+        int times_considered = endpoint_times_considered_[endpoint_pin];
+        if (times_considered >= max_passes_per_endpoint_) {
+          debugPrint(logger_,
+                     RSZ,
+                     "violator_collector",
+                     4,
+                     "Skipping endpoint {} (considered {} times >= {})",
+                     network_->pathName(endpoint_pin),
+                     times_considered,
+                     max_passes_per_endpoint_);
+          continue;
+        }
+
+        int paths_used = endpoint_paths_used[endpoint_pin];
+
+        // If we haven't used all paths for this endpoint yet
+        if (paths_used < numPathsPerEndpoint) {
+          // Get the actual slack of the next available path for this endpoint
+          Slack path_slack = getPathSlackByIndex(endpoint_pin, paths_used);
+
+          // Skip if no path is available (shouldn't happen, but be defensive)
+          if (path_slack >= slack_margin_) {
+            continue;
+          }
+
+          // Compare actual path slack, not endpoint slack
+          if (path_slack < best_slack) {
+            best_slack = path_slack;
+            best_endpoint = endpoint_pin;
+            best_path_num = paths_used;
+          }
+        }
+      }
+
+      // No more endpoints/paths to process
+      if (best_endpoint == nullptr) {
+        break;
+      }
+
+      // Collect pins from the selected endpoint/path
+      set<const Pin*> new_pins = collectPinsByPathEndpoint(best_endpoint, 1);
+
+      size_t before_size = collected_pins.size();
+      collected_pins.insert(new_pins.begin(), new_pins.end());
+
+      debugPrint(logger_,
+                 RSZ,
+                 "violator_collector",
+                 3,
+                 "Collected {} pins ({} new) from endpoint {} path {} (slack={})",
+                 new_pins.size(),
+                 collected_pins.size() - before_size,
+                 network_->pathName(best_endpoint),
+                 best_path_num + 1,
+                 delayAsString(best_slack, sta_, 3));
+
+      // Mark that we've used another path from this endpoint
+      endpoint_paths_used[best_endpoint]++;
+
+      // Increment the times this endpoint has been considered
+      endpoint_times_considered_[best_endpoint]++;
+
+      // Stop if we've reached the desired number of pins (unless numPins is -1)
+      if (numPins != -1 && collected_pins.size() >= static_cast<size_t>(numPins)) {
+        break;
+      }
+    }
   }
+
+  // Convert set to vector
+  violating_pins_.clear();
+  violating_pins_.insert(
+      violating_pins_.end(), collected_pins.begin(), collected_pins.end());
+
+  debugPrint(logger_,
+             RSZ,
+             "violator_collector",
+             2,
+             "Collected {} unique violating pins",
+             violating_pins_.size());
 
   sortPins(numPins, sort_type);
 
   // Auto-increment pass count for current endpoint when collecting violators
-  current_endpoint_pass_count_++;
+  current_pass_count_++;
   debugPrint(logger_,
              RSZ,
              "violator_collector",
              4,
              "Endpoint {} pass count: {}/{}",
              network_->pathName(current_endpoint_->pin()),
-             current_endpoint_pass_count_,
+             current_pass_count_,
              max_passes_per_endpoint_);
 
   return violating_pins_;
@@ -421,8 +597,8 @@ void ViolatorCollector::sortPins(int numPins, ViolatorSortType sort_type)
           RSZ, 9, "Unknown sort type: {}.", getEnumString(sort_type));
   }
 
-  // Truncate to keep only the top numPins pins
-  if (numPins > 0 && numPins < violating_pins_.size()) {
+  // Truncate to keep only the top numPins pins (unless numPins is -1)
+  if (numPins > 0 && numPins < static_cast<int>(violating_pins_.size())) {
     debugPrint(logger_,
                RSZ,
                "violator_collector",
@@ -431,6 +607,13 @@ void ViolatorCollector::sortPins(int numPins, ViolatorSortType sort_type)
                numPins,
                violating_pins_.size());
     violating_pins_.resize(numPins);
+  } else if (numPins == -1) {
+    debugPrint(logger_,
+               RSZ,
+               "violator_collector",
+               1,
+               "Keeping all {} violating pins (no limit).",
+               violating_pins_.size());
   }
 
   printViolators();
@@ -791,17 +974,18 @@ void ViolatorCollector::setMaxPassesPerEndpoint(int max_passes)
 
 bool ViolatorCollector::shouldSkipEndpoint() const
 {
-  return current_endpoint_pass_count_ >= max_passes_per_endpoint_;
+  return current_pass_count_ >= max_passes_per_endpoint_;
 }
 
 int ViolatorCollector::getEndpointPassCount() const
 {
-  return current_endpoint_pass_count_;
+  return current_pass_count_;
 }
 
 void ViolatorCollector::resetEndpointPasses()
 {
-  current_endpoint_pass_count_ = 0;
+  current_pass_count_ = 0;
+  endpoint_times_considered_.clear();
   debugPrint(
       logger_, RSZ, "violator_collector", 2, "Reset endpoint pass tracking");
 }
@@ -822,7 +1006,7 @@ void ViolatorCollector::advanceToNextEndpoint()
 {
   if (hasMoreEndpoints()) {
     current_endpoint_index_++;
-    current_endpoint_pass_count_ = 0;  // Reset pass count for new endpoint
+    current_pass_count_ = 0;  // Reset pass count for new endpoint
     setToEndpoint(current_endpoint_index_);
     debugPrint(
         logger_,
@@ -849,9 +1033,9 @@ void ViolatorCollector::useWorstEndpoint(Vertex* end)
   current_endpoint_ = end;
 }
 
-int ViolatorCollector::getCurrentEndpointPass() const
+int ViolatorCollector::getCurrentPass() const
 {
-  return current_endpoint_pass_count_;
+  return current_pass_count_;
 }
 
 }  // namespace rsz

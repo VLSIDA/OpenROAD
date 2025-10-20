@@ -128,8 +128,12 @@ class RepairSetup : public sta::dbStaState
  private:
   void init();
   bool repairPath(Path* path, Slack path_slack, float setup_slack_margin);
-  bool repairPins(const std::vector<const Pin*>& pins,
-                  float setup_slack_margin);
+  bool repairPins(
+      const std::vector<const Pin*>& pins,
+      float setup_slack_margin,
+      const std::map<const Pin*, std::set<BaseMove*>>* rejected_moves = nullptr,
+      std::vector<std::pair<const Pin*, BaseMove*>>* successful_moves
+      = nullptr);
   int fanout(Vertex* vertex);
   bool hasTopLevelOutputPort(Net* net);
 
@@ -138,6 +142,8 @@ class RepairSetup : public sta::dbStaState
                      bool end,
                      bool last_gasp,
                      int num_viols) const;
+  void printProgressHeader() const;
+  void printProgressFooter() const;
   bool terminateProgress(int iteration,
                          float initial_tns,
                          float& prev_tns,
@@ -154,6 +160,26 @@ class RepairSetup : public sta::dbStaState
                          std::unordered_set<Instance*>& notSwappable,
                          const OptoParams& params);
   Slack getInstanceSlack(Instance* inst);
+
+  // Two-phase repair setup
+  void repairSetupPhase1_WNS(float setup_slack_margin,
+                             int max_passes_per_endpoint,
+                             int max_repairs_per_pass,
+                             bool verbose,
+                             int& opto_iteration,
+                             float initial_tns,
+                             float& prev_tns,
+                             int& num_viols);
+  void repairSetupPhase2_TNS(float setup_slack_margin,
+                             int max_passes_per_endpoint,
+                             int max_repairs_per_pass,
+                             bool verbose,
+                             int& opto_iteration,
+                             float initial_tns,
+                             float& prev_tns,
+                             int& num_viols);
+  bool shouldSwitchEndpoint(Vertex* current_endpoint, Vertex* worst_endpoint);
+
   void hitDebugCheckpoint();
 
   Logger* logger_ = nullptr;
@@ -171,6 +197,17 @@ class RepairSetup : public sta::dbStaState
   double initial_design_area_ = 0;
 
   std::vector<BaseMove*> move_sequence;
+
+  // Phase 1 tracking: WNS-focused optimization
+  std::map<const Pin*, int> endpoint_pass_counts_phase1_;
+  int wns_no_progress_count_ = 0;
+  // Track which (pin, move) combinations have been tried and rejected for
+  // current endpoint
+  std::map<const Pin*, std::set<BaseMove*>>
+      rejected_pin_moves_current_endpoint_;
+
+  // Phase 2 tracking: TNS-focused optimization
+  int overall_no_progress_count_ = 0;
 
   const MinMax* min_ = MinMax::min();
   const MinMax* max_ = MinMax::max();

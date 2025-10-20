@@ -78,7 +78,7 @@ class ViolatorCollector
   }
   int getCurrentEndpointIndex() const { return current_endpoint_index_; }
   int getMaxEndpointCount() const { return violating_ends_.size(); }
-  int getCurrentEndpointPass() const;
+  int getCurrentPass() const;
   void useWorstEndpoint(Vertex* end);
 
   // Collect violators for the current endpoint
@@ -99,8 +99,15 @@ class ViolatorCollector
   // Public utility methods
   const char* getEnumString(ViolatorSortType sort_type);
 
- private:
+  // Public endpoint collection for Phase 2
   void collectViolatingEndpoints();
+  Slack getPathSlackByIndex(const Pin* endpoint_pin, int path_index);
+  const vector<std::pair<const Pin*, Slack>>& getViolatingEndpoints() const
+  {
+    return violating_ends_;
+  }
+
+ private:
   void updatePinData(const Pin* pin, pinData& pd);
 
   set<const Pin*> collectPinsByPathEndpoint(const sta::Pin* endpoint_pin,
@@ -141,7 +148,8 @@ class ViolatorCollector
 
   // Endpoint pass tracking
   int max_passes_per_endpoint_;
-  int current_endpoint_pass_count_;
+  int current_pass_count_;
+  std::map<const Pin*, int> endpoint_times_considered_;
 
   // Current endpoint iteration state
   Vertex* current_endpoint_;
