@@ -674,7 +674,7 @@ void RepairSetup::printProgress(const int iteration,
         "   Iter   | Removed | Resized | Inserted | Cloned |  Pin  |"
         "   Area   |    WNS   |   TNS      |  Viol  | Worst");
     logger_->report(
-        "          | Buffers |  Gates  | Buffers  |  Gates | Swaps |"
+        "   *TNS    | Buffers |  Gates  | Buffers  |  Gates | Swaps |"
         "          |          |            | Endpts | Endpt");
     logger_->report(
         "-----------------------------------------------------------"
@@ -737,7 +737,7 @@ void RepairSetup::printProgressHeader() const
       "   Iter   | Removed | Resized | Inserted | Cloned |  Pin  |"
       "   Area   |    WNS   |   TNS      |  Viol  | Worst");
   logger_->report(
-      "          | Buffers |  Gates  | Buffers  |  Gates | Swaps |"
+      "   *TNS    | Buffers |  Gates  | Buffers  |  Gates | Swaps |"
       "          |          |            | Endpts | Endpt");
   logger_->report(
       "-----------------------------------------------------------"
@@ -1524,7 +1524,6 @@ void RepairSetup::repairSetupPhase2_TNS(const float setup_slack_margin,
   // Print phase completion
   printProgress(opto_iteration, true, false, false, num_viols, true);
   printProgressFooter();
-  logger_->report("* Phase 2: TNS");
 
   Slack final_wns;
   Vertex* final_worst;
