@@ -1338,20 +1338,26 @@ void RepairSetup::repairSetupPhase2_TNS(const float setup_slack_margin,
       sta_->worstSlack(max_, global_wns, global_wns_vertex);
 
       // Accept only if subcritical path improved AND global WNS didn't get
-      // worse
+      // worse Allow small WNS degradations (< 1ps) in Phase 2 when improving
+      // subcritical paths
       const bool subcritical_improved = fuzzyGreater(new_slack, baseline_slack);
-      const bool global_wns_ok = fuzzyGreaterEqual(global_wns, prev_global_wns);
+      // fuzzyGreaterEqual was using a very small tolerance (much less than 1ps)
+      // that would fail fuzzyEqual.
+      const bool global_wns_ok = global_wns >= prev_global_wns - 1e-12;
 
       debugPrint(logger_,
                  RSZ,
                  "repair_setup",
                  2,
-                 "Phase 2: Path {} slack {} -> {}, global WNS {} -> {}, {}",
+                 "Phase 2: Path {} slack {} -> {}, global WNS {} -> {}, "
+                 "subcritical_improved={} global_wns_ok={} {}",
                  path_number,
                  delayAsString(baseline_slack, sta_, digits),
                  delayAsString(new_slack, sta_, digits),
                  delayAsString(prev_global_wns, sta_, digits),
                  delayAsString(global_wns, sta_, digits),
+                 subcritical_improved,
+                 global_wns_ok,
                  (subcritical_improved && global_wns_ok) ? "ACCEPT" : "REJECT");
 
       if (subcritical_improved && global_wns_ok) {
@@ -1454,9 +1460,14 @@ void RepairSetup::repairSetupPhase2_TNS(const float setup_slack_margin,
       sta_->worstSlack(max_, global_wns, global_wns_vertex);
 
       // Accept only if secondary endpoint improved AND global WNS didn't get
-      // worse
+      // worse Allow small WNS degradations (< 1ps) in Phase 2 when improving
+      // secondary endpoints
       const bool endpoint_improved = fuzzyGreater(new_slack, baseline_slack);
-      const bool global_wns_ok = fuzzyGreaterEqual(global_wns, prev_global_wns);
+      constexpr float wns_tolerance_ps = 1.0;  // 1 picosecond tolerance
+      constexpr float wns_tolerance_sec
+          = wns_tolerance_ps * 1e-12;  // Convert ps to seconds
+      const bool global_wns_ok
+          = global_wns >= prev_global_wns - wns_tolerance_sec;
 
       debugPrint(logger_,
                  RSZ,
