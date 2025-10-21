@@ -271,6 +271,9 @@ bool RepairSetup::repairSetup(const float setup_slack_margin,
                         prev_tns,
                         num_viols);
 
+  move_tracker_->printMoveSummary("Phase 1 WNS Summary");
+  move_tracker_->clear();
+
   // Run Phase 2: TNS-Focused Repair
   repairSetupPhase2_TNS(setup_slack_margin,
                         max_passes,
@@ -280,6 +283,9 @@ bool RepairSetup::repairSetup(const float setup_slack_margin,
                         initial_tns,
                         prev_tns,
                         num_viols);
+
+  move_tracker_->printMoveSummary("Phase 2 TNS Summary");
+  move_tracker_->clear();
 
   if (!skip_crit_vt_swap && !skip_vt_swap
       && resizer_->lib_data_->sorted_vt_categories.size() > 1) {
@@ -297,6 +303,8 @@ bool RepairSetup::repairSetup(const float setup_slack_margin,
       estimate_parasitics_->updateParasitics();
       sta_->findRequireds();
     }
+    move_tracker_->printMoveSummary("Phase 3 Vth Summary");
+    move_tracker_->clear();
   }
 
   // Phase 2 already printed the final table row and footer
@@ -475,6 +483,9 @@ bool RepairSetup::repairPins(
     if (changed >= repairs_per_pass) {
       break;
     }
+    // Track this pin as a violator before attempting moves
+    move_tracker_->trackViolator(drvr_pin);
+
     Vertex* drvr_vertex = graph_->pinDrvrVertex(drvr_pin);
     LibertyPort* drvr_port = network_->libertyPort(drvr_pin);
     LibertyCell* drvr_cell = drvr_port ? drvr_port->libertyCell() : nullptr;
@@ -1120,6 +1131,7 @@ void RepairSetup::repairSetupPhase1_WNS(const float setup_slack_margin,
                better ? "ACCEPT" : "REJECT");
 
     if (better) {
+      move_tracker_->commitMoves();
       resizer_->journalEnd();
       wns_endpoint_pass_counts_[endpoint_pin]++;
 
@@ -1127,6 +1139,7 @@ void RepairSetup::repairSetupPhase1_WNS(const float setup_slack_margin,
         --num_viols;
       }
     } else {
+      move_tracker_->rejectMoves();
       resizer_->journalRestore();
       wns_endpoint_pass_counts_[endpoint_pin]++;
       fallback_ = true;
@@ -1363,6 +1376,7 @@ void RepairSetup::repairSetupPhase2_TNS(const float setup_slack_margin,
                  (subcritical_improved && global_wns_ok) ? "ACCEPT" : "REJECT");
 
       if (subcritical_improved && global_wns_ok) {
+        move_tracker_->commitMoves();
         resizer_->journalEnd();
         overall_no_progress_count_ = 0;
         made_improvement = true;
@@ -1373,6 +1387,7 @@ void RepairSetup::repairSetupPhase2_TNS(const float setup_slack_margin,
           --num_viols;
         }
       } else {
+        move_tracker_->rejectMoves();
         resizer_->journalRestore();
         overall_no_progress_count_++;
         fallback_ = true;
@@ -1485,6 +1500,7 @@ void RepairSetup::repairSetupPhase2_TNS(const float setup_slack_margin,
                  (endpoint_improved && global_wns_ok) ? "ACCEPT" : "REJECT");
 
       if (endpoint_improved && global_wns_ok) {
+        move_tracker_->commitMoves();
         resizer_->journalEnd();
         overall_no_progress_count_ = 0;
         made_improvement = true;
@@ -1495,6 +1511,7 @@ void RepairSetup::repairSetupPhase2_TNS(const float setup_slack_margin,
           --num_viols;
         }
       } else {
+        move_tracker_->rejectMoves();
         resizer_->journalRestore();
         overall_no_progress_count_++;
         fallback_ = true;
@@ -1522,8 +1539,7 @@ void RepairSetup::repairSetupPhase2_TNS(const float setup_slack_margin,
   }
 
   // Print phase completion
-  printProgress(opto_iteration, true, false, false, num_viols, true);
-  printProgressFooter();
+  printProgress(opto_iteration, true, true, false, num_viols, true);
 
   Slack final_wns;
   Vertex* final_worst;

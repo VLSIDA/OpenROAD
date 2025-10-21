@@ -45,8 +45,8 @@ struct MoveStateData
 };
 
 // Class to track optimization moves (attempts, commits, rejections) for pins.
-// Provides statistics and summaries of which pins were attempted for optimization,
-// which moves succeeded, and which failed.
+// Provides statistics and summaries of which pins were attempted for
+// optimization, which moves succeeded, and which failed.
 class MoveTracker
 {
  public:
@@ -67,7 +67,7 @@ class MoveTracker
   void rejectMoves();
 
   // Print statistics summary for current pass and cumulative totals
-  void printMoveSummary();
+  void printMoveSummary(const std::string& title);
 
   // Get the visit count for a specific pin
   int getVisitCount(const sta::Pin* pin) const;

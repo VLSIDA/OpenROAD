@@ -47,7 +47,7 @@ void MoveTracker::clearMoveSummary()
 
 void MoveTracker::trackViolator(const sta::Pin* pin)
 {
-  if (!logger_->debugCheck(RSZ, "move_summary", 1)) {
+  if (!logger_->debugCheck(RSZ, "move_tracker", 1)) {
     return;
   }
   if (visit_count_.find(pin) == visit_count_.end()) {
@@ -57,10 +57,10 @@ void MoveTracker::trackViolator(const sta::Pin* pin)
 }
 
 void MoveTracker::trackMove(const sta::Pin* pin,
-                             const string& move_type,
-                             MoveStateType state)
+                            const string& move_type,
+                            MoveStateType state)
 {
-  if (!logger_->debugCheck(RSZ, "move_summary", 1)) {
+  if (!logger_->debugCheck(RSZ, "move_tracker", 1)) {
     return;
   }
   assert(visit_count_.find(pin) != visit_count_.end()
@@ -70,7 +70,7 @@ void MoveTracker::trackMove(const sta::Pin* pin,
 
 void MoveTracker::commitMoves()
 {
-  if (!logger_->debugCheck(RSZ, "move_summary", 1)) {
+  if (!logger_->debugCheck(RSZ, "move_tracker", 1)) {
     return;
   }
   for (const auto& pending_move : pending_moves_) {
@@ -84,7 +84,7 @@ void MoveTracker::commitMoves()
 
 void MoveTracker::rejectMoves()
 {
-  if (!logger_->debugCheck(RSZ, "move_summary", 1)) {
+  if (!logger_->debugCheck(RSZ, "move_tracker", 1)) {
     return;
   }
   for (const auto& pending_move : pending_moves_) {
@@ -102,9 +102,9 @@ int MoveTracker::getVisitCount(const sta::Pin* pin) const
   return (it != visit_count_.end()) ? it->second : 0;
 }
 
-void MoveTracker::printMoveSummary()
+void MoveTracker::printMoveSummary(const std::string& title)
 {
-  if (!logger_->debugCheck(RSZ, "move_summary", 1)) {
+  if (!logger_->debugCheck(RSZ, "move_tracker", 1)) {
     return;
   }
   if (moves_.size() == 0) {
@@ -167,10 +167,10 @@ void MoveTracker::printMoveSummary()
     no_attempt_count++;
   }
 
-  debugPrint(logger_, RSZ, "move_summary", 2, "Current pass statistics:");
+  debugPrint(logger_, RSZ, "move_tracker", 2, "{}:", title);
   debugPrint(logger_,
              RSZ,
-             "move_summary",
+             "move_tracker",
              1,
              "Current Summary: Not Attempted: {} Attempts: {} Rejects: "
              "{} Commits: {} ",
@@ -192,7 +192,7 @@ void MoveTracker::printMoveSummary()
             : 0;
   debugPrint(logger_,
              RSZ,
-             "move_summary",
+             "move_tracker",
              1,
              "Overall attempt_rate: {:.2f}% ({}) reject_rate: {:0.2f}% "
              "({}) commit_rate: {:0.2f}% ({})",
@@ -224,7 +224,7 @@ void MoveTracker::printMoveSummary()
         = (moves_.size() > 0) ? (move_commit_count / moves_.size()) * 100 : 0;
     debugPrint(logger_,
                RSZ,
-               "move_summary",
+               "move_tracker",
                1,
                "{} attempt_rate: {:.2f}% ({}) reject_rate: {:.2f}% ({})  "
                "commit_rate: {:.2f}% ({})",
@@ -237,10 +237,10 @@ void MoveTracker::printMoveSummary()
                move_commit_count);
   }
 
-  debugPrint(logger_, RSZ, "move_summary", 2, "Total statistics:");
+  debugPrint(logger_, RSZ, "move_tracker", 2, "Total statistics:");
   debugPrint(logger_,
              RSZ,
-             "move_summary",
+             "move_tracker",
              1,
              "Total Summary: Not Attempted: {} Attempts: {} Rejects: "
              "{} Commits: {} ",
@@ -265,7 +265,7 @@ void MoveTracker::printMoveSummary()
             : 0;
   debugPrint(logger_,
              RSZ,
-             "move_summary",
+             "move_tracker",
              1,
              "Overall attempt_rate: {:.2f}% ({}) reject_rate: {:0.2f}% "
              "({}) commit_rate: {:0.2f}% ({})",
@@ -298,7 +298,7 @@ void MoveTracker::printMoveSummary()
               : 0;
     debugPrint(logger_,
                RSZ,
-               "move_summary",
+               "move_tracker",
                1,
                "{} attempt_rate: {:.2f}% ({}) reject_rate: {:.2f}% ({})  "
                "commit_rate: {:.2f}% ({})",
