@@ -240,10 +240,8 @@ void ViolatorCollector::collectBySlack()
              violating_pins_.size());
 }
 
-void ViolatorCollector::updatePinData(const Pin* pin, pinData& pd)
+std::pair<Delay, Delay> ViolatorCollector::getEffortDelays(const Pin* pin)
 {
-  pd.name = network_->pathName(pin);
-
   Vertex* path_vertex = graph_->pinDrvrVertex(pin);
   Delay selected_load_delay = -sta::INF;
   Delay selected_intrinsic_delay = -sta::INF;
@@ -254,6 +252,12 @@ void ViolatorCollector::updatePinData(const Pin* pin, pinData& pd)
   while (edge_iter.hasNext()) {
     Edge* prev_edge = edge_iter.next();
     Vertex* from_vertex = prev_edge->from(graph_);
+
+    // Ignore output-to-output timing arcs (e.g., in asap7 multi-output gates)
+    const Pin* from_pin = from_vertex->pin();
+    if (network_->direction(from_pin)->isOutput()) {
+      continue;
+    }
 
     const TimingArcSet* arc_set = prev_edge->timingArcSet();
     for (const RiseFall* rf : RiseFall::range()) {
@@ -301,8 +305,17 @@ void ViolatorCollector::updatePinData(const Pin* pin, pinData& pd)
     }
   }
 
-  pd.load_delay = selected_load_delay;
-  pd.intrinsic_delay = selected_intrinsic_delay;
+  return {selected_load_delay, selected_intrinsic_delay};
+}
+
+void ViolatorCollector::updatePinData(const Pin* pin, pinData& pd)
+{
+  pd.name = network_->pathName(pin);
+
+  auto [load_delay, intrinsic_delay] = getEffortDelays(pin);
+  pd.load_delay = load_delay;
+  pd.intrinsic_delay = intrinsic_delay;
+
   Vertex* vertex = graph_->pinDrvrVertex(pin);
   pd.level = vertex->level();
   pd.slack = sta_->pinSlack(pin, max_);
@@ -642,11 +655,12 @@ Delay ViolatorCollector::getLocalPinTNS(const Pin* pin) const
   sta::VertexOutEdgeIterator edge_iter(drvr_vertex, graph_);
   while (edge_iter.hasNext()) {
     Edge* edge = edge_iter.next();
+    Vertex* fanout_vertex = edge->to(graph_);
     // Watch out for problematic asap7 output->output timing arcs.
-    if (!edge->isWire()) {
+    const Pin* fanout_pin = fanout_vertex->pin();
+    if (network_->direction(fanout_pin)->isOutput()) {
       continue;
     }
-    Vertex* fanout_vertex = edge->to(graph_);
     const Slack fanout_slack = sta_->vertexSlack(fanout_vertex, resizer_->max_);
     if (fanout_slack < 0) {
       tns += fanout_slack;

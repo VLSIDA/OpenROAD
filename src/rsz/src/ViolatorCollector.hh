@@ -109,6 +109,7 @@ class ViolatorCollector
 
  private:
   void updatePinData(const Pin* pin, pinData& pd);
+  std::pair<Delay, Delay> getEffortDelays(const Pin* pin);
 
   set<const Pin*> collectPinsByPathEndpoint(const sta::Pin* endpoint_pin,
                                             size_t paths_per_endpoint = 1);
