@@ -255,6 +255,9 @@ std::pair<Delay, Delay> ViolatorCollector::getEffortDelays(const Pin* pin)
 
     // Ignore output-to-output timing arcs (e.g., in asap7 multi-output gates)
     const Pin* from_pin = from_vertex->pin();
+    if (!from_pin) {
+      continue;
+    }
     if (network_->direction(from_pin)->isOutput()) {
       continue;
     }
@@ -658,6 +661,9 @@ Delay ViolatorCollector::getLocalPinTNS(const Pin* pin) const
     Vertex* fanout_vertex = edge->to(graph_);
     // Watch out for problematic asap7 output->output timing arcs.
     const Pin* fanout_pin = fanout_vertex->pin();
+    if (!fanout_pin) {
+      continue;
+    }
     if (network_->direction(fanout_pin)->isOutput()) {
       continue;
     }

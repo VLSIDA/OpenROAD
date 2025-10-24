@@ -96,6 +96,9 @@ class ViolatorCollector
   // For statistics on critical paths
   int getTotalViolations() const;
 
+  // Get current number of violating endpoints
+  int getNumViolatingEndpoints() const { return violating_ends_.size(); }
+
   // Public utility methods
   const char* getEnumString(ViolatorSortType sort_type);
 

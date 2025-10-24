@@ -64,6 +64,7 @@ using sta::Slew;
 using sta::TimingArc;
 using sta::TimingArcSet;
 using sta::Vertex;
+using sta::VertexInEdgeIterator;
 using sta::VertexOutEdgeIterator;
 
 using InputSlews = std::array<Slew, RiseFall::index_count>;
@@ -899,13 +900,13 @@ void BaseMove::getPrevNextPins(const Pin* drvr_pin,
                                Pin*& load_pin)
 {
   Vertex* drvr_vertex = graph_->vertex(network_->vertexId(drvr_pin));
-  // Find the worst slack vertex of all fanouts
-  // IMPROVE ME: We can add different policies of picking the path
+
+  // Find the worst slack fanout (load)
   Vertex* load_vertex = nullptr;
   Slack load_slack = sta::INF;
-  VertexOutEdgeIterator edge_iter(drvr_vertex, graph_);
-  while (edge_iter.hasNext()) {
-    Edge* edge = edge_iter.next();
+  VertexOutEdgeIterator out_edge_iter(drvr_vertex, graph_);
+  while (out_edge_iter.hasNext()) {
+    Edge* edge = out_edge_iter.next();
     Vertex* fanout_vertex = edge->to(graph_);
     Slack fanout_slack = sta_->vertexSlack(fanout_vertex, resizer_->max_);
     if (fanout_slack < load_slack) {
@@ -913,30 +914,50 @@ void BaseMove::getPrevNextPins(const Pin* drvr_pin,
       load_slack = fanout_slack;
     }
   }
-  // Get the worst slack path of this fanout vertex
-  Path* load_path = sta_->vertexWorstSlackPath(load_vertex, resizer_->max_);
-  Path* drvr_path;
-  Path* input_path;
-  Path* prev_drvr_path;
-  if (load_path) {
-    drvr_path = load_path->prevPath();
-  } else {
-    drvr_path = nullptr;
+  load_pin = load_vertex ? load_vertex->pin() : nullptr;
+
+  // Find the input pin with the worst slack (similar to getEffortDelays)
+  // Skip output-to-output arcs in libraries like asap7
+  Vertex* worst_input_vertex = nullptr;
+  Slack worst_input_slack = sta::INF;
+  VertexInEdgeIterator in_edge_iter(drvr_vertex, graph_);
+  while (in_edge_iter.hasNext()) {
+    Edge* prev_edge = in_edge_iter.next();
+    Vertex* from_vertex = prev_edge->from(graph_);
+    const Pin* from_pin = from_vertex->pin();
+
+    // Skip output pins (output-to-output arcs in asap7 multi-output gates)
+    if (!from_pin || network_->direction(from_pin)->isOutput()) {
+      continue;
+    }
+
+    // Get slack for this input
+    Slack from_slack = sta_->vertexSlack(from_vertex, resizer_->max_);
+    if (from_slack < worst_input_slack) {
+      worst_input_slack = from_slack;
+      worst_input_vertex = from_vertex;
+    }
   }
-  if (drvr_path) {
-    input_path = drvr_path->prevPath();
+  input_pin = worst_input_vertex ? worst_input_vertex->pin() : nullptr;
+
+  // Find the driver of the input pin (previous driver)
+  if (worst_input_vertex) {
+    Vertex* prev_drvr_vertex = nullptr;
+    Slack prev_drvr_slack = sta::INF;
+    VertexInEdgeIterator prev_edge_iter(worst_input_vertex, graph_);
+    while (prev_edge_iter.hasNext()) {
+      Edge* edge = prev_edge_iter.next();
+      Vertex* from_vertex = edge->from(graph_);
+      Slack from_slack = sta_->vertexSlack(from_vertex, resizer_->max_);
+      if (from_slack < prev_drvr_slack) {
+        prev_drvr_slack = from_slack;
+        prev_drvr_vertex = from_vertex;
+      }
+    }
+    prev_drvr_pin = prev_drvr_vertex ? prev_drvr_vertex->pin() : nullptr;
   } else {
-    input_path = nullptr;
+    prev_drvr_pin = nullptr;
   }
-  if (input_path) {
-    prev_drvr_path = input_path->prevPath();
-  } else {
-    prev_drvr_path = nullptr;
-  }
-  // Set the return values
-  load_pin = load_path ? load_path->pin(sta_) : nullptr;
-  input_pin = input_path ? input_path->pin(sta_) : nullptr;
-  prev_drvr_pin = prev_drvr_path ? prev_drvr_path->pin(sta_) : nullptr;
 }
 
 }  // namespace rsz

@@ -141,7 +141,6 @@ class RepairSetup : public sta::dbStaState
                      bool force,
                      bool end,
                      bool last_gasp,
-                     int num_viols,
                      bool phase2 = false) const;
   void printProgressHeader() const;
   void printProgressFooter() const;
@@ -167,16 +166,14 @@ class RepairSetup : public sta::dbStaState
                              bool verbose,
                              int& opto_iteration,
                              float initial_tns,
-                             float& prev_tns,
-                             int& num_viols);
+                             float& prev_tns);
   void repairSetupPhase2_TNS(float setup_slack_margin,
                              int max_passes_per_endpoint,
                              int max_repairs_per_pass,
                              bool verbose,
                              int& opto_iteration,
                              float initial_tns,
-                             float& prev_tns,
-                             int& num_viols);
+                             float& prev_tns);
   bool shouldSwitchEndpoint(Vertex* current_endpoint, Vertex* worst_endpoint);
 
   void hitDebugCheckpoint();
