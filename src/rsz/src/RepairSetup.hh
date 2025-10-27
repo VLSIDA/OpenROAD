@@ -5,6 +5,7 @@
 #include <unordered_set>
 #include <vector>
 
+#include "ViolatorCollector.hh"
 #include "boost/functional/hash.hpp"
 #include "db_sta/dbNetwork.hh"
 #include "db_sta/dbSta.hh"
@@ -132,8 +133,7 @@ class RepairSetup : public sta::dbStaState
       const std::vector<const Pin*>& pins,
       float setup_slack_margin,
       const std::map<const Pin*, std::set<BaseMove*>>* rejected_moves = nullptr,
-      std::vector<std::pair<const Pin*, BaseMove*>>* successful_moves
-      = nullptr);
+      std::vector<std::pair<const Pin*, BaseMove*>>* chosen_moves = nullptr);
   int fanout(Vertex* vertex);
   bool hasTopLevelOutputPort(Net* net);
 
@@ -160,20 +160,24 @@ class RepairSetup : public sta::dbStaState
   Slack getInstanceSlack(Instance* inst);
 
   // Two-phase repair setup
-  void repairSetupPhase1_WNS(float setup_slack_margin,
-                             int max_passes_per_endpoint,
-                             int max_repairs_per_pass,
-                             bool verbose,
-                             int& opto_iteration,
-                             float initial_tns,
-                             float& prev_tns);
-  void repairSetupPhase2_TNS(float setup_slack_margin,
-                             int max_passes_per_endpoint,
-                             int max_repairs_per_pass,
-                             bool verbose,
-                             int& opto_iteration,
-                             float initial_tns,
-                             float& prev_tns);
+  void repairSetup_WNS(float setup_slack_margin,
+                       int max_passes_per_endpoint,
+                       int max_repairs_per_pass,
+                       bool verbose,
+                       int& opto_iteration,
+                       float initial_tns,
+                       float& prev_tns,
+                       ViolatorSortType sort_type
+                       = ViolatorSortType::SORT_AND_FILTER_BY_LOAD_DELAY);
+  void repairSetup_TNS(float setup_slack_margin,
+                       int max_passes_per_endpoint,
+                       int max_repairs_per_pass,
+                       bool verbose,
+                       int& opto_iteration,
+                       float initial_tns,
+                       float& prev_tns,
+                       ViolatorSortType sort_type
+                       = ViolatorSortType::SORT_AND_FILTER_BY_LOAD_DELAY);
   bool shouldSwitchEndpoint(Vertex* current_endpoint, Vertex* worst_endpoint);
 
   void hitDebugCheckpoint();
@@ -194,7 +198,7 @@ class RepairSetup : public sta::dbStaState
 
   std::vector<BaseMove*> move_sequence;
 
-  // Phase 1 tracking: WNS-focused optimization
+  // WNS Phase tracking: WNS-focused optimization
   std::map<const Pin*, int> endpoint_pass_counts_phase1_;
   int wns_no_progress_count_ = 0;
   // Track which (pin, move) combinations have been tried and rejected for
@@ -202,7 +206,7 @@ class RepairSetup : public sta::dbStaState
   std::map<const Pin*, std::set<BaseMove*>>
       rejected_pin_moves_current_endpoint_;
 
-  // Phase 2 tracking: TNS-focused optimization
+  // TNS Phase tracking: TNS-focused optimization
   int overall_no_progress_count_ = 0;
 
   const MinMax* min_ = MinMax::min();

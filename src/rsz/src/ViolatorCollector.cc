@@ -52,6 +52,8 @@ const char* ViolatorCollector::getEnumString(ViolatorSortType sort_type)
       return "SORT_BY_WNS";
     case ViolatorSortType::SORT_BY_LOAD_DELAY:
       return "SORT_BY_LOAD_DELAY";
+    case ViolatorSortType::SORT_AND_FILTER_BY_LOAD_DELAY:
+      return "SORT_AND_FILTER_BY_LOAD_DELAY";
     case ViolatorSortType::SORT_BY_HEURISTIC:
       return "SORT_BY_HEURISTIC";
     default:
@@ -345,7 +347,7 @@ int ViolatorCollector::repairsPerPass(int max_repairs_per_pass)
   return repairs_per_pass;
 }
 
-void ViolatorCollector::sortByLoadDelay()
+void ViolatorCollector::sortByLoadDelay(float load_delay_threshold)
 {
   std::sort(violating_pins_.begin(),
             violating_pins_.end(),
@@ -360,6 +362,18 @@ void ViolatorCollector::sortByLoadDelay()
                      || (load_delay1 == load_delay2 && tns1 == tns2
                          && network_->pathNameLess(a, b));
             });
+
+  // Filter: only keep pins where load_delay > load_delay_threshold * intrinsic_delay
+  // If threshold is 0.0 or negative, skip filtering
+  if (load_delay_threshold > 0.0) {
+    auto it = std::remove_if(
+        violating_pins_.begin(), violating_pins_.end(), [this, load_delay_threshold](const Pin* pin) {
+          Delay load_delay = pin_data_[pin].load_delay;
+          Delay intrinsic_delay = pin_data_[pin].intrinsic_delay;
+          return load_delay <= load_delay_threshold * intrinsic_delay;
+        });
+    violating_pins_.erase(it, violating_pins_.end());
+  }
 
   for (auto pin : violating_pins_) {
     Delay worst_load_delay = pin_data_[pin].load_delay;
@@ -379,7 +393,7 @@ void ViolatorCollector::sortByLoadDelay()
 
 // Helper to get the slack of a specific path (by index) for an endpoint
 Slack ViolatorCollector::getPathSlackByIndex(const Pin* endpoint_pin,
-                                              int path_index)
+                                             int path_index)
 {
   // Create ExceptionTo for this endpoint
   sta::PinSet* to_pins = new sta::PinSet(network_);
@@ -476,8 +490,9 @@ vector<const Pin*> ViolatorCollector::collectViolators(
 
     // Collect pins by comparing actual path slacks across all endpoints
     // If numPins is -1, collect all pins without limiting
-    while ((numPins == -1 || collected_pins.size() < static_cast<size_t>(numPins))
-           && !violating_ends_.empty()) {
+    while (
+        (numPins == -1 || collected_pins.size() < static_cast<size_t>(numPins))
+        && !violating_ends_.empty()) {
       // Find the worst actual path slack among all available paths
       const Pin* best_endpoint = nullptr;
       Slack best_slack = sta::INF;
@@ -531,16 +546,17 @@ vector<const Pin*> ViolatorCollector::collectViolators(
       size_t before_size = collected_pins.size();
       collected_pins.insert(new_pins.begin(), new_pins.end());
 
-      debugPrint(logger_,
-                 RSZ,
-                 "violator_collector",
-                 3,
-                 "Collected {} pins ({} new) from endpoint {} path {} (slack={})",
-                 new_pins.size(),
-                 collected_pins.size() - before_size,
-                 network_->pathName(best_endpoint),
-                 best_path_num + 1,
-                 delayAsString(best_slack, sta_, 3));
+      debugPrint(
+          logger_,
+          RSZ,
+          "violator_collector",
+          3,
+          "Collected {} pins ({} new) from endpoint {} path {} (slack={})",
+          new_pins.size(),
+          collected_pins.size() - before_size,
+          network_->pathName(best_endpoint),
+          best_path_num + 1,
+          delayAsString(best_slack, sta_, 3));
 
       // Mark that we've used another path from this endpoint
       endpoint_paths_used[best_endpoint]++;
@@ -549,7 +565,8 @@ vector<const Pin*> ViolatorCollector::collectViolators(
       endpoint_times_considered_[best_endpoint]++;
 
       // Stop if we've reached the desired number of pins (unless numPins is -1)
-      if (numPins != -1 && collected_pins.size() >= static_cast<size_t>(numPins)) {
+      if (numPins != -1
+          && collected_pins.size() >= static_cast<size_t>(numPins)) {
         break;
       }
     }
@@ -603,7 +620,10 @@ void ViolatorCollector::sortPins(int numPins, ViolatorSortType sort_type)
       sortByWNS();
       break;
     case ViolatorSortType::SORT_BY_LOAD_DELAY:
-      sortByLoadDelay();
+      sortByLoadDelay(0.0);  // No filtering
+      break;
+    case ViolatorSortType::SORT_AND_FILTER_BY_LOAD_DELAY:
+      sortByLoadDelay(0.75);  // Filter: keep only pins where load_delay > 0.75 * intrinsic_delay
       break;
     case ViolatorSortType::SORT_BY_HEURISTIC:
       sortByHeuristic();

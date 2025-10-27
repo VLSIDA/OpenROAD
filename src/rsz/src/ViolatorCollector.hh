@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2019-2025, The OpenROAD Authors
 
+#pragma once
+
 #include <cmath>
 
 #include "rsz/Resizer.hh"
@@ -22,10 +24,11 @@ using utl::RSZ;
 enum class ViolatorSortType
 {
   SORT_BY_LOAD_DELAY = 0,
-  SORT_BY_WNS = 1,
-  SORT_BY_TNS = 2,
-  SORT_BY_HEURISTIC = 3,
-  MAX = 4
+  SORT_AND_FILTER_BY_LOAD_DELAY = 1,
+  SORT_BY_WNS = 2,
+  SORT_BY_TNS = 3,
+  SORT_BY_HEURISTIC = 4,
+  MAX = 5
 };
 
 struct pinData
@@ -102,7 +105,7 @@ class ViolatorCollector
   // Public utility methods
   const char* getEnumString(ViolatorSortType sort_type);
 
-  // Public endpoint collection for Phase 2
+  // Public endpoint collection for TNS Phase
   void collectViolatingEndpoints();
   Slack getPathSlackByIndex(const Pin* endpoint_pin, int path_index);
   const vector<std::pair<const Pin*, Slack>>& getViolatingEndpoints() const
@@ -110,9 +113,31 @@ class ViolatorCollector
     return violating_ends_;
   }
 
+  // Get all violating pins collected during optimization
+  const vector<const Pin*>& getViolatingPins() const
+  {
+    return violating_pins_;
+  }
+
+  // Get pin data for a specific pin (for MoveTracker reporting)
+  bool getPinData(const Pin* pin,
+                  float& load_delay,
+                  float& intrinsic_delay) const
+  {
+    auto it = pin_data_.find(pin);
+    if (it != pin_data_.end()) {
+      load_delay = it->second.load_delay;
+      intrinsic_delay = it->second.intrinsic_delay;
+      return true;
+    }
+    return false;
+  }
+
+  // Get effort delays (load and intrinsic) for a pin
+  std::pair<Delay, Delay> getEffortDelays(const Pin* pin);
+
  private:
   void updatePinData(const Pin* pin, pinData& pd);
-  std::pair<Delay, Delay> getEffortDelays(const Pin* pin);
 
   set<const Pin*> collectPinsByPathEndpoint(const sta::Pin* endpoint_pin,
                                             size_t paths_per_endpoint = 1);
@@ -124,7 +149,7 @@ class ViolatorCollector
   void sortPins(int numPins = 0,
                 ViolatorSortType sort_type
                 = ViolatorSortType::SORT_BY_LOAD_DELAY);
-  void sortByLoadDelay();
+  void sortByLoadDelay(float load_delay_threshold = 0.0);
   void sortByWNS();
   void sortByLocalTNS();
   void sortByHeuristic();
