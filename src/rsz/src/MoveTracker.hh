@@ -4,6 +4,7 @@
 #pragma once
 
 #include <map>
+#include <set>
 #include <string>
 #include <tuple>
 #include <vector>
@@ -18,6 +19,41 @@ class Logger;
 }  // namespace utl
 
 namespace rsz {
+
+struct PinInfo
+{
+  const sta::Pin* endpoint;
+  std::string gate_type;
+  float load_delay;
+  float intrinsic_delay;
+  float pin_slack;
+  float endpoint_slack;
+
+  PinInfo()
+      : endpoint(nullptr),
+        gate_type("unknown"),
+        load_delay(0.0),
+        intrinsic_delay(0.0),
+        pin_slack(0.0),
+        endpoint_slack(0.0)
+  {
+  }
+
+  PinInfo(const sta::Pin* ep,
+          const std::string& gt,
+          float ld,
+          float id,
+          float pin_slk,
+          float ep_slk)
+      : endpoint(ep),
+        gate_type(gt),
+        load_delay(ld),
+        intrinsic_delay(id),
+        pin_slack(pin_slk),
+        endpoint_slack(ep_slk)
+  {
+  }
+};
 
 enum class MoveStateType
 {
@@ -52,8 +88,22 @@ class MoveTracker
  public:
   MoveTracker(utl::Logger* logger, sta::Sta* sta);
 
+  // Set the current endpoint being optimized
+  void setCurrentEndpoint(const sta::Pin* endpoint_pin);
+
+  // Track all critical pins collected by ViolatorCollector
+  void trackCriticalPins(const std::vector<const sta::Pin*>& critical_pins);
+
   // Track that a pin was identified as a violator for potential optimization
   void trackViolator(const sta::Pin* pin);
+
+  // Track violator with detailed information for reporting
+  void trackViolatorWithInfo(const sta::Pin* pin,
+                             const std::string& gate_type,
+                             float load_delay,
+                             float intrinsic_delay,
+                             float pin_slack,
+                             float endpoint_slack);
 
   // Track an attempted move on a pin
   void trackMove(const sta::Pin* pin,
@@ -68,6 +118,20 @@ class MoveTracker
 
   // Print statistics summary for current pass and cumulative totals
   void printMoveSummary(const std::string& title);
+
+  // Print per-endpoint optimization statistics
+  void printEndpointSummary(const std::string& title);
+
+  // Print three comprehensive optimization reports
+  void printSuccessReport(const std::string& title);
+  void printFailureReport(const std::string& title);
+  void printMissedOpportunitiesReport(const std::string& title);
+
+  // Print pre- and post-optimization slack distribution
+  void printSlackDistribution(const std::string& title);
+
+  // Capture initial slack for all pins (call at start of optimization)
+  void captureInitialSlackDistribution();
 
   // Get the visit count for a specific pin
   int getVisitCount(const sta::Pin* pin) const;
@@ -86,6 +150,9 @@ class MoveTracker
   utl::Logger* logger_;
   sta::Sta* sta_;
 
+  // Current endpoint being optimized
+  const sta::Pin* current_endpoint_;
+
   // Current pass tracking
   int move_count_;
   std::map<const sta::Pin*, int> visit_count_;
@@ -99,6 +166,33 @@ class MoveTracker
   int total_reject_count_;
   int total_commit_count_;
   std::map<std::string, std::tuple<int, int, int>> total_move_type_counts_;
+
+  // Per-endpoint tracking: endpoint_pin -> (attempts, rejects, commits)
+  std::map<const sta::Pin*, std::tuple<int, int, int>> endpoint_move_counts_;
+
+  // Per-endpoint slack tracking: endpoint_pin -> (original_slack, post_endpoint_slack, final_slack)
+  // - original_slack: slack when first encountered
+  // - post_endpoint_slack: slack when moving to next endpoint
+  // - final_slack: slack at end of all optimization
+  std::map<const sta::Pin*, std::tuple<float, float, float>> endpoint_slack_;
+
+  // Detailed tracking for final reports (persists across clear() calls)
+  // Map: pin -> vector of (move_type, state)
+  std::map<const sta::Pin*, std::vector<std::pair<std::string, MoveStateType>>>
+      pin_move_history_;
+
+  // Set of all pins that were visited (even if no moves attempted)
+  std::set<const sta::Pin*> all_visited_pins_;
+
+  // Set of all critical pins identified by ViolatorCollector
+  std::set<const sta::Pin*> all_critical_pins_;
+
+  // Map pin to detailed information (endpoint, gate type, delays)
+  std::map<const sta::Pin*, PinInfo> pin_info_;
+
+  // Initial slack distribution (captured at start of optimization)
+  std::map<const sta::Pin*, float> initial_pin_slack_;
+  std::map<const sta::Pin*, float> initial_endpoint_slack_;
 };
 
 }  // namespace rsz
