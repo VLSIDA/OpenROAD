@@ -111,6 +111,7 @@ class RepairSetup : public sta::dbStaState
                    int max_repairs_per_pass,
                    bool verbose,
                    const std::vector<MoveType>& sequence,
+                   const char* phases,
                    bool skip_pin_swap,
                    bool skip_gate_cloning,
                    bool skip_size_down,
@@ -141,7 +142,7 @@ class RepairSetup : public sta::dbStaState
                      bool force,
                      bool end,
                      bool last_gasp,
-                     bool phase2 = false) const;
+                     char phase_marker = ' ') const;
   void printProgressHeader() const;
   void printProgressFooter() const;
   bool terminateProgress(int iteration,
@@ -164,18 +165,23 @@ class RepairSetup : public sta::dbStaState
                        int max_passes_per_endpoint,
                        int max_repairs_per_pass,
                        bool verbose,
+                       bool is_final_phase,
                        int& opto_iteration,
                        float initial_tns,
                        float& prev_tns,
+                       float slack_margin = 0,  // When > 0, use fanin cone collection
+                       char phase_marker = '1',  // Character for progress table
                        ViolatorSortType sort_type
                        = ViolatorSortType::SORT_AND_FILTER_BY_LOAD_DELAY);
   void repairSetup_TNS(float setup_slack_margin,
                        int max_passes_per_endpoint,
                        int max_repairs_per_pass,
                        bool verbose,
+                       bool skip_last_gasp,
                        int& opto_iteration,
                        float initial_tns,
                        float& prev_tns,
+                       char phase_marker = '*',  // Character for progress table
                        ViolatorSortType sort_type
                        = ViolatorSortType::SORT_AND_FILTER_BY_LOAD_DELAY);
   bool shouldSwitchEndpoint(Vertex* current_endpoint, Vertex* worst_endpoint);
@@ -214,7 +220,8 @@ class RepairSetup : public sta::dbStaState
 
   sta::UnorderedMap<LibertyPort*, sta::LibertyPortSet> equiv_pin_map_;
 
-  static constexpr int decreasing_slack_max_passes_ = 50;
+  static constexpr int initial_decreasing_slack_max_passes_ = 6;
+  static constexpr int pass_limit_increment_ = 5;
   static constexpr int print_interval_ = 10;
   static constexpr int opto_small_interval_ = 100;
   static constexpr int opto_large_interval_ = 1000;

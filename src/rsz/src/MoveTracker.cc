@@ -47,32 +47,19 @@ MoveTracker::MoveTracker(utl::Logger* logger, sta::Sta* sta)
 
 void MoveTracker::setCurrentEndpoint(const sta::Pin* endpoint_pin)
 {
-  // Before switching, capture post-endpoint slack for previous endpoint
-  if (current_endpoint_ && current_endpoint_ != endpoint_pin) {
-    auto it = endpoint_slack_.find(current_endpoint_);
-    if (it != endpoint_slack_.end()) {
-      Vertex* prev_vertex = sta_->graph()->pinLoadVertex(current_endpoint_);
-      if (prev_vertex) {
-        Slack post_endpoint_slack
-            = sta_->vertexSlack(prev_vertex, MinMax::max());
-        // Update post-endpoint slack (middle value in tuple)
-        std::get<1>(it->second) = post_endpoint_slack;
-      }
-    }
-  }
-
   current_endpoint_ = endpoint_pin;
 
-  // Track original slack for this endpoint if first time seeing it
+  // If this is a new endpoint not yet in our tracking map, initialize it
+  // with current slack for all three values (will be updated later)
   if (endpoint_pin
       && endpoint_slack_.find(endpoint_pin) == endpoint_slack_.end()) {
     Vertex* vertex = sta_->graph()->pinLoadVertex(endpoint_pin);
     if (vertex) {
-      Slack original_slack = sta_->vertexSlack(vertex, MinMax::max());
-      // Store (original_slack, post_endpoint_slack, final_slack)
-      // Initialize all to original_slack for now
+      Slack current_slack = sta_->vertexSlack(vertex, MinMax::max());
+      // Store (original_slack, pre_phase_slack, post_phase_slack)
+      // Initialize all to current_slack (will be properly set by capture methods)
       endpoint_slack_[endpoint_pin]
-          = std::make_tuple(original_slack, original_slack, original_slack);
+          = std::make_tuple(current_slack, current_slack, current_slack);
     }
   }
 }
@@ -456,13 +443,13 @@ void MoveTracker::printEndpointSummary(const std::string& title)
     return;
   }
 
-  // Update final slack for all endpoints
+  // Update post-phase slack for all endpoints
   for (auto& [endpoint_pin, slack_tuple] : endpoint_slack_) {
     Vertex* vertex = sta_->graph()->pinLoadVertex(endpoint_pin);
     if (vertex) {
-      Slack final_slack = sta_->vertexSlack(vertex, MinMax::max());
+      Slack post_phase_slack = sta_->vertexSlack(vertex, MinMax::max());
       std::get<2>(slack_tuple)
-          = final_slack;  // Update final slack (3rd element)
+          = post_phase_slack;  // Update post-phase slack (3rd element)
     }
   }
 
@@ -484,7 +471,7 @@ void MoveTracker::printEndpointSummary(const std::string& title)
     total_commits_all += std::get<2>(counts);
   }
 
-  // Sort by final slack (most negative first) to show WNS endpoints
+  // Sort by post-phase slack (most negative first) to show WNS endpoints
   std::sort(endpoint_stats.begin(),
             endpoint_stats.end(),
             [this](const auto& a, const auto& b) {
@@ -496,7 +483,7 @@ void MoveTracker::printEndpointSummary(const std::string& title)
               if (slack_it_b == endpoint_slack_.end()) {
                 return true;
               }
-              // Sort by final slack (most negative first)
+              // Sort by post-phase slack (most negative first)
               Slack slack_a = std::get<2>(slack_it_a->second);
               Slack slack_b = std::get<2>(slack_it_b->second);
               return slack_a < slack_b;
@@ -515,15 +502,16 @@ void MoveTracker::printEndpointSummary(const std::string& title)
       RSZ,
       "move_tracker",
       1,
-      "{:<40} | {:>12} | {:>12} | {:>12} | {:>6} | {:>11} | {:>11} | {:>11}",
+      "{:<40} | {:>13} | {:>13} | {:>13} | {:>6} | {:>11} | {:>11} | {:>11} | {:>11}",
       "Endpoint",
       "Attempts",
       "Rejects",
       "Commits",
       "Commit%",
       "OrigSlk(ns)",
-      "PostEp(ns)",
-      "FinalSlk(ns)");
+      "PreSlk(ns)",
+      "PostSlk(ns)",
+      "Delta(ns)");
 
   // Print top endpoints: WNS phase shows top 20, TNS phase shows up to 1000
   int max_endpoints_to_print = is_tns_phase ? 1000 : 20;
@@ -569,36 +557,39 @@ void MoveTracker::printEndpointSummary(const std::string& title)
 
     // Get slack information
     Slack original_slack = 0.0;
-    Slack post_endpoint_slack = 0.0;
-    Slack final_slack = 0.0;
+    Slack pre_phase_slack = 0.0;
+    Slack post_phase_slack = 0.0;
     auto slack_it = endpoint_slack_.find(endpoint_pin);
     if (slack_it != endpoint_slack_.end()) {
       original_slack = std::get<0>(slack_it->second);
-      post_endpoint_slack = std::get<1>(slack_it->second);
-      final_slack = std::get<2>(slack_it->second);
+      pre_phase_slack = std::get<1>(slack_it->second);
+      post_phase_slack = std::get<2>(slack_it->second);
 
       // Track worst slack
       worst_original_slack = std::min(original_slack, worst_original_slack);
       worst_post_endpoint_slack
-          = std::min(post_endpoint_slack, worst_post_endpoint_slack);
-      worst_final_slack = std::min(final_slack, worst_final_slack);
+          = std::min(pre_phase_slack, worst_post_endpoint_slack);
+      worst_final_slack = std::min(post_phase_slack, worst_final_slack);
 
       // Accumulate TNS (sum of negative slacks)
       if (original_slack < 0.0) {
         tns_original += original_slack;
       }
-      if (post_endpoint_slack < 0.0) {
-        tns_post_endpoint += post_endpoint_slack;
+      if (pre_phase_slack < 0.0) {
+        tns_post_endpoint += pre_phase_slack;
       }
-      if (final_slack < 0.0) {
-        tns_final += final_slack;
+      if (post_phase_slack < 0.0) {
+        tns_final += post_phase_slack;
       }
     }
 
     // Convert to ns (seconds to nanoseconds)
     float original_slack_ns = delayAsFloat(original_slack) * 1e9;
-    float post_endpoint_slack_ns = delayAsFloat(post_endpoint_slack) * 1e9;
-    float final_slack_ns = delayAsFloat(final_slack) * 1e9;
+    float pre_phase_slack_ns = delayAsFloat(pre_phase_slack) * 1e9;
+    float post_phase_slack_ns = delayAsFloat(post_phase_slack) * 1e9;
+
+    // Calculate phase delta (improvement is positive)
+    float delta_ns = post_phase_slack_ns - pre_phase_slack_ns;
 
     string endpoint_name = sta_->network()->pathName(endpoint_pin);
     // Truncate long names
@@ -609,27 +600,28 @@ void MoveTracker::printEndpointSummary(const std::string& title)
     // Format attempts, rejects, commits with percentages (no divider)
     std::ostringstream attempts_str, rejects_str, commits_str;
     attempts_str << std::right << std::setw(6) << attempts << " "
-                 << std::setw(4) << std::fixed << std::setprecision(1)
+                 << std::setw(5) << std::fixed << std::setprecision(1)
                  << attempt_pct << "%";
-    rejects_str << std::right << std::setw(6) << rejects << " " << std::setw(4)
+    rejects_str << std::right << std::setw(6) << rejects << " " << std::setw(5)
                 << std::fixed << std::setprecision(1) << reject_pct << "%";
-    commits_str << std::right << std::setw(6) << commits << " " << std::setw(4)
+    commits_str << std::right << std::setw(6) << commits << " " << std::setw(5)
                 << std::fixed << std::setprecision(1) << commit_pct << "%";
 
     debugPrint(logger_,
                RSZ,
                "move_tracker",
                1,
-               "{:<40} | {:>12} | {:>12} | {:>12} | {:>5.1f}% | {:>11.3f} | "
-               "{:>11.3f} | {:>11.3f}",
+               "{:<40} | {:>13} | {:>13} | {:>13} | {:>5.1f}% | {:>11.3f} | "
+               "{:>11.3f} | {:>11.3f} | {:>11.3f}",
                endpoint_name,
                attempts_str.str(),
                rejects_str.str(),
                commits_str.str(),
                commit_rate,
                original_slack_ns,
-               post_endpoint_slack_ns,
-               final_slack_ns);
+               pre_phase_slack_ns,
+               post_phase_slack_ns,
+               delta_ns);
 
     count++;
   }
@@ -679,13 +671,13 @@ void MoveTracker::printEndpointSummary(const std::string& title)
   // Format total attempts, rejects, commits with percentages (no divider)
   std::ostringstream total_attempts_str, total_rejects_str, total_commits_str;
   total_attempts_str << std::right << std::setw(6) << total_attempts_shown
-                     << " " << std::setw(4) << std::fixed
+                     << " " << std::setw(5) << std::fixed
                      << std::setprecision(1) << total_attempt_pct << "%";
   total_rejects_str << std::right << std::setw(6) << total_rejects_shown << " "
-                    << std::setw(4) << std::fixed << std::setprecision(1)
+                    << std::setw(5) << std::fixed << std::setprecision(1)
                     << total_reject_pct << "%";
   total_commits_str << std::right << std::setw(6) << total_commits_shown << " "
-                    << std::setw(4) << std::fixed << std::setprecision(1)
+                    << std::setw(5) << std::fixed << std::setprecision(1)
                     << total_commit_pct << "%";
 
   // Print Total (shown) line with move counts only
@@ -693,8 +685,8 @@ void MoveTracker::printEndpointSummary(const std::string& title)
              RSZ,
              "move_tracker",
              1,
-             "{:<40} | {:>12} | {:>12} | {:>12} | {:>5.1f}% | {:>11} | "
-             "{:>11} | {:>11}",
+             "{:<40} | {:>13} | {:>13} | {:>13} | {:>5.1f}% | {:>11} | "
+             "{:>11} | {:>11} | {:>11}",
              "Total (shown)",
              total_attempts_str.str(),
              total_rejects_str.str(),
@@ -702,15 +694,17 @@ void MoveTracker::printEndpointSummary(const std::string& title)
              total_commit_rate,
              "",
              "",
+             "",
              "");
 
   // Print Maximum (WNS) summary line
+  float wns_delta_ns = wns_final_ns - wns_post_endpoint_ns;
   debugPrint(logger_,
              RSZ,
              "move_tracker",
              1,
-             "{:<40} | {:>12} | {:>12} | {:>12} | {:>6} | {:>11.3f} | "
-             "{:>11.3f} | {:>11.3f}",
+             "{:<40} | {:>13} | {:>13} | {:>13} | {:>6} | {:>11.3f} | "
+             "{:>11.3f} | {:>11.3f} | {:>11.3f}",
              "Maximum (WNS)",
              "",
              "",
@@ -718,15 +712,17 @@ void MoveTracker::printEndpointSummary(const std::string& title)
              "",
              wns_original_ns,
              wns_post_endpoint_ns,
-             wns_final_ns);
+             wns_final_ns,
+             wns_delta_ns);
 
   // Print Total (TNS) summary line
+  float tns_delta_ns = tns_final_ns - tns_post_endpoint_ns;
   debugPrint(logger_,
              RSZ,
              "move_tracker",
              1,
-             "{:<40} | {:>12} | {:>12} | {:>12} | {:>6} | {:>11.3f} | "
-             "{:>11.3f} | {:>11.3f}",
+             "{:<40} | {:>13} | {:>13} | {:>13} | {:>6} | {:>11.3f} | "
+             "{:>11.3f} | {:>11.3f} | {:>11.3f}",
              "Total (TNS)",
              "",
              "",
@@ -734,7 +730,8 @@ void MoveTracker::printEndpointSummary(const std::string& title)
              "",
              tns_original_ns,
              tns_post_endpoint_ns,
-             tns_final_ns);
+             tns_final_ns,
+             tns_delta_ns);
 
   // Count endpoints by effort
   int low_effort = 0;   // 1-10 attempts
@@ -1405,6 +1402,44 @@ void MoveTracker::printMissedOpportunitiesReport(const std::string& title)
              "visited",
              visited_no_attempt.size(),
              critical_never_visited.size());
+}
+
+void MoveTracker::captureOriginalEndpointSlack()
+{
+  // Capture the original slack for all violating endpoints
+  // This should be called once at the very beginning before any phases
+  sta::VertexSet* endpoints = sta_->search()->endpoints();
+  for (Vertex* vertex : *endpoints) {
+    const Pin* pin = vertex->pin();
+    if (!pin) {
+      continue;
+    }
+
+    Slack slack = sta_->vertexSlack(vertex, MinMax::max());
+
+    // Initialize or update only the original slack (first element of tuple)
+    auto it = endpoint_slack_.find(pin);
+    if (it != endpoint_slack_.end()) {
+      // Already exists, just update original slack
+      std::get<0>(it->second) = slack;
+    } else {
+      // New endpoint, initialize all three values to current slack
+      endpoint_slack_[pin] = std::make_tuple(slack, slack, slack);
+    }
+  }
+}
+
+void MoveTracker::capturePrePhaseSlack()
+{
+  // Capture slack at the start of a phase for all tracked endpoints
+  // This becomes the PreSlk column
+  for (auto& [endpoint_pin, slack_tuple] : endpoint_slack_) {
+    Vertex* vertex = sta_->graph()->pinLoadVertex(endpoint_pin);
+    if (vertex) {
+      Slack pre_phase_slack = sta_->vertexSlack(vertex, MinMax::max());
+      std::get<1>(slack_tuple) = pre_phase_slack;  // Update pre-phase slack (2nd element)
+    }
+  }
 }
 
 void MoveTracker::captureInitialSlackDistribution()

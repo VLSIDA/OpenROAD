@@ -8,6 +8,7 @@
 #include <cmath>
 #include <cstddef>
 #include <limits>
+#include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
@@ -199,6 +200,7 @@ bool RepairSetup::repairSetup(const float setup_slack_margin,
                               const int max_repairs_per_pass,
                               const bool verbose,
                               const std::vector<MoveType>& sequence,
+                              const char* phases,
                               const bool skip_pin_swap,
                               const bool skip_gate_cloning,
                               const bool skip_size_down,
@@ -219,6 +221,7 @@ bool RepairSetup::repairSetup(const float setup_slack_margin,
 
   violator_collector_->init(setup_slack_margin);
   violator_collector_->setMaxPassesPerEndpoint(max_passes);
+  violator_collector_->clearConsideredPins();
 
   setupMoveSequence(sequence,
                     skip_pin_swap,
@@ -267,40 +270,111 @@ bool RepairSetup::repairSetup(const float setup_slack_margin,
   est::IncrementalParasiticsGuard guard(estimate_parasitics_);
   int opto_iteration = 0;
 
-  // Run WNS Phase: WNS-Focused Repair
-  repairSetup_WNS(setup_slack_margin,
-                  max_passes,
-                  max_repairs_per_pass,
-                  verbose,
-                  opto_iteration,
-                  initial_tns,
-                  prev_tns);
-
+  // Capture initial slack distribution and original endpoint slack (once before all phases)
   if (move_tracker_) {
-    move_tracker_->printMoveSummary("WNS Phase Summary");
-    move_tracker_->printEndpointSummary("WNS Phase Endpoint Profiler");
-    move_tracker_->clear();
+    move_tracker_->captureInitialSlackDistribution();
+    move_tracker_->captureOriginalEndpointSlack();
   }
 
-  // Run TNS Phase: TNS-Focused Repair
-  repairSetup_TNS(setup_slack_margin,
-                  max_passes,
-                  max_repairs_per_pass,
-                  verbose,
-                  opto_iteration,
-                  initial_tns,
-                  prev_tns);
-
-  if (move_tracker_) {
-    move_tracker_->printMoveSummary("TNS Phase Summary");
-    move_tracker_->printEndpointSummary("TNS Phase Endpoint Profiler");
-    move_tracker_->clear();
+  // Set default phase sequence if none specified
+  // Default: WNS_PATH, WNS_CONE, TNS, WNS_PATH (ending with WNS for final cleanup)
+  std::string phases_str;
+  if (phases != nullptr && phases[0] != '\0') {
+    phases_str = phases;
+    logger_->info(RSZ, 216, "Using custom phase sequence: {}", phases);
+  } else {
+    phases_str = "WNS WNS_CONE TNS WNS";
   }
 
+  // Parse and execute phase sequence
+  // Available phases:
+  //   WNS_PATH or WNS:  Path-based WNS optimization (slack_margin=0)
+  //   WNS_CONE: Fanin cone WNS optimization (slack_margin=5ps)
+  //   TNS: TNS-focused optimization (all violating endpoints)
+  // Example: repair_timing -phases "WNS TNS WNS_CONE"
+  std::istringstream iss(phases_str);
+  std::string phase_name;
+
+  // Track phase counts to generate unique markers
+  int wns_path_count = 0;
+  int wns_cone_count = 0;
+  int tns_count = 0;
+
+  while (iss >> phase_name) {
+      if (phase_name == "WNS_PATH" || phase_name == "WNS") {
+        // WNS Phase: path-based, slack_margin=0
+        // Generate unique marker: first='*', second='1', third='2', etc.
+        char marker = (wns_path_count == 0) ? '*' : '0' + wns_path_count;
+        wns_path_count++;
+
+        repairSetup_WNS(setup_slack_margin,
+                        max_passes,
+                        max_repairs_per_pass,
+                        verbose,
+                        false,  // Not final phase
+                        opto_iteration,
+                        initial_tns,
+                        prev_tns,
+                        0,     // slack_margin = 0 (use path-based collection)
+                        marker);  // phase_marker
+
+        if (move_tracker_) {
+          move_tracker_->printMoveSummary("WNS_PATH Phase Summary");
+          move_tracker_->printEndpointSummary("WNS_PATH Phase Endpoint Profiler");
+          move_tracker_->clear();
+        }
+      } else if (phase_name == "WNS_CONE") {
+        // WNS Phase: fanin cone, slack_margin=5ps
+        // Generate unique marker: first='+', second='a', third='b', etc.
+        char marker = (wns_cone_count == 0) ? '+' : 'a' + (wns_cone_count - 1);
+        wns_cone_count++;
+
+        repairSetup_WNS(setup_slack_margin,
+                        max_passes,
+                        max_repairs_per_pass,
+                        verbose,
+                        false,  // Not final phase
+                        opto_iteration,
+                        initial_tns,
+                        prev_tns,
+                        5e-12,  // slack_margin = 5ps (use fanin cone collection)
+                        marker);   // phase_marker
+
+        if (move_tracker_) {
+          move_tracker_->printMoveSummary("WNS_CONE Phase Summary");
+          move_tracker_->printEndpointSummary("WNS_CONE Phase Endpoint Profiler");
+          move_tracker_->clear();
+        }
+      } else if (phase_name == "TNS") {
+        // TNS Phase
+        // Generate unique marker: first='^', second='A', third='B', etc.
+        char marker = (tns_count == 0) ? '^' : 'A' + (tns_count - 1);
+        tns_count++;
+
+        repairSetup_TNS(setup_slack_margin,
+                        max_passes,
+                        max_repairs_per_pass,
+                        verbose,
+                        skip_last_gasp,
+                        opto_iteration,
+                        initial_tns,
+                        prev_tns,
+                        marker);  // phase_marker
+
+        if (move_tracker_) {
+          move_tracker_->printMoveSummary("TNS Phase Summary");
+          move_tracker_->printEndpointSummary("TNS Phase Endpoint Profiler");
+          move_tracker_->clear();
+        }
+      } else {
+        logger_->warn(RSZ, 217, "Unknown phase name '{}', skipping", phase_name);
+      }
+    }
+
+  // VT swap phase (runs after all phases if conditions are met)
   if (!skip_crit_vt_swap && !skip_vt_swap
       && resizer_->lib_data_->sorted_vt_categories.size() > 1) {
     // Swap most critical cells to fastest VT
-
     OptoParams params(setup_slack_margin,
                       verbose,
                       skip_pin_swap,
@@ -319,27 +393,8 @@ bool RepairSetup::repairSetup(const float setup_slack_margin,
     }
   }
 
-  // Final WNS Phase: Last optimization pass focusing on worst slack
-  if (!skip_last_gasp) {
-    logger_->info(RSZ, 210, "Final WNS Phase: Last optimization pass...");
-    printProgressHeader();
-
-    repairSetup_WNS(setup_slack_margin,
-                    max_passes,
-                    max_repairs_per_pass,
-                    verbose,
-                    opto_iteration,
-                    initial_tns,
-                    prev_tns,
-                    ViolatorSortType::SORT_BY_LOAD_DELAY);
-
-    printProgressFooter();
-    if (move_tracker_) {
-      move_tracker_->printMoveSummary("Final WNS Phase Summary");
-      move_tracker_->printEndpointSummary("Final WNS Phase Endpoint Profiler");
-      move_tracker_->clear();
-    }
-  }
+  // Print progress footer after all phases
+  printProgressFooter();
 
   // Print comprehensive optimization reports (only if tracking is enabled)
   if (move_tracker_) {
@@ -746,7 +801,7 @@ void RepairSetup::printProgress(const int iteration,
                                 const bool force,
                                 const bool end,
                                 const bool last_gasp,
-                                const bool phase2) const
+                                const char phase_marker) const
 {
   const bool start = iteration == 0;
 
@@ -755,7 +810,7 @@ void RepairSetup::printProgress(const int iteration,
         "   Iter   | Removed | Resized | Inserted | Cloned |  Pin  |"
         "   Area   |    WNS   |   TNS      |  Viol  | Worst");
     logger_->report(
-        "   *TNS    | Buffers |  Gates  | Buffers  |  Gates | Swaps |"
+        "           | Buffers |  Gates  | Buffers  |  Gates | Swaps |"
         "          |          |            | Endpts | Endpt");
     logger_->report(
         "-----------------------------------------------------------"
@@ -769,7 +824,7 @@ void RepairSetup::printProgress(const int iteration,
     const Slack tns = sta_->totalNegativeSlack(max_);
 
     std::string itr_field
-        = fmt::format("{}{}", iteration, (phase2 || last_gasp ? "*" : ""));
+        = fmt::format("{}{}", iteration, (last_gasp ? '*' : phase_marker));
     if (end) {
       itr_field = "final";
     }
@@ -818,7 +873,7 @@ void RepairSetup::printProgressHeader() const
       "   Iter   | Removed | Resized | Inserted | Cloned |  Pin  |"
       "   Area   |    WNS   |   TNS      |  Viol  | Worst");
   logger_->report(
-      "   *TNS    | Buffers |  Gates  | Buffers  |  Gates | Swaps |"
+      "          | Buffers |  Gates  | Buffers  |  Gates | Swaps |"
       "          |          |            | Endpts | Endpt");
   logger_->report(
       "-----------------------------------------------------------"
@@ -1017,12 +1072,21 @@ void RepairSetup::repairSetup_WNS(const float setup_slack_margin,
                                   const int max_passes_per_endpoint,
                                   const int max_repairs_per_pass,
                                   const bool verbose,
+                                  const bool is_final_phase,
                                   int& opto_iteration,
                                   const float initial_tns,
                                   float& prev_tns,
+                                  const float slack_margin,
+                                  const char phase_marker,
                                   const ViolatorSortType sort_type)
 {
+  auto phase_start_time = std::chrono::steady_clock::now();
   constexpr int digits = 3;
+
+  // Capture pre-phase slack for tracking per-phase improvements
+  if (move_tracker_) {
+    move_tracker_->capturePrePhaseSlack();
+  }
 
   // Initialize WNS Phase tracking
   wns_no_progress_count_ = 0;
@@ -1032,14 +1096,28 @@ void RepairSetup::repairSetup_WNS(const float setup_slack_margin,
   // endpoint
   std::map<const Pin*, int> wns_endpoint_pass_counts_;
 
+  // Round-robin tracking
+  std::set<const Pin*> endpoints_visited_this_round;
+  bool any_improvement_this_round = false;
+  int round_number = 0;
+
+  // Per-endpoint "stuck" tracking (consecutive passes without improvement)
+  std::map<const Pin*, int> decreasing_slack_counts;
+  std::map<const Pin*, int> endpoint_pass_limits;
+  std::map<const Pin*, Slack> endpoint_prev_slack;
+
   // Get initial worst endpoint
   Slack worst_slack;
   Vertex* worst_endpoint;
   sta_->worstSlack(max_, worst_slack, worst_endpoint);
 
   if (!worst_endpoint) {
-    debugPrint(
-        logger_, RSZ, "repair_setup", 1, "WNS Phase: No worst endpoint found");
+    debugPrint(logger_,
+               RSZ,
+               "repair_setup",
+               1,
+               "WNS{} Phase: No worst endpoint found",
+               phase_marker);
     return;
   }
 
@@ -1048,18 +1126,20 @@ void RepairSetup::repairSetup_WNS(const float setup_slack_margin,
              RSZ,
              "repair_setup",
              1,
-             "WNS Phase: Focusing on worst slack path...");
-  printProgress(opto_iteration, false, false, false);
-
-  // Capture initial slack distribution after printing initial progress
-  // This captures the same state shown in iteration 0 of the progress table
-  if (move_tracker_) {
-    move_tracker_->captureInitialSlackDistribution();
-  }
+             "WNS{} Phase: Focusing on worst slack path{}...",
+             phase_marker,
+             slack_margin > 0 ? " with fanin cone collection" : "");
+  printProgress(opto_iteration, false, false, false, phase_marker);
 
   // Initialize the violator collector with the actual worst endpoint
   Vertex* current_endpoint = worst_endpoint;
   violator_collector_->useWorstEndpoint(worst_endpoint);
+  violator_collector_->markEndpointVisitedInWNS(worst_endpoint->pin());
+
+  // Initialize tracking for the initial endpoint
+  const Pin* initial_pin = worst_endpoint->pin();
+  endpoint_pass_limits[initial_pin] = initial_decreasing_slack_max_passes_;
+  decreasing_slack_counts[initial_pin] = 0;
 
   // Track initial endpoint in MoveTracker
   if (move_tracker_) {
@@ -1071,7 +1151,7 @@ void RepairSetup::repairSetup_WNS(const float setup_slack_margin,
   constexpr int max_no_progress = 4;
   const int phase1_start_iteration = opto_iteration;
 
-  // Main WNS Phase loop
+  // Main WNS Phase loop - Round-robin sticky algorithm
   while (true) {
     // Get current worst endpoint
     sta_->worstSlack(max_, worst_slack, worst_endpoint);
@@ -1081,32 +1161,116 @@ void RepairSetup::repairSetup_WNS(const float setup_slack_margin,
                  RSZ,
                  "repair_setup",
                  1,
-                 "WNS Phase: No worst endpoint, exiting");
+                 "WNS{} Phase: No worst endpoint, exiting",
+                 phase_marker);
       break;
     }
 
-    // Check if we should switch to a different endpoint
-    if (current_endpoint != worst_endpoint) {
-      debugPrint(logger_,
-                 RSZ,
-                 "repair_setup",
-                 1,
-                 "WNS Phase: Switching from {} to {}",
-                 current_endpoint->name(network_),
-                 worst_endpoint->name(network_));
+    const Pin* worst_pin = worst_endpoint->pin();
+
+    // Check if worst endpoint has already been visited this round
+    if (endpoints_visited_this_round.count(worst_pin) > 0) {
+      // All violating endpoints have been visited this round
+      if (!any_improvement_this_round) {
+        // No progress in entire round - exit WNS phase
+        debugPrint(
+            logger_,
+            RSZ,
+            "repair_setup",
+            1,
+            "WNS{} Phase: Round {} complete with no improvement, exiting",
+            phase_marker,
+            round_number);
+        break;
+      } else {
+        // Made progress this round - start new round
+        debugPrint(logger_,
+                   RSZ,
+                   "repair_setup",
+                   2,
+                   "WNS{} Phase: Round {} complete with improvement, starting "
+                   "round {}",
+                   phase_marker,
+                   round_number,
+                   round_number + 1);
+        endpoints_visited_this_round.clear();
+        any_improvement_this_round = false;
+        round_number++;
+        continue;  // Re-evaluate worst endpoint for new round
+      }
+    }
+
+    // Check if we need to switch to a different endpoint (worst changed)
+    // Only switch if current endpoint is either:
+    // 1. Not set yet (first iteration)
+    // 2. "Stuck" (hit decreasing slack limit)
+    // 3. Different from worst and current is already visited this round
+    const Pin* current_pin
+        = current_endpoint ? current_endpoint->pin() : nullptr;
+    bool should_switch = false;
+
+    if (!current_endpoint) {
+      // First iteration - use worst endpoint
+      should_switch = true;
+    } else if (endpoints_visited_this_round.count(current_pin) > 0) {
+      // Current endpoint already visited this round - must switch
+      should_switch = true;
+    } else if (current_endpoint != worst_endpoint) {
+      // Worst changed - only switch if current is stuck
+      int decreasing_count = decreasing_slack_counts[current_pin];
+      int pass_limit = endpoint_pass_limits[current_pin];
+      if (pass_limit == 0) {
+        pass_limit = initial_decreasing_slack_max_passes_;
+        endpoint_pass_limits[current_pin] = pass_limit;
+      }
+
+      if (decreasing_count >= pass_limit) {
+        // Current endpoint is stuck - switch to worst
+        should_switch = true;
+        debugPrint(logger_,
+                   RSZ,
+                   "repair_setup",
+                   2,
+                   "WNS{} Phase: Endpoint {} stuck after {} passes (limit {}), "
+                   "switching to {}",
+                   phase_marker,
+                   network_->pathName(current_pin),
+                   decreasing_count,
+                   pass_limit,
+                   network_->pathName(worst_pin));
+      }
+    }
+
+    if (should_switch && current_endpoint != worst_endpoint) {
+      if (current_endpoint) {
+        debugPrint(logger_,
+                   RSZ,
+                   "repair_setup",
+                   2,
+                   "WNS{} Phase: Switching from {} to {}",
+                   phase_marker,
+                   current_endpoint->name(network_),
+                   worst_endpoint->name(network_));
+      }
       current_endpoint = worst_endpoint;
       violator_collector_->useWorstEndpoint(worst_endpoint);
+      violator_collector_->markEndpointVisitedInWNS(worst_endpoint->pin());
       rejected_pin_moves_current_endpoint_
           .clear();  // Clear rejected moves for new endpoint
 
       // Track new endpoint in MoveTracker
-      const Pin* endpoint_pin = current_endpoint->pin();
       if (move_tracker_) {
-        move_tracker_->setCurrentEndpoint(endpoint_pin);
+        move_tracker_->setCurrentEndpoint(worst_pin);
       }
 
-      // Print progress when switching to a new endpoint
-      printProgress(opto_iteration, true, false, false, false);
+      // Initialize tracking for this endpoint if needed
+      if (endpoint_pass_limits.find(worst_pin) == endpoint_pass_limits.end()) {
+        endpoint_pass_limits[worst_pin] = initial_decreasing_slack_max_passes_;
+      }
+      if (decreasing_slack_counts.find(worst_pin)
+          == decreasing_slack_counts.end()) {
+        decreasing_slack_counts[worst_pin] = 0;
+      }
     }
 
     const Pin* endpoint_pin = current_endpoint->pin();
@@ -1123,27 +1287,22 @@ void RepairSetup::repairSetup_WNS(const float setup_slack_margin,
                  RSZ,
                  "repair_setup",
                  1,
-                 "WNS Phase: WNS endpoint {} exceeded pass limit {}, exiting",
+                 "WNS{} Phase: WNS endpoint {} exceeded pass limit {}, exiting",
+                 phase_marker,
                  network_->pathName(endpoint_pin),
                  max_passes_per_endpoint);
       break;
     }
 
     // Check if we've exceeded the maximum iterations for WNS Phase
-    // This grows as we see more unique endpoints.
     const int phase1_iterations = opto_iteration - phase1_start_iteration;
-    const int num_wns_endpoints_seen = wns_endpoint_pass_counts_.size();
-    const int max_phase1_iterations
-        = num_wns_endpoints_seen * max_passes_per_endpoint;
-    if (phase1_iterations >= max_phase1_iterations) {
+    if (phase1_iterations >= max_passes_per_endpoint) {
       debugPrint(logger_,
                  RSZ,
                  "repair_setup",
                  1,
-                 "WNS Phase: Reached maximum iterations {} ({} endpoints × {} "
-                 "passes), exiting",
-                 max_phase1_iterations,
-                 num_wns_endpoints_seen,
+                 "WNS{} Phase: Reached maximum iterations {}, exiting",
+                 phase_marker,
                  max_passes_per_endpoint);
       break;
     }
@@ -1154,10 +1313,11 @@ void RepairSetup::repairSetup_WNS(const float setup_slack_margin,
                  RSZ,
                  "repair_setup",
                  1,
-                 "WNS Phase: WNS {} meets slack margin {}, done",
+                 "WNS{} Phase: WNS {} meets slack margin {}, done",
+                 phase_marker,
                  delayAsString(worst_slack, sta_, digits),
                  delayAsString(setup_slack_margin, sta_, digits));
-      printProgress(opto_iteration, true, false, false);
+      printProgress(opto_iteration, true, false, false, phase_marker);
       break;
     }
 
@@ -1170,7 +1330,8 @@ void RepairSetup::repairSetup_WNS(const float setup_slack_margin,
                    RSZ,
                    "repair_setup",
                    1,
-                   "WNS Phase: No TNS progress for {} cycles, exiting",
+                   "WNS{} Phase: No TNS progress for {} cycles, exiting",
+                   phase_marker,
                    overall_no_progress_count_);
         break;
       }
@@ -1190,29 +1351,50 @@ void RepairSetup::repairSetup_WNS(const float setup_slack_margin,
     opto_iteration++;
 
     if (verbose || opto_iteration % print_interval_ == 0) {
-      printProgress(opto_iteration, false, false, false);
+      printProgress(opto_iteration, false, false, false, phase_marker);
     }
 
-    // Dynamically increase numPathsPerEndpoint from 1 to 3 as we make less
-    // progress. When we're struggling, looking at more paths can help find
-    // opportunities. Map [0, max_no_progress-1] evenly to [1, 3]
-    constexpr int maxPaths = 3;
-    const int numPathsPerEndpoint = std::min(
-        maxPaths,
-        1 + (overall_no_progress_count_ * maxPaths / max_no_progress));
-    if (numPathsPerEndpoint > 1) {
-      debugPrint(logger_,
-                 RSZ,
-                 "repair_setup",
-                 2,
-                 "WNS Phase: Increasing numPathsPerEndpoint to {} due to {} no "
-                 "progress cycles",
-                 numPathsPerEndpoint,
-                 overall_no_progress_count_);
-    }
+    // Collect violators based on slack_margin parameter
+    vector<const Pin*> viol_pins;
+    if (slack_margin == 0) {
+      // Path-based collection (original WNS behavior)
+      // Dynamically increase numPathsPerEndpoint from 1 to 3 as we make less
+      // progress. When we're struggling, looking at more paths can help find
+      // opportunities. Map [0, max_no_progress-1] evenly to [1, 3]
+      constexpr int maxPaths = 3;
+      const int numPathsPerEndpoint = std::min(
+          maxPaths,
+          1 + (overall_no_progress_count_ * maxPaths / max_no_progress));
+      if (numPathsPerEndpoint > 1) {
+        debugPrint(
+            logger_,
+            RSZ,
+            "repair_setup",
+            2,
+            "WNS{} Phase: Increasing numPathsPerEndpoint to {} due to {} no "
+            "progress cycles",
+            phase_marker,
+            numPathsPerEndpoint,
+            overall_no_progress_count_);
+      }
 
-    vector<const Pin*> viol_pins
-        = violator_collector_->collectViolators(numPathsPerEndpoint, -1, sort_type);
+      viol_pins = violator_collector_->collectViolators(
+          numPathsPerEndpoint, -1, sort_type);
+    } else {
+      // Fanin cone collection for current endpoint
+      viol_pins
+          = violator_collector_->collectViolatorsByFaninTraversalForEndpoint(
+              current_endpoint, slack_margin, 0.75);
+      debugPrint(
+          logger_,
+          RSZ,
+          "repair_setup",
+          2,
+          "WNS{} Phase: Collected {} pins from fanin cone of endpoint {}",
+          phase_marker,
+          viol_pins.size(),
+          network_->pathName(endpoint_pin));
+    }
 
     // Track which (pin, move) combinations succeeded
     vector<std::pair<const Pin*, BaseMove*>> chosen_moves;
@@ -1226,13 +1408,17 @@ void RepairSetup::repairSetup_WNS(const float setup_slack_margin,
       resizer_->journalEnd();
       wns_endpoint_pass_counts_[endpoint_pin]++;
 
+      // No changes possible - mark endpoint as visited and continue to next
+      endpoints_visited_this_round.insert(endpoint_pin);
       debugPrint(logger_,
                  RSZ,
                  "repair_setup",
-                 1,
-                 "WNS Phase: No changes possible - all moves on critical path "
-                 "have been tried, exiting");
-      break;
+                 2,
+                 "WNS{} Phase: No changes possible for endpoint {}, marking as "
+                 "visited",
+                 phase_marker,
+                 network_->pathName(endpoint_pin));
+      continue;  // Move to next worst endpoint
     }
 
     // Update parasitics and timing
@@ -1245,35 +1431,73 @@ void RepairSetup::repairSetup_WNS(const float setup_slack_margin,
     sta_->worstSlack(max_, new_wns, new_worst_vertex);
     float new_tns = sta_->totalNegativeSlack(max_);
 
-    // Accept if WNS improved OR (WNS same AND (endpoint improved OR TNS improved))
+    // Accept if WNS improved OR (WNS same AND (endpoint improved OR TNS
+    // improved))
     const bool wns_improved = fuzzyGreater(new_wns, prev_worst_slack);
     const bool wns_same = fuzzyEqual(new_wns, prev_worst_slack);
     const bool endpoint_improved = fuzzyGreater(end_slack, prev_end_slack);
     const bool tns_improved = fuzzyGreater(new_tns, prev_tns_local);
-    const bool better = wns_improved
-                        || (wns_same && (endpoint_improved || tns_improved));
-
-    debugPrint(
-        logger_,
-        RSZ,
-        "repair_setup",
-        2,
-        "WNS Phase: end_slack={} WNS={} prev_WNS={} TNS={} prev_TNS={} {}",
-        delayAsString(end_slack, sta_, digits),
-        delayAsString(new_wns, sta_, digits),
-        delayAsString(prev_worst_slack, sta_, digits),
-        delayAsString(new_tns, sta_, digits),
-        delayAsString(prev_tns_local, sta_, digits),
-        better ? "ACCEPT" : "REJECT");
+    const bool better
+        = wns_improved || (wns_same && (endpoint_improved || tns_improved));
 
     wns_endpoint_pass_counts_[endpoint_pin]++;
 
     if (better) {
+      // Improvement! Mark progress and reset decreasing slack counter
+      any_improvement_this_round = true;
+      decreasing_slack_counts[endpoint_pin] = 0;
+      endpoint_prev_slack[endpoint_pin] = end_slack;
+
+      // Check if we should increase pass limit (>50% success rate after
+      // current_limit passes) Cap at 25 to prevent runaway iteration counts
+      constexpr int max_adaptive_limit = 25;
+      int successful_passes = wns_endpoint_pass_counts_[endpoint_pin]
+                              - decreasing_slack_counts[endpoint_pin];
+      int total_passes = wns_endpoint_pass_counts_[endpoint_pin];
+      int current_limit = endpoint_pass_limits[endpoint_pin];
+
+      if (total_passes >= current_limit && successful_passes > current_limit / 2
+          && current_limit < max_adaptive_limit) {
+        endpoint_pass_limits[endpoint_pin] += pass_limit_increment_;
+        debugPrint(logger_,
+                   RSZ,
+                   "repair_setup",
+                   2,
+                   "WNS{} Phase: Endpoint {} has {} successes in {} passes, "
+                   "increasing limit to {}",
+                   phase_marker,
+                   network_->pathName(endpoint_pin),
+                   successful_passes,
+                   total_passes,
+                   endpoint_pass_limits[endpoint_pin]);
+      }
+
       if (move_tracker_) {
         move_tracker_->commitMoves();
       }
       resizer_->journalEnd();
     } else {
+      // No improvement - increment decreasing slack counter
+      decreasing_slack_counts[endpoint_pin]++;
+
+      // Check if this endpoint is now stuck
+      int current_limit = endpoint_pass_limits[endpoint_pin];
+      if (decreasing_slack_counts[endpoint_pin] >= current_limit) {
+        // Endpoint is stuck - mark as visited for this round
+        endpoints_visited_this_round.insert(endpoint_pin);
+        debugPrint(
+            logger_,
+            RSZ,
+            "repair_setup",
+            2,
+            "WNS{} Phase: Endpoint {} stuck after {} non-improving passes "
+            "(limit {}), marking as visited",
+            phase_marker,
+            network_->pathName(endpoint_pin),
+            decreasing_slack_counts[endpoint_pin],
+            current_limit);
+      }
+
       if (move_tracker_) {
         move_tracker_->rejectMoves();
       }
@@ -1285,37 +1509,41 @@ void RepairSetup::repairSetup_WNS(const float setup_slack_margin,
       for (const auto& [pin, move] : chosen_moves) {
         rejected_pin_moves_current_endpoint_[pin].insert(move);
       }
-
-      debugPrint(logger_,
-                 RSZ,
-                 "repair_setup",
-                 2,
-                 "WNS Phase: Marked {} (pin,move) pairs as rejected",
-                 chosen_moves.size());
     }
 
     if (resizer_->overMaxArea()) {
-      debugPrint(
-          logger_, RSZ, "repair_setup", 1, "WNS Phase: Over max area, exiting");
+      debugPrint(logger_,
+                 RSZ,
+                 "repair_setup",
+                 1,
+                 "WNS{} Phase: Over max area, exiting",
+                 phase_marker);
       break;
     }
   }
 
-  // Print phase completion (no footer - continue to TNS Phase in same table)
-  printProgress(opto_iteration, true, false, false);
+  // Print phase completion
+  // Mark as "final" only if this is the final WNS phase
+  printProgress(opto_iteration, true, is_final_phase, false, phase_marker);
 
   Slack final_wns;
   Vertex* final_worst;
   sta_->worstSlack(max_, final_wns, final_worst);
   float final_tns = sta_->totalNegativeSlack(max_);
 
+  auto phase_end_time = std::chrono::steady_clock::now();
+  auto phase_elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+                           phase_end_time - phase_start_time)
+                           .count();
   debugPrint(logger_,
              RSZ,
              "repair_setup",
              1,
-             "WNS Phase complete. WNS: {}, TNS: {}",
+             "WNS{} Phase complete. WNS: {}, TNS: {}, Time: {:.2f}s",
+             phase_marker,
              delayAsString(final_wns, sta_, digits),
-             delayAsString(final_tns, sta_, 1));
+             delayAsString(final_tns, sta_, 1),
+             phase_elapsed / 1000.0);
 }
 
 // TNS Phase: TNS-Focused Repair
@@ -1324,12 +1552,20 @@ void RepairSetup::repairSetup_TNS(const float setup_slack_margin,
                                   const int max_passes_per_endpoint,
                                   const int max_repairs_per_pass,
                                   const bool verbose,
+                                  const bool skip_last_gasp,
                                   int& opto_iteration,
                                   const float initial_tns,
                                   float& prev_tns,
+                                  const char phase_marker,
                                   const ViolatorSortType sort_type)
 {
+  auto phase_start_time = std::chrono::steady_clock::now();
   constexpr int digits = 3;
+
+  // Capture pre-phase slack for tracking per-phase improvements
+  if (move_tracker_) {
+    move_tracker_->capturePrePhaseSlack();
+  }
 
   // Initialize TNS Phase tracking
   overall_no_progress_count_ = 0;
@@ -1343,10 +1579,11 @@ void RepairSetup::repairSetup_TNS(const float setup_slack_margin,
              RSZ,
              "repair_setup",
              1,
-             "TNS Phase: Focusing on all violating endpoints...");
+             "TNS{} Phase: Focusing on all violating endpoints...",
+             phase_marker);
 
-  // Mark the start of TNS Phase in the table with an asterisk
-  printProgress(opto_iteration, false, false, false, true);
+  // Mark the start of TNS Phase in the table
+  printProgress(opto_iteration, false, false, false, phase_marker);
 
   // Track global WNS at start of TNS phase - must not degrade below this
   Slack initial_tns_phase_wns;
@@ -1365,17 +1602,22 @@ void RepairSetup::repairSetup_TNS(const float setup_slack_margin,
                RSZ,
                "repair_setup",
                1,
-               "TNS Phase: No violating endpoints, exiting");
+               "TNS{} Phase: No violating endpoints, exiting",
+               phase_marker);
     return;
   }
 
-  debugPrint(
-      logger_,
-      RSZ,
-      "repair_setup",
-      1,
-      "TNS Phase: Processing {} violating endpoints (skipping worst endpoint)",
-      max_endpoint_count);
+  debugPrint(logger_,
+             RSZ,
+             "repair_setup",
+             1,
+             "TNS{} Phase: Processing {} violating endpoints (skipping worst "
+             "endpoint)",
+             phase_marker,
+             max_endpoint_count);
+
+  // Track adaptive pass limits per endpoint
+  std::map<const Pin*, int> endpoint_pass_limits;
 
   // Process each endpoint sequentially, starting from index 1 to skip worst
   // endpoint
@@ -1397,9 +1639,24 @@ void RepairSetup::repairSetup_TNS(const float setup_slack_margin,
           RSZ,
           "repair_setup",
           2,
-          "TNS Phase: Endpoint {} (index {}) already meets timing, skipping",
+          "TNS{} Phase: Endpoint {} (index {}) already meets timing, skipping",
+          phase_marker,
           network_->pathName(endpoint_pin),
           endpoint_index);
+      continue;
+    }
+
+    // Skip endpoints already optimized in WNS phase
+    if (violator_collector_->wasEndpointVisitedInWNS(endpoint_pin)) {
+      debugPrint(logger_,
+                 RSZ,
+                 "repair_setup",
+                 2,
+                 "TNS{} Phase: Skipping endpoint {} (index {}) - already "
+                 "optimized in WNS phase",
+                 phase_marker,
+                 network_->pathName(endpoint_pin),
+                 endpoint_index);
       continue;
     }
 
@@ -1412,20 +1669,26 @@ void RepairSetup::repairSetup_TNS(const float setup_slack_margin,
                RSZ,
                "repair_setup",
                1,
-               "TNS Phase: Working on endpoint {} (index {}), slack = {}",
+               "TNS{} Phase: Working on endpoint {} (index {}), slack = {}",
+               phase_marker,
                network_->pathName(endpoint_pin),
                endpoint_index,
                delayAsString(endpoint_slack, sta_, digits));
 
-    printProgress(opto_iteration, true, false, false, true);
+    // Initialize adaptive pass limit for this endpoint
+    if (endpoint_pass_limits.find(endpoint_pin) == endpoint_pass_limits.end()) {
+      endpoint_pass_limits[endpoint_pin] = initial_decreasing_slack_max_passes_;
+    }
+    int current_limit = endpoint_pass_limits[endpoint_pin];
 
     // Try multiple passes on this endpoint
     int pass = 1;
     int decreasing_slack_passes = 0;
+    int successful_passes = 0;  // Track number of accepted moves
     Slack prev_endpoint_slack = endpoint_slack;
-    resizer_->journalBegin();
 
     while (pass <= max_passes_per_endpoint) {
+      resizer_->journalBegin();
       // Collect violating pins from this endpoint's critical path
       vector<const Pin*> viol_pins
           = violator_collector_->collectViolators(1, -1, sort_type);
@@ -1435,9 +1698,11 @@ void RepairSetup::repairSetup_TNS(const float setup_slack_margin,
                    RSZ,
                    "repair_setup",
                    2,
-                   "TNS Phase: No violating pins for endpoint {}, pass {}",
+                   "TNS{} Phase: No violating pins for endpoint {}, pass {}",
+                   phase_marker,
                    network_->pathName(endpoint_pin),
                    pass);
+        resizer_->journalEnd();
         break;
       }
 
@@ -1448,7 +1713,8 @@ void RepairSetup::repairSetup_TNS(const float setup_slack_margin,
                    RSZ,
                    "repair_setup",
                    2,
-                   "TNS Phase: No changes for endpoint {}, pass {}",
+                   "TNS{} Phase: No changes for endpoint {}, pass {}",
+                   phase_marker,
                    network_->pathName(endpoint_pin),
                    pass);
         resizer_->journalEnd();
@@ -1465,27 +1731,12 @@ void RepairSetup::repairSetup_TNS(const float setup_slack_margin,
       sta_->worstSlack(max_, global_wns, global_wns_vertex);
 
       // Accept if WNS improves OR (WNS same AND endpoint improves)
-      // BUT never accept if WNS gets worse than initial TNS phase WNS
-      const bool wns_improved = fuzzyGreater(global_wns, prev_global_wns);
-      const bool wns_same = fuzzyEqual(global_wns, prev_global_wns);
+      // Always compare against initial TNS phase WNS to prevent drift
+      const bool wns_improved = fuzzyGreater(global_wns, initial_tns_phase_wns);
+      const bool wns_same = fuzzyEqual(global_wns, initial_tns_phase_wns);
       const bool endpoint_improved
           = fuzzyGreater(endpoint_slack, prev_endpoint_slack);
-      const bool wns_not_worse_than_initial
-          = fuzzyGreaterEqual(global_wns, initial_tns_phase_wns);
-      const bool better = (wns_improved || (wns_same && endpoint_improved))
-                          && wns_not_worse_than_initial;
-
-      debugPrint(logger_,
-                 RSZ,
-                 "repair_setup",
-                 2,
-                 "TNS Phase: pass {} slack {} -> {}, WNS {} -> {}, {}",
-                 pass,
-                 delayAsString(prev_endpoint_slack, sta_, digits),
-                 delayAsString(endpoint_slack, sta_, digits),
-                 delayAsString(prev_global_wns, sta_, digits),
-                 delayAsString(global_wns, sta_, digits),
-                 better ? "ACCEPT" : "REJECT");
+      const bool better = wns_improved || (wns_same && endpoint_improved);
 
       if (better) {
         if (endpoint_slack > setup_slack_margin) {
@@ -1493,7 +1744,8 @@ void RepairSetup::repairSetup_TNS(const float setup_slack_margin,
                      RSZ,
                      "repair_setup",
                      1,
-                     "TNS Phase: Endpoint {} meets timing, done",
+                     "TNS{} Phase: Endpoint {} meets timing, done",
+                     phase_marker,
                      network_->pathName(endpoint_pin));
           resizer_->journalEnd();
           break;
@@ -1501,19 +1753,43 @@ void RepairSetup::repairSetup_TNS(const float setup_slack_margin,
         prev_endpoint_slack = endpoint_slack;
         prev_global_wns = global_wns;
         decreasing_slack_passes = 0;
-        resizer_->journalEnd();
-        resizer_->journalBegin();
-      } else {
-        // Allow slack to decrease to escape local minima
-        decreasing_slack_passes++;
-        if (decreasing_slack_passes > decreasing_slack_max_passes_) {
+        successful_passes++;
+
+        // Only increase pass limit if we've done current_limit passes
+        // and more than 50% were successful
+        // Cap at 25 to prevent runaway iteration counts
+        constexpr int max_adaptive_limit = 25;
+        if (pass >= current_limit && successful_passes > current_limit / 2
+            && current_limit < max_adaptive_limit) {
+          endpoint_pass_limits[endpoint_pin] += pass_limit_increment_;
+          current_limit = endpoint_pass_limits[endpoint_pin];
           debugPrint(logger_,
                      RSZ,
                      "repair_setup",
                      2,
-                     "TNS Phase: Decreasing slack for {} passes, stopping",
-                     decreasing_slack_passes);
-          resizer_->journalRestore();
+                     "TNS{} Phase: Endpoint {} has {} successes in {} passes, "
+                     "increasing limit to {}",
+                     phase_marker,
+                     network_->pathName(endpoint_pin),
+                     successful_passes,
+                     pass,
+                     current_limit);
+        }
+        resizer_->journalEnd();
+      } else {
+        // Rejected move - restore and try again
+        resizer_->journalRestore();
+        decreasing_slack_passes++;
+        if (decreasing_slack_passes > current_limit) {
+          debugPrint(logger_,
+                     RSZ,
+                     "repair_setup",
+                     2,
+                     "TNS{} Phase: Decreasing slack for {} passes (limit {}), "
+                     "stopping",
+                     phase_marker,
+                     decreasing_slack_passes,
+                     current_limit);
           break;
         }
       }
@@ -1523,9 +1799,10 @@ void RepairSetup::repairSetup_TNS(const float setup_slack_margin,
                    RSZ,
                    "repair_setup",
                    1,
-                   "TNS Phase: Over max area, exiting");
+                   "TNS{} Phase: Over max area, exiting",
+                   phase_marker);
         resizer_->journalEnd();
-        printProgress(opto_iteration, true, true, false, true);
+        printProgress(opto_iteration, true, true, false, phase_marker);
         printProgressFooter();
         return;
       }
@@ -1533,24 +1810,41 @@ void RepairSetup::repairSetup_TNS(const float setup_slack_margin,
       pass++;
     }
 
-    resizer_->journalEnd();
+    // Increment iteration and print progress after each endpoint
+    opto_iteration++;
+    if (verbose || endpoint_index == 1
+        || opto_iteration % print_interval_ == 0) {
+      printProgress(opto_iteration, false, false, false, phase_marker);
+    }
   }
 
   // Print phase completion
-  printProgress(opto_iteration, true, true, false, true);
+  // Mark as "final" only if there's no Final WNS phase
+  printProgress(opto_iteration, true, skip_last_gasp, false, phase_marker);
+
+  // If Final WNS phase is disabled, close the table here
+  if (skip_last_gasp) {
+    printProgressFooter();
+  }
 
   Slack final_wns;
   Vertex* final_worst;
   sta_->worstSlack(max_, final_wns, final_worst);
   float final_tns = sta_->totalNegativeSlack(max_);
 
+  auto phase_end_time = std::chrono::steady_clock::now();
+  auto phase_elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+                           phase_end_time - phase_start_time)
+                           .count();
   debugPrint(logger_,
              RSZ,
              "repair_setup",
              1,
-             "TNS Phase complete. WNS: {}, TNS: {}",
+             "TNS{} Phase complete. WNS: {}, TNS: {}, Time: {:.2f}s",
+             phase_marker,
              delayAsString(final_wns, sta_, digits),
-             delayAsString(final_tns, sta_, 1));
+             delayAsString(final_tns, sta_, 1),
+             phase_elapsed / 1000.0);
 }
 
 // Perform VT swap on remaining critical cells as a last resort

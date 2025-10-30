@@ -28,7 +28,8 @@ enum class ViolatorSortType
   SORT_BY_WNS = 2,
   SORT_BY_TNS = 3,
   SORT_BY_HEURISTIC = 4,
-  MAX = 5
+  SORT_AND_FILTER_BY_HEURISTIC = 5,
+  MAX = 6
 };
 
 struct pinData
@@ -96,6 +97,32 @@ class ViolatorCollector
       int numPins,
       ViolatorSortType sort_type);
 
+  // Collect violators directly by pin slack (not path-based)
+  vector<const Pin*> collectViolatorsByPin(int numPins,
+                                           ViolatorSortType sort_type
+                                           = ViolatorSortType::SORT_BY_LOAD_DELAY);
+
+  // Collect violators within slack margin of worst endpoint
+  // Returns pins where:
+  // 1. slack < worst_slack + slack_margin
+  // 2. load_delay > load_delay_threshold * intrinsic_delay
+  vector<const Pin*> collectViolatorsBySlackMargin(
+      float slack_margin,
+      float load_delay_threshold = 0.75);
+
+  // Collect violators by traversing fanin cones of critical endpoints
+  // More efficient than whole-design scan
+  vector<const Pin*> collectViolatorsByFaninTraversal(
+      float slack_margin,
+      float load_delay_threshold = 0.75);
+
+  // Collect violators by traversing fanin cone of a SINGLE endpoint
+  // Used by WNS phase when slack_margin > 0
+  vector<const Pin*> collectViolatorsByFaninTraversalForEndpoint(
+      Vertex* endpoint,
+      float slack_margin,
+      float load_delay_threshold = 0.75);
+
   // For statistics on critical paths
   int getTotalViolations() const;
 
@@ -136,6 +163,18 @@ class ViolatorCollector
   // Get effort delays (load and intrinsic) for a pin
   std::pair<Delay, Delay> getEffortDelays(const Pin* pin);
 
+  // Track endpoints visited during WNS phase
+  void markEndpointVisitedInWNS(const Pin* endpoint);
+  bool wasEndpointVisitedInWNS(const Pin* endpoint) const;
+  void clearWNSVisitedEndpoints();
+
+  // Track pins considered during optimization (for Slack phase)
+  void markPinConsidered(const Pin* pin);
+  bool wasPinConsidered(const Pin* pin) const;
+  void clearConsideredPins();
+  const std::set<const Pin*>& getConsideredPins() const;
+  std::vector<const Pin*> getCriticalPinsNeverConsidered();
+
  private:
   void updatePinData(const Pin* pin, pinData& pd);
 
@@ -152,7 +191,7 @@ class ViolatorCollector
   void sortByLoadDelay(float load_delay_threshold = 0.0);
   void sortByWNS();
   void sortByLocalTNS();
-  void sortByHeuristic();
+  void sortByHeuristic(float load_delay_threshold = 0.0);
   std::map<const Pin*, Delay> getLocalTNS() const;
   Delay getLocalPinTNS(const Pin* pin) const;
 
@@ -184,6 +223,12 @@ class ViolatorCollector
   Vertex* current_endpoint_;
   Slack current_end_original_slack_;
   int current_endpoint_index_;
+
+  // Track endpoints visited during WNS phase (for skipping in TNS phase)
+  std::set<const Pin*> wns_visited_endpoints_;
+
+  // Track pins considered during optimization (for Slack phase)
+  std::set<const Pin*> considered_pins_;
 };
 
 }  // namespace rsz

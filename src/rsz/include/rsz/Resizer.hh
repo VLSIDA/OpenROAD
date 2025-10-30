@@ -281,6 +281,7 @@ class Resizer : public dbStaState, public dbNetworkObserver
                    bool match_cell_footprint,
                    bool verbose,
                    const std::vector<MoveType>& sequence,
+                   const char* phases,
                    bool skip_pin_swap,
                    bool skip_gate_cloning,
                    bool skip_size_down,

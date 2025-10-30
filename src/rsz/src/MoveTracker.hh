@@ -133,6 +133,12 @@ class MoveTracker
   // Capture initial slack for all pins (call at start of optimization)
   void captureInitialSlackDistribution();
 
+  // Capture original slack for all endpoints (call once before any phases)
+  void captureOriginalEndpointSlack();
+
+  // Capture pre-phase slack for all endpoints (call at start of each phase)
+  void capturePrePhaseSlack();
+
   // Get the visit count for a specific pin
   int getVisitCount(const sta::Pin* pin) const;
 
@@ -170,10 +176,10 @@ class MoveTracker
   // Per-endpoint tracking: endpoint_pin -> (attempts, rejects, commits)
   std::map<const sta::Pin*, std::tuple<int, int, int>> endpoint_move_counts_;
 
-  // Per-endpoint slack tracking: endpoint_pin -> (original_slack, post_endpoint_slack, final_slack)
-  // - original_slack: slack when first encountered
-  // - post_endpoint_slack: slack when moving to next endpoint
-  // - final_slack: slack at end of all optimization
+  // Per-endpoint slack tracking: endpoint_pin -> (original_slack, pre_phase_slack, post_phase_slack)
+  // - original_slack: slack at very start of optimization (before any phases)
+  // - pre_phase_slack: slack at start of current phase
+  // - post_phase_slack: slack at end of current phase
   std::map<const sta::Pin*, std::tuple<float, float, float>> endpoint_slack_;
 
   // Detailed tracking for final reports (persists across clear() calls)
