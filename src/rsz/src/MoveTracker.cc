@@ -2215,6 +2215,7 @@ vector<pair<Slack, const sta::PathEnd*>> MoveTracker::enumerateEndpointPaths(
                              max_paths,              // group_path_count
                              max_paths,              // endpoint_path_count
                              false,                  // unique_pins
+                             false,                  // unique_edges
                              -sta::INF,              // slack_min
                              sta::INF,               // slack_max
                              true,                   // sort_by_slack

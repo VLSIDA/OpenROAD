@@ -293,152 +293,10 @@ bool RepairSetup::repairSetup(const float setup_slack_margin,
 
     if (phase_index < 26) {
       return 'a' + phase_index;
-      // Restore to previous good checkpoint
-      debugPrint(logger_,
-                 RSZ,
-                 "repair_setup",
-                 2,
-                 "Restoring best slack end slack {} worst slack {}",
-                 delayAsString(prev_end_slack, sta_, digits),
-                 delayAsString(prev_worst_slack, sta_, digits));
-      resizer_->journalRestore();
-      break;
     }
-    if (opto_iteration % opto_small_interval_ == 0) {
-      prev_termination = false;
-    }
+    phase_index -= 26;
 
-    if (end_slack > setup_slack_margin) {
-      --num_viols;
-      if (pass != 1) {
-        debugPrint(logger_,
-                   RSZ,
-                   "repair_setup",
-                   2,
-                   "Restoring best slack end slack {} worst slack {}",
-                   delayAsString(prev_end_slack, sta_, digits),
-                   delayAsString(prev_worst_slack, sta_, digits));
-        resizer_->journalRestore();
-      } else {
-        resizer_->journalEnd();
-      }
-      // clang-format off
-        debugPrint(logger_, RSZ, "repair_setup", 1, "bailing out at {}/{} "
-                   "end_slack {} is larger than setup_slack_margin {}",
-                   end_index, max_end_count, end_slack, setup_slack_margin);
-      // clang-format on
-      break;
-    }
-    Path* end_path = sta_->vertexWorstSlackPath(end, max_);
-
-    const bool changed = repairPath(end_path, end_slack, setup_slack_margin);
-    if (!changed) {
-      if (pass != 1) {
-        debugPrint(logger_,
-                   RSZ,
-                   "repair_setup",
-                   2,
-                   "No change after {} decreasing slack passes.",
-                   decreasing_slack_passes);
-        debugPrint(logger_,
-                   RSZ,
-                   "repair_setup",
-                   2,
-                   "Restoring best slack end slack {} worst slack {}",
-                   delayAsString(prev_end_slack, sta_, digits),
-                   delayAsString(prev_worst_slack, sta_, digits));
-        resizer_->journalRestore();
-      } else {
-        resizer_->journalEnd();
-      }
-      // clang-format off
-        debugPrint(logger_, RSZ, "repair_setup", 1, "bailing out {} no changes"
-                   " after {} decreasing passes", end->name(network_),
-                   decreasing_slack_passes);
-      // clang-format on
-      break;
-    }
-    estimate_parasitics_->updateParasitics();
-    sta_->findRequireds();
-    end_slack = sta_->vertexSlack(end, max_);
-    sta_->worstSlack(max_, worst_slack, worst_vertex);
-    const bool better
-        = (fuzzyGreater(worst_slack, prev_worst_slack)
-           || (end_index != 1 && fuzzyEqual(worst_slack, prev_worst_slack)
-               && fuzzyGreater(end_slack, prev_end_slack)));
-    debugPrint(logger_,
-               RSZ,
-               "repair_setup",
-               2,
-               "pass {} slack = {} worst_slack = {} {}",
-               pass,
-               delayAsString(end_slack, sta_, digits),
-               delayAsString(worst_slack, sta_, digits),
-               better ? "save" : "");
-    if (better) {
-      if (end_slack > setup_slack_margin) {
-        --num_viols;
-      }
-      prev_end_slack = end_slack;
-      prev_worst_slack = worst_slack;
-      decreasing_slack_passes = 0;
-      resizer_->journalEnd();
-      // Progress, Save checkpoint so we can back up to here.
-      resizer_->journalBegin();
-    } else {
-      fallback_ = true;
-      // Allow slack to increase to get out of local minima.
-      // Do not update prev_end_slack so it saves the high water mark.
-      decreasing_slack_passes++;
-      if (decreasing_slack_passes > decreasing_slack_max_passes_) {
-        // Undo changes that reduced slack.
-        debugPrint(logger_,
-                   RSZ,
-                   "repair_setup",
-                   2,
-                   "decreasing slack for {} passes.",
-                   decreasing_slack_passes);
-        debugPrint(logger_,
-                   RSZ,
-                   "repair_setup",
-                   2,
-                   "Restoring best end slack {} worst slack {}",
-                   delayAsString(prev_end_slack, sta_, digits),
-                   delayAsString(prev_worst_slack, sta_, digits));
-        resizer_->journalRestore();
-        // clang-format off
-          debugPrint(logger_, RSZ, "repair_setup", 1, "bailing out {} decreasing"
-                     " passes {} > decreasig pass limit {}", end->name(network_),
-                     decreasing_slack_passes, decreasing_slack_max_passes_);
-        // clang-format on
-        break;
-      }
-    }
-
-    if (resizer_->overMaxArea()) {
-      // clang-format off
-        debugPrint(logger_, RSZ, "repair_setup", 1, "bailing out {} resizer"
-                   " over max area", end->name(network_));
-      // clang-format on
-      resizer_->journalEnd();
-      break;
-    }
-    if (end_index == 1) {
-      end = worst_vertex;
-    }
-    pass++;
-    if (max_iterations > 0 && opto_iteration >= max_iterations) {
-      resizer_->journalEnd();
-      break;
-    }
-  }  // while pass <= max_passes
-  if (verbose || opto_iteration == 1)
-  {
-    printProgress(opto_iteration, true, false, false, num_viols);
-  }
-  phase_index -= 26;
-
-  if (phase_index < 26) {
+    if (phase_index < 26) {
     return 'A' + phase_index;
   }
 
@@ -1222,14 +1080,7 @@ void RepairSetup::repairSetupLastGasp(const OptoParams& params)
         resizer_->journalEnd();
         break;
       }
-      if (end_index == 1) {
-        end = worst_vertex;
-      }
       pass++;
-      if (max_iterations > 0 && opto_iteration >= max_iterations) {
-        resizer_->journalEnd();
-        break;
-      }
     }  // while pass <= max_last_gasp_passes_
     if (params.verbose || opto_iteration == 1) {
       printProgress(opto_iteration, true, false, true);

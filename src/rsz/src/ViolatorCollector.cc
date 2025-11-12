@@ -422,6 +422,7 @@ Slack ViolatorCollector::getPathSlackByIndex(const Pin* endpoint_pin,
                               num_paths_needed,       // group_path_count
                               num_paths_needed,       // endpoint_path_count
                               false,                  // unique_pins
+                              false,                  // unique_edges
                               -sta::INF,              // slack_min
                               sta::INF,               // slack_max
                               true,                   // sort_by_slack
@@ -1022,6 +1023,7 @@ set<const Pin*> ViolatorCollector::collectPinsByPathEndpoint(
                               paths_per_endpoint,     // group_path_count
                               paths_per_endpoint,     // endpoint_path_count
                               false,                  // unique_pins
+                              false,                  // unique_edges
                               -sta::INF,              // slack_min
                               sta::INF,               // slack_max
                               true,                   // sort_by_slack
