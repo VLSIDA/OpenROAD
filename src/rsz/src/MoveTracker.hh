@@ -12,6 +12,7 @@
 namespace sta {
 class Pin;
 class Sta;
+class PathEnd;
 }  // namespace sta
 
 namespace utl {
@@ -130,6 +131,12 @@ class MoveTracker
   // Print pre- and post-optimization slack distribution
   void printSlackDistribution(const std::string& title);
 
+  // Print detailed analysis of endpoints in the top (most critical) bin
+  void printTopBinEndpoints(const std::string& title, int max_endpoints = 20);
+
+  // Print histogram of path slacks for the most critical endpoint
+  void printCriticalEndpointPathHistogram(const std::string& title);
+
   // Capture initial slack for all pins (call at start of optimization)
   void captureInitialSlackDistribution();
 
@@ -152,6 +159,19 @@ class MoveTracker
 
  private:
   void clearMoveSummary();
+
+  // Helper function to enumerate paths to an endpoint and count negative slack paths
+  // Returns a vector of (path_slack, path_end) pairs for all paths to the endpoint
+  std::vector<std::pair<float, const sta::PathEnd*>> enumerateEndpointPaths(
+      const sta::Pin* endpoint_pin,
+      int max_paths = 100);
+
+  // Helper function to draw a histogram given bin labels and counts
+  void drawHistogram(const std::string& title,
+                     const std::vector<std::string>& bin_labels,
+                     const std::vector<int>& bin_counts,
+                     const std::string& value_label = "Slack (ns)",
+                     const std::string& count_label = "Count");
 
   utl::Logger* logger_;
   sta::Sta* sta_;

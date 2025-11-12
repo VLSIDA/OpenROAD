@@ -142,7 +142,8 @@ class RepairSetup : public sta::dbStaState
                      bool force,
                      bool end,
                      bool last_gasp,
-                     char phase_marker = ' ') const;
+                     char phase_marker = ' ',
+                     bool use_startpoint_metrics = false) const;
   void printProgressHeader() const;
   void printProgressFooter() const;
   bool terminateProgress(int iteration,
@@ -165,11 +166,11 @@ class RepairSetup : public sta::dbStaState
                        int max_passes_per_endpoint,
                        int max_repairs_per_pass,
                        bool verbose,
-                       bool is_final_phase,
                        int& opto_iteration,
                        float initial_tns,
                        float& prev_tns,
-                       float slack_margin = 0,  // When > 0, use fanin cone collection
+                       bool use_cone_collection
+                       = false,  // true for WNS_CONE, false for WNS
                        char phase_marker = '1',  // Character for progress table
                        ViolatorSortType sort_type
                        = ViolatorSortType::SORT_AND_FILTER_BY_LOAD_DELAY);
@@ -177,13 +178,28 @@ class RepairSetup : public sta::dbStaState
                        int max_passes_per_endpoint,
                        int max_repairs_per_pass,
                        bool verbose,
-                       bool skip_last_gasp,
                        int& opto_iteration,
                        float initial_tns,
                        float& prev_tns,
                        char phase_marker = '*',  // Character for progress table
                        ViolatorSortType sort_type
                        = ViolatorSortType::SORT_AND_FILTER_BY_LOAD_DELAY);
+  void repairSetup_EP_FI(float setup_slack_margin,
+                                   int max_passes_per_endpoint,
+                                   bool verbose,
+                                   int& opto_iteration,
+                                   char phase_marker = '!');
+  void repairSetup_SP_FO(float setup_slack_margin,
+                                      int max_passes_per_startpoint,
+                                      bool verbose,
+                                      int& opto_iteration,
+                                      char phase_marker = '@');
+  void repairSetup_Directional(bool use_startpoints,
+                                float setup_slack_margin,
+                                int max_passes_per_point,
+                                bool verbose,
+                                int& opto_iteration,
+                                char phase_marker);
   bool shouldSwitchEndpoint(Vertex* current_endpoint, Vertex* worst_endpoint);
 
   void hitDebugCheckpoint();

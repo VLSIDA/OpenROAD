@@ -30,24 +30,11 @@
 #include "UnbufferMove.hh"
 #include "VTSwapMove.hh"
 #include "ViolatorCollector.hh"
-#include "odb/db.h"
 #include "rsz/Resizer.hh"
-#include "sta/Corner.hh"
-#include "sta/DcalcAnalysisPt.hh"
 #include "sta/Fuzzy.hh"
 #include "sta/Graph.hh"
-#include "sta/GraphDelayCalc.hh"
-#include "sta/InputDrive.hh"
-#include "sta/Liberty.hh"
-#include "sta/Parasitics.hh"
-#include "sta/PathEnd.hh"
 #include "sta/PathExpanded.hh"
 #include "sta/PortDirection.hh"
-#include "sta/Sdc.hh"
-#include "sta/Search.hh"
-#include "sta/Sta.hh"
-#include "sta/TimingArc.hh"
-#include "sta/Units.hh"
 #include "utl/Logger.h"
 #include "utl/mem_stats.h"
 
@@ -64,7 +51,6 @@ using sta::fuzzyEqual;
 using sta::fuzzyGreater;
 using sta::fuzzyGreaterEqual;
 using sta::fuzzyLess;
-using sta::GraphDelayCalc;
 using sta::InstancePinIterator;
 using sta::NetConnectedPinIterator;
 using sta::PathEndSeq;
@@ -270,106 +256,143 @@ bool RepairSetup::repairSetup(const float setup_slack_margin,
   est::IncrementalParasiticsGuard guard(estimate_parasitics_);
   int opto_iteration = 0;
 
-  // Capture initial slack distribution and original endpoint slack (once before all phases)
+  // Capture initial slack distribution and original endpoint slack (once before
+  // all phases)
   if (move_tracker_) {
     move_tracker_->captureInitialSlackDistribution();
     move_tracker_->captureOriginalEndpointSlack();
   }
 
   // Set default phase sequence if none specified
-  // Default: WNS_PATH, WNS_CONE, TNS, WNS_PATH (ending with WNS for final cleanup)
+  // Default: WNS_PATH, WNS_CONE, TNS, WNS_PATH (ending with WNS for final
+  // cleanup)
   std::string phases_str;
   if (phases != nullptr && phases[0] != '\0') {
     phases_str = phases;
     logger_->info(RSZ, 216, "Using custom phase sequence: {}", phases);
   } else {
-    phases_str = "WNS WNS_CONE TNS WNS";
+    // phases_str = "WNS WNS_CONE WNS TNS WNS";
+    phases_str = "SP_FO EP_FI";
   }
 
   // Parse and execute phase sequence
-  // Available phases:
-  //   WNS_PATH or WNS:  Path-based WNS optimization (slack_margin=0)
-  //   WNS_CONE: Fanin cone WNS optimization (slack_margin=5ps)
-  //   TNS: TNS-focused optimization (all violating endpoints)
   // Example: repair_timing -phases "WNS TNS WNS_CONE"
+  // Helper function to get phase marker from global phase index
+  // Marker sequence: *+^&@!-= then a-z then A-Z
+  auto getPhaseMarker = [](int phase_index) -> char {
+    const char special_markers[] = "*+^&@!-=";
+    const int num_special = 8;
+
+    if (phase_index < num_special) {
+      return special_markers[phase_index];
+    }
+    phase_index -= num_special;
+
+    if (phase_index < 26) {
+      return 'a' + phase_index;
+    }
+    phase_index -= 26;
+
+    if (phase_index < 26) {
+      return 'A' + phase_index;
+    }
+
+    // Fallback if we exceed all markers (unlikely)
+    return '?';
+  };
+
   std::istringstream iss(phases_str);
   std::string phase_name;
 
-  // Track phase counts to generate unique markers
-  int wns_path_count = 0;
-  int wns_cone_count = 0;
-  int tns_count = 0;
+  // Track global phase index for unified marker assignment
+  int phase_index = 0;
+  char marker = getPhaseMarker(phase_index++);
 
   while (iss >> phase_name) {
-      if (phase_name == "WNS_PATH" || phase_name == "WNS") {
-        // WNS Phase: path-based, slack_margin=0
-        // Generate unique marker: first='*', second='1', third='2', etc.
-        char marker = (wns_path_count == 0) ? '*' : '0' + wns_path_count;
-        wns_path_count++;
+    if (phase_name == "WNS_PATH" || phase_name == "WNS") {
+      repairSetup_WNS(
+          setup_slack_margin,
+          max_passes,
+          max_repairs_per_pass,
+          verbose,
+          opto_iteration,
+          initial_tns,
+          prev_tns,
+          false,    // use_cone_collection = false (use path-based collection)
+          marker);  // phase_marker
 
-        repairSetup_WNS(setup_slack_margin,
-                        max_passes,
-                        max_repairs_per_pass,
-                        verbose,
-                        false,  // Not final phase
-                        opto_iteration,
-                        initial_tns,
-                        prev_tns,
-                        0,     // slack_margin = 0 (use path-based collection)
-                        marker);  // phase_marker
-
-        if (move_tracker_) {
-          move_tracker_->printMoveSummary("WNS_PATH Phase Summary");
-          move_tracker_->printEndpointSummary("WNS_PATH Phase Endpoint Profiler");
-          move_tracker_->clear();
-        }
-      } else if (phase_name == "WNS_CONE") {
-        // WNS Phase: fanin cone, slack_margin=5ps
-        // Generate unique marker: first='+', second='a', third='b', etc.
-        char marker = (wns_cone_count == 0) ? '+' : 'a' + (wns_cone_count - 1);
-        wns_cone_count++;
-
-        repairSetup_WNS(setup_slack_margin,
-                        max_passes,
-                        max_repairs_per_pass,
-                        verbose,
-                        false,  // Not final phase
-                        opto_iteration,
-                        initial_tns,
-                        prev_tns,
-                        5e-12,  // slack_margin = 5ps (use fanin cone collection)
-                        marker);   // phase_marker
-
-        if (move_tracker_) {
-          move_tracker_->printMoveSummary("WNS_CONE Phase Summary");
-          move_tracker_->printEndpointSummary("WNS_CONE Phase Endpoint Profiler");
-          move_tracker_->clear();
-        }
-      } else if (phase_name == "TNS") {
-        // TNS Phase
-        // Generate unique marker: first='^', second='A', third='B', etc.
-        char marker = (tns_count == 0) ? '^' : 'A' + (tns_count - 1);
-        tns_count++;
-
-        repairSetup_TNS(setup_slack_margin,
-                        max_passes,
-                        max_repairs_per_pass,
-                        verbose,
-                        skip_last_gasp,
-                        opto_iteration,
-                        initial_tns,
-                        prev_tns,
-                        marker);  // phase_marker
-
-        if (move_tracker_) {
-          move_tracker_->printMoveSummary("TNS Phase Summary");
-          move_tracker_->printEndpointSummary("TNS Phase Endpoint Profiler");
-          move_tracker_->clear();
-        }
-      } else {
-        logger_->warn(RSZ, 217, "Unknown phase name '{}', skipping", phase_name);
+      if (move_tracker_) {
+        move_tracker_->printMoveSummary("WNS_PATH Phase Summary");
+        move_tracker_->printEndpointSummary("WNS_PATH Phase Endpoint Profiler");
+        move_tracker_->clear();
       }
+    } else if (phase_name == "WNS_CONE") {
+      repairSetup_WNS(
+          setup_slack_margin,
+          max_passes,
+          max_repairs_per_pass,
+          verbose,
+          opto_iteration,
+          initial_tns,
+          prev_tns,
+          true,     // use_cone_collection = true (use cone-based collection)
+          marker);  // phase_marker
+
+      if (move_tracker_) {
+        move_tracker_->printMoveSummary("WNS_CONE Phase Summary");
+        move_tracker_->printEndpointSummary("WNS_CONE Phase Endpoint Profiler");
+        move_tracker_->clear();
+      }
+    } else if (phase_name == "TNS") {
+      repairSetup_TNS(setup_slack_margin,
+                      max_passes,
+                      max_repairs_per_pass,
+                      verbose,
+                      opto_iteration,
+                      initial_tns,
+                      prev_tns,
+                      marker);  // phase_marker
+
+      if (move_tracker_) {
+        move_tracker_->printMoveSummary("TNS Phase Summary");
+        move_tracker_->printEndpointSummary("TNS Phase Endpoint Profiler");
+        move_tracker_->clear();
+      }
+    } else if (phase_name == "EP_FI") {
+      repairSetup_EP_FI(setup_slack_margin,
+                        max_passes,
+                        verbose,
+                        opto_iteration,
+                        marker);  // phase_marker
+
+      if (move_tracker_) {
+        move_tracker_->printMoveSummary("EP_FI Phase Summary");
+        move_tracker_->printEndpointSummary("EP_FI Phase Endpoint Profiler");
+        move_tracker_->clear();
+      }
+    } else if (phase_name == "SP_FO") {
+      repairSetup_SP_FO(setup_slack_margin,
+                        max_passes,
+                        verbose,
+                        opto_iteration,
+                        marker);  // phase_marker
+
+      if (move_tracker_) {
+        move_tracker_->printMoveSummary("SP_FO Phase Summary");
+        move_tracker_->printEndpointSummary("SP_FO Phase Startpoint Profiler");
+        move_tracker_->clear();
+      }
+    } else {
+      logger_->error(RSZ,
+                     217,
+                     "Unknown phase name '{}'. Valid phase names are: WNS, "
+                     "TNS, EP_FI, SP_FO",
+                     phase_name);
     }
+
+    // Update marker for next phase
+    marker = getPhaseMarker(phase_index++);
+  }
 
   // VT swap phase (runs after all phases if conditions are met)
   if (!skip_crit_vt_swap && !skip_vt_swap
@@ -393,8 +416,9 @@ bool RepairSetup::repairSetup(const float setup_slack_margin,
     }
   }
 
-  // Print progress footer after all phases
-  printProgressFooter();
+  // Print final summary row showing end state of all phases
+  // (end=true will also print the footer)
+  printProgress(opto_iteration, true, true, false, ' ');
 
   // Print comprehensive optimization reports (only if tracking is enabled)
   if (move_tracker_) {
@@ -405,6 +429,10 @@ bool RepairSetup::repairSetup(const float setup_slack_margin,
     logger_->info(RSZ, 211, "");
     logger_->info(RSZ, 212, "=== Optimization Analysis Reports ===");
     move_tracker_->printSlackDistribution("Pin Slack Distribution");
+    move_tracker_->printTopBinEndpoints(
+        "Most Critical Endpoints After Optimization");
+    move_tracker_->printCriticalEndpointPathHistogram(
+        "Critical Endpoint Path Distribution");
     move_tracker_->printSuccessReport("Successful Optimizations Report");
     move_tracker_->printFailureReport("Unsuccessful Optimizations Report");
     move_tracker_->printMissedOpportunitiesReport(
@@ -654,7 +682,7 @@ bool RepairSetup::repairPins(
       if (move->doMove(drvr_pin, setup_slack_margin)) {
         // Record this successful move
         if (chosen_moves) {
-          chosen_moves->push_back({drvr_pin, move});
+          chosen_moves->emplace_back(drvr_pin, move);
         }
 
         if (move == resizer_->unbuffer_move_.get()) {
@@ -801,27 +829,30 @@ void RepairSetup::printProgress(const int iteration,
                                 const bool force,
                                 const bool end,
                                 const bool last_gasp,
-                                const char phase_marker) const
+                                const char phase_marker,
+                                const bool use_startpoint_metrics) const
 {
   const bool start = iteration == 0;
 
   if (start && !end) {
     logger_->report(
         "   Iter   | Removed | Resized | Inserted | Cloned |  Pin  |"
-        "   Area   |    WNS   |   TNS      |  Viol  | Worst");
+        "   Area   |    WNS   |   StTNS    |   EnTNS    |  Viol  |  Worst  ");
     logger_->report(
-        "           | Buffers |  Gates  | Buffers  |  Gates | Swaps |"
-        "          |          |            | Endpts | Endpt");
+        "          | Buffers |  Gates  | Buffers  |  Gates | Swaps |"
+        "          |          |            |            | Endpts | St/EnPt ");
     logger_->report(
         "-----------------------------------------------------------"
-        "---------------------------------------------------");
+        "-----------------------------------------------------------");
   }
 
   if (iteration % print_interval_ == 0 || force || end) {
-    Slack wns;
-    Vertex* worst_vertex;
-    sta_->worstSlack(max_, wns, worst_vertex);
-    const Slack tns = sta_->totalNegativeSlack(max_);
+    // Always calculate both startpoint and endpoint metrics for display
+    Slack wns = violator_collector_->getWNS();          // WNS is same for both
+    Slack st_tns = violator_collector_->getTNS(true);   // Startpoint TNS
+    Slack en_tns = violator_collector_->getTNS(false);  // Endpoint TNS
+    const Pin* worst_pin
+        = violator_collector_->getWorstPin(use_startpoint_metrics);
 
     std::string itr_field
         = fmt::format("{}{}", iteration, (last_gasp ? '*' : phase_marker));
@@ -840,7 +871,7 @@ void RepairSetup::printProgress(const int iteration,
     // could go down if a pass is rejected and restored by the ECO.
     logger_->report(
         "{: >9s} | {: >7d} | {: >7d} | {: >8d} | {: >6d} | {: >5d} "
-        "| {: >+7.1f}% | {: >8s} | {: >10s} | {: >6d} | {}",
+        "| {: >+7.1f}% | {: >8s} | {: >10s} | {: >10s} | {: >6d} | {}",
         itr_field,
         resizer_->unbuffer_move_->numMoves(),
         resizer_->size_up_move_->numMoves()
@@ -853,9 +884,10 @@ void RepairSetup::printProgress(const int iteration,
         resizer_->swap_pins_move_->numMoves(),
         area_growth_percent,
         delayAsString(wns, sta_, 3),
-        delayAsString(tns, sta_, 1),
+        delayAsString(st_tns, sta_, 1),
+        delayAsString(en_tns, sta_, 1),
         max(0, violator_collector_->getNumViolatingEndpoints()),
-        worst_vertex != nullptr ? worst_vertex->name(network_) : "");
+        worst_pin != nullptr ? network_->pathName(worst_pin) : "");
 
     debugPrint(logger_, RSZ, "memory", 1, "RSS = {}", utl::getCurrentRSS());
   }
@@ -863,7 +895,7 @@ void RepairSetup::printProgress(const int iteration,
   if (end) {
     logger_->report(
         "-----------------------------------------------------------"
-        "---------------------------------------------------");
+        "-----------------------------------------------------------");
   }
 }
 
@@ -871,20 +903,20 @@ void RepairSetup::printProgressHeader() const
 {
   logger_->report(
       "   Iter   | Removed | Resized | Inserted | Cloned |  Pin  |"
-      "   Area   |    WNS   |   TNS      |  Viol  | Worst");
+      "   Area   |    WNS   |   StTNS    |   EnTNS    |  Viol  |  Worst  ");
   logger_->report(
       "          | Buffers |  Gates  | Buffers  |  Gates | Swaps |"
-      "          |          |            | Endpts | Endpt");
+      "          |          |            |            | Endpts | St/EnPt ");
   logger_->report(
       "-----------------------------------------------------------"
-      "---------------------------------------------------");
+      "-----------------------------------------------------------");
 }
 
 void RepairSetup::printProgressFooter() const
 {
   logger_->report(
       "-----------------------------------------------------------"
-      "---------------------------------------------------");
+      "-----------------------------------------------------------");
 }
 
 // Terminate progress if incremental fix rate within an opto interval falls
@@ -1072,11 +1104,10 @@ void RepairSetup::repairSetup_WNS(const float setup_slack_margin,
                                   const int max_passes_per_endpoint,
                                   const int max_repairs_per_pass,
                                   const bool verbose,
-                                  const bool is_final_phase,
                                   int& opto_iteration,
                                   const float initial_tns,
                                   float& prev_tns,
-                                  const float slack_margin,
+                                  const bool use_cone_collection,
                                   const char phase_marker,
                                   const ViolatorSortType sort_type)
 {
@@ -1128,7 +1159,7 @@ void RepairSetup::repairSetup_WNS(const float setup_slack_margin,
              1,
              "WNS{} Phase: Focusing on worst slack path{}...",
              phase_marker,
-             slack_margin > 0 ? " with fanin cone collection" : "");
+             use_cone_collection ? " with fanin cone collection" : "");
   printProgress(opto_iteration, false, false, false, phase_marker);
 
   // Initialize the violator collector with the actual worst endpoint
@@ -1354,55 +1385,105 @@ void RepairSetup::repairSetup_WNS(const float setup_slack_margin,
       printProgress(opto_iteration, false, false, false, phase_marker);
     }
 
-    // Collect violators based on slack_margin parameter
+    // Collect violators based on collection mode
     vector<const Pin*> viol_pins;
-    if (slack_margin == 0) {
-      // Path-based collection (original WNS behavior)
-      // Dynamically increase numPathsPerEndpoint from 1 to 3 as we make less
-      // progress. When we're struggling, looking at more paths can help find
-      // opportunities. Map [0, max_no_progress-1] evenly to [1, 3]
-      constexpr int maxPaths = 3;
-      const int numPathsPerEndpoint = std::min(
-          maxPaths,
-          1 + (overall_no_progress_count_ * maxPaths / max_no_progress));
-      if (numPathsPerEndpoint > 1) {
-        debugPrint(
-            logger_,
-            RSZ,
-            "repair_setup",
-            2,
-            "WNS{} Phase: Increasing numPathsPerEndpoint to {} due to {} no "
-            "progress cycles",
-            phase_marker,
-            numPathsPerEndpoint,
-            overall_no_progress_count_);
-      }
+    if (use_cone_collection) {
+      // Cone-based collection with adaptive threshold
+      viol_pins = violator_collector_->collectViolatorsByConeTraversal(
+          current_endpoint, sort_type);
 
-      viol_pins = violator_collector_->collectViolators(
-          numPathsPerEndpoint, -1, sort_type);
+      debugPrint(logger_,
+                 RSZ,
+                 "repair_setup",
+                 2,
+                 "WNS{} Phase: Collected {} pins from cone for endpoint {}",
+                 phase_marker,
+                 viol_pins.size(),
+                 network_->pathName(endpoint_pin));
+
+      // Debug: List collected pins for comparison with path-based
+      if (logger_->debugCheck(RSZ, "repair_setup", 3)) {
+        debugPrint(logger_, RSZ, "repair_setup", 3, "Cone-collected pins:");
+        for (size_t i = 0; i < std::min(viol_pins.size(), size_t(20)); i++) {
+          Vertex* pin_vertex = graph_->pinDrvrVertex(viol_pins[i]);
+          Slack pin_slack
+              = pin_vertex ? sta_->vertexSlack(pin_vertex, max_) : 0.0;
+          debugPrint(logger_,
+                     RSZ,
+                     "repair_setup",
+                     3,
+                     "  [{}] {} slack={}",
+                     i,
+                     network_->pathName(viol_pins[i]),
+                     delayAsString(pin_slack, sta_, 3));
+        }
+        if (viol_pins.size() > 20) {
+          debugPrint(logger_,
+                     RSZ,
+                     "repair_setup",
+                     3,
+                     "  ... ({} total)",
+                     viol_pins.size());
+        }
+      }
     } else {
-      // Fanin cone collection for current endpoint
-      viol_pins
-          = violator_collector_->collectViolatorsByFaninTraversalForEndpoint(
-              current_endpoint, slack_margin, 0.75);
-      debugPrint(
-          logger_,
-          RSZ,
-          "repair_setup",
-          2,
-          "WNS{} Phase: Collected {} pins from fanin cone of endpoint {}",
-          phase_marker,
-          viol_pins.size(),
-          network_->pathName(endpoint_pin));
+      // Path-based collection: Always use 1 path per endpoint
+      viol_pins = violator_collector_->collectViolators(1, -1, sort_type);
+
+      // Debug: List collected pins for comparison with cone-based
+      if (logger_->debugCheck(RSZ, "repair_setup", 3)) {
+        debugPrint(logger_, RSZ, "repair_setup", 3, "Path-collected pins:");
+        for (size_t i = 0; i < std::min(viol_pins.size(), size_t(20)); i++) {
+          Vertex* pin_vertex = graph_->pinDrvrVertex(viol_pins[i]);
+          Slack pin_slack
+              = pin_vertex ? sta_->vertexSlack(pin_vertex, max_) : 0.0;
+          debugPrint(logger_,
+                     RSZ,
+                     "repair_setup",
+                     3,
+                     "  [{}] {} slack={}",
+                     i,
+                     network_->pathName(viol_pins[i]),
+                     delayAsString(pin_slack, sta_, 3));
+        }
+        if (viol_pins.size() > 20) {
+          debugPrint(logger_,
+                     RSZ,
+                     "repair_setup",
+                     3,
+                     "  ... ({} total)",
+                     viol_pins.size());
+        }
+      }
+    }
+
+    // For cone-based: process ALL pins before re-collecting
+    int repairs_this_pass = max_repairs_per_pass_;
+    if (use_cone_collection) {
+      repairs_this_pass = viol_pins.size();  // Process entire cone
+
+      debugPrint(logger_,
+                 RSZ,
+                 "repair_setup",
+                 2,
+                 "WNS_CONE: Processing all {} pins before re-collecting cone",
+                 repairs_this_pass);
     }
 
     // Track which (pin, move) combinations succeeded
     vector<std::pair<const Pin*, BaseMove*>> chosen_moves;
 
+    // Temporarily override max_repairs_per_pass_
+    int saved_max_repairs = max_repairs_per_pass_;
+    max_repairs_per_pass_ = repairs_this_pass;
+
     const bool changed = repairPins(viol_pins,
                                     setup_slack_margin,
                                     &rejected_pin_moves_current_endpoint_,
                                     &chosen_moves);
+
+    // Restore original
+    max_repairs_per_pass_ = saved_max_repairs;
 
     if (!changed) {
       resizer_->journalEnd();
@@ -1523,8 +1604,7 @@ void RepairSetup::repairSetup_WNS(const float setup_slack_margin,
   }
 
   // Print phase completion
-  // Mark as "final" only if this is the final WNS phase
-  printProgress(opto_iteration, true, is_final_phase, false, phase_marker);
+  printProgress(opto_iteration, true, false, false, phase_marker);
 
   Slack final_wns;
   Vertex* final_worst;
@@ -1552,7 +1632,6 @@ void RepairSetup::repairSetup_TNS(const float setup_slack_margin,
                                   const int max_passes_per_endpoint,
                                   const int max_repairs_per_pass,
                                   const bool verbose,
-                                  const bool skip_last_gasp,
                                   int& opto_iteration,
                                   const float initial_tns,
                                   float& prev_tns,
@@ -1589,9 +1668,6 @@ void RepairSetup::repairSetup_TNS(const float setup_slack_margin,
   Slack initial_tns_phase_wns;
   Vertex* initial_tns_phase_worst;
   sta_->worstSlack(max_, initial_tns_phase_wns, initial_tns_phase_worst);
-
-  // Track previous pass WNS for comparison
-  Slack prev_global_wns = initial_tns_phase_wns;
 
   // Collect all violating endpoints once at the start
   violator_collector_->collectViolatingEndpoints();
@@ -1751,7 +1827,6 @@ void RepairSetup::repairSetup_TNS(const float setup_slack_margin,
           break;
         }
         prev_endpoint_slack = endpoint_slack;
-        prev_global_wns = global_wns;
         decreasing_slack_passes = 0;
         successful_passes++;
 
@@ -1819,13 +1894,7 @@ void RepairSetup::repairSetup_TNS(const float setup_slack_margin,
   }
 
   // Print phase completion
-  // Mark as "final" only if there's no Final WNS phase
-  printProgress(opto_iteration, true, skip_last_gasp, false, phase_marker);
-
-  // If Final WNS phase is disabled, close the table here
-  if (skip_last_gasp) {
-    printProgressFooter();
-  }
+  printProgress(opto_iteration, true, false, false, phase_marker);
 
   Slack final_wns;
   Vertex* final_worst;
@@ -1842,6 +1911,440 @@ void RepairSetup::repairSetup_TNS(const float setup_slack_margin,
              1,
              "TNS{} Phase complete. WNS: {}, TNS: {}, Time: {:.2f}s",
              phase_marker,
+             delayAsString(final_wns, sta_, digits),
+             delayAsString(final_tns, sta_, 1),
+             phase_elapsed / 1000.0);
+}
+
+// EP_FI Phase: Iteratively refine threshold from 0 to endpoint slack
+// For each endpoint, try progressively tighter thresholds until diminishing
+// returns
+void RepairSetup::repairSetup_EP_FI(const float setup_slack_margin,
+                                    const int max_passes_per_endpoint,
+                                    const bool verbose,
+                                    int& opto_iteration,
+                                    const char phase_marker)
+{
+  // Wrapper: call unified directional function with use_startpoints=false
+  repairSetup_Directional(false,  // use_startpoints
+                          setup_slack_margin,
+                          max_passes_per_endpoint,
+                          verbose,
+                          opto_iteration,
+                          phase_marker);
+}
+
+void RepairSetup::repairSetup_SP_FO(const float setup_slack_margin,
+                                    const int max_passes_per_startpoint,
+                                    const bool verbose,
+                                    int& opto_iteration,
+                                    const char phase_marker)
+{
+  // Wrapper: call unified directional function with use_startpoints=true
+  repairSetup_Directional(true,  // use_startpoints
+                          setup_slack_margin,
+                          max_passes_per_startpoint,
+                          verbose,
+                          opto_iteration,
+                          phase_marker);
+}
+
+// Unified directional repair function that handles both EP_FI and SP_FO modes
+void RepairSetup::repairSetup_Directional(const bool use_startpoints,
+                                          const float setup_slack_margin,
+                                          const int max_passes_per_point,
+                                          const bool verbose,
+                                          int& opto_iteration,
+                                          const char phase_marker)
+{
+  auto phase_start_time = std::chrono::steady_clock::now();
+  constexpr int digits = 3;
+
+  // Capture pre-phase slack for tracking per-phase improvements
+  if (move_tracker_) {
+    move_tracker_->capturePrePhaseSlack();
+  }
+
+  // Threshold margin percentages to try for each point.
+  // These percentages are relative to the point's slack, creating progressively
+  // tighter thresholds: 20%, 50%, and 100% of the point's slack.
+  // Reduced from 5 to 3 thresholds for faster runtime.
+  const float margin_percentages[] = {0.20, 0.50, 1.00};
+  const int num_thresholds = 3;
+
+  // Diminishing returns threshold: stop if improvement < 10ps
+  // Increased from 1ps to 10ps to reduce iterations with minimal improvement
+  constexpr Slack diminishing_returns_threshold = 1e-11;  // 10 picoseconds
+
+  const char* phase_name = use_startpoints ? "SP_FO" : "EP_FI";
+  const char* point_type = use_startpoints ? "startpoint" : "endpoint";
+  const char* point_type_cap = use_startpoints ? "Startpoint" : "Endpoint";
+
+  debugPrint(logger_,
+             RSZ,
+             "repair_setup",
+             1,
+             "{}{} Phase: Iterative threshold refinement...",
+             phase_name,
+             phase_marker);
+
+  // Collect all violating points once at the start
+  violator_collector_->collectViolatingPoints(use_startpoints);
+  int max_point_count = violator_collector_->getMaxPointCount(use_startpoints);
+
+  // Print progress
+  printProgress(
+      opto_iteration, false, false, false, phase_marker, use_startpoints);
+
+  if (max_point_count == 0) {
+    debugPrint(logger_,
+               RSZ,
+               "repair_setup",
+               1,
+               "{}{} Phase: No violating {}s, exiting",
+               phase_name,
+               phase_marker,
+               point_type);
+    return;
+  }
+
+  debugPrint(logger_,
+             RSZ,
+             "repair_setup",
+             1,
+             "{}{} Phase: Processing {} violating {}s",
+             phase_name,
+             phase_marker,
+             max_point_count,
+             point_type);
+
+  int points_processed = 0;
+
+  // Main loop: process each violating point in order from most critical
+  for (int point_index = 0; point_index < max_point_count; point_index++) {
+    violator_collector_->setToPoint(point_index, use_startpoints);
+    Vertex* point = violator_collector_->getCurrentPoint(use_startpoints);
+
+    if (!point) {
+      continue;
+    }
+
+    const Pin* point_pin
+        = violator_collector_->getCurrentPointPin(use_startpoints);
+    Slack point_slack = sta_->vertexSlack(point, max_);
+
+    // Check if point already meets timing
+    if (point_slack >= setup_slack_margin) {
+      debugPrint(logger_,
+                 RSZ,
+                 "repair_setup",
+                 2,
+                 "{}{} Phase: {} {} (index {}) already meets timing, skipping",
+                 phase_name,
+                 phase_marker,
+                 point_type_cap,
+                 network_->pathName(point_pin),
+                 point_index);
+      continue;
+    }
+
+    debugPrint(logger_,
+               RSZ,
+               "repair_setup",
+               1,
+               "{}{} Phase: Processing {} {} (index {}), slack = {}",
+               phase_name,
+               phase_marker,
+               point_type,
+               network_->pathName(point_pin),
+               point_index,
+               delayAsString(point_slack, sta_, digits));
+
+    // Clear rejected moves for this point
+    rejected_pin_moves_current_endpoint_.clear();
+
+    int point_pass_count = 0;
+    Slack prev_point_slack = point_slack;
+
+    // Try progressively tighter thresholds for this point
+    for (int threshold_idx = 0; threshold_idx < num_thresholds;
+         threshold_idx++) {
+      // Check if we've exceeded pass limit for this point
+      if (point_pass_count >= max_passes_per_point) {
+        debugPrint(logger_,
+                   RSZ,
+                   "repair_setup",
+                   1,
+                   "{}{} Phase: {} {} reached pass limit {}, moving to next {}",
+                   phase_name,
+                   phase_marker,
+                   point_type_cap,
+                   network_->pathName(point_pin),
+                   max_passes_per_point,
+                   point_type);
+        break;
+      }
+
+      // Re-check point slack (may have improved from previous thresholds)
+      point_slack = sta_->vertexSlack(point, max_);
+
+      // Check if point now meets timing
+      if (point_slack >= setup_slack_margin) {
+        debugPrint(logger_,
+                   RSZ,
+                   "repair_setup",
+                   1,
+                   "{}{} Phase: {} {} now meets timing, moving to next {}",
+                   phase_name,
+                   phase_marker,
+                   point_type_cap,
+                   network_->pathName(point_pin),
+                   point_type);
+        break;
+      }
+
+      float margin_pct = margin_percentages[threshold_idx];
+      Slack margin = std::abs(point_slack) * margin_pct;
+      Slack threshold = point_slack + margin;
+
+      debugPrint(logger_,
+                 RSZ,
+                 "repair_setup",
+                 2,
+                 "{}{} Phase: Trying threshold {}/{}: margin={:.0f}%, "
+                 "threshold={}",
+                 phase_name,
+                 phase_marker,
+                 threshold_idx + 1,
+                 num_thresholds,
+                 margin_pct * 100.0,
+                 delayAsString(threshold, sta_, digits));
+
+      // Save state before repair attempt
+      Slack prev_wns = violator_collector_->getWNS();
+      Slack prev_endpoint_tns
+          = violator_collector_->getTNS(false);  // Endpoint TNS
+      Slack prev_startpoint_tns
+          = violator_collector_->getTNS(true);  // Startpoint TNS
+
+      // Collect violators with explicit threshold
+      resizer_->journalBegin();
+      point_pass_count++;
+      opto_iteration++;
+
+      if (verbose || opto_iteration % print_interval_ == 0) {
+        printProgress(
+            opto_iteration, false, false, false, phase_marker, use_startpoints);
+      }
+
+      vector<const Pin*> viol_pins
+          = violator_collector_->collectViolatorsByDirectionalTraversal(
+              use_startpoints,
+              point_index,
+              threshold,
+              ViolatorSortType::SORT_BY_LOAD_DELAY);
+
+      debugPrint(logger_,
+                 RSZ,
+                 "repair_setup",
+                 2,
+                 "{}{} Phase: Collected {} pins with threshold {}",
+                 phase_name,
+                 phase_marker,
+                 viol_pins.size(),
+                 delayAsString(threshold, sta_, digits));
+
+      if (viol_pins.empty()) {
+        debugPrint(logger_,
+                   RSZ,
+                   "repair_setup",
+                   2,
+                   "{}{} Phase: No pins collected, moving to next threshold",
+                   phase_name,
+                   phase_marker);
+        resizer_->journalEnd();
+        continue;
+      }
+
+      // Repair all pins in this threshold iteration
+      // Save/restore max_repairs_per_pass_ member to avoid affecting other
+      // phases
+      int saved_max_repairs_member = max_repairs_per_pass_;
+      max_repairs_per_pass_ = viol_pins.size();  // Process entire cone
+
+      vector<std::pair<const Pin*, BaseMove*>> chosen_moves;
+      const bool changed = repairPins(viol_pins,
+                                      setup_slack_margin,
+                                      &rejected_pin_moves_current_endpoint_,
+                                      &chosen_moves);
+
+      max_repairs_per_pass_ = saved_max_repairs_member;  // Restore
+
+      if (!changed) {
+        debugPrint(logger_,
+                   RSZ,
+                   "repair_setup",
+                   2,
+                   "{}{} Phase: No repairs made, moving to next threshold",
+                   phase_name,
+                   phase_marker);
+        resizer_->journalEnd();
+        continue;
+      }
+
+      // Update parasitics and timing to check improvement
+      estimate_parasitics_->updateParasitics();
+      sta_->findRequireds();
+
+      // Check improvement
+      Slack new_point_slack = sta_->vertexSlack(point, max_);
+      Slack new_wns = violator_collector_->getWNS();
+      Slack new_endpoint_tns
+          = violator_collector_->getTNS(false);  // Endpoint TNS
+      Slack new_startpoint_tns
+          = violator_collector_->getTNS(true);  // Startpoint TNS
+
+      const bool wns_improved = fuzzyGreater(new_wns, prev_wns);
+      const bool wns_same = fuzzyEqual(new_wns, prev_wns);
+      const bool point_improved
+          = fuzzyGreater(new_point_slack, prev_point_slack);
+      const bool endpoint_tns_improved
+          = fuzzyGreater(new_endpoint_tns, prev_endpoint_tns);
+      const bool startpoint_tns_improved
+          = fuzzyGreater(new_startpoint_tns, prev_startpoint_tns);
+      const bool endpoint_tns_same
+          = fuzzyEqual(new_endpoint_tns, prev_endpoint_tns);
+      const bool startpoint_tns_same
+          = fuzzyEqual(new_startpoint_tns, prev_startpoint_tns);
+
+      // Accept if:
+      // 1. WNS improved (always accept), OR
+      // 2. WNS same AND (point improved OR focused TNS improved) AND both TNS
+      // don't degrade
+      const bool both_tns_ok
+          = (endpoint_tns_improved || endpoint_tns_same)
+            && (startpoint_tns_improved || startpoint_tns_same);
+      const bool focused_tns_improved
+          = use_startpoints ? startpoint_tns_improved : endpoint_tns_improved;
+      const bool better
+          = wns_improved
+            || (wns_same && (point_improved || focused_tns_improved)
+                && both_tns_ok);
+
+      Slack improvement = new_point_slack - prev_point_slack;
+
+      debugPrint(logger_,
+                 RSZ,
+                 "repair_setup",
+                 2,
+                 "{}{} Phase: Bools: wns_imp={} wns_same={} pt_imp={} "
+                 "EnTNS_imp={} EnTNS_same={} StTNS_imp={} StTNS_same={} "
+                 "both_ok={} better={}",
+                 phase_name,
+                 phase_marker,
+                 wns_improved,
+                 wns_same,
+                 point_improved,
+                 endpoint_tns_improved,
+                 endpoint_tns_same,
+                 startpoint_tns_improved,
+                 startpoint_tns_same,
+                 both_tns_ok,
+                 better);
+
+      debugPrint(logger_,
+                 RSZ,
+                 "repair_setup",
+                 1,
+                 "{}{} Phase: Threshold {}/{}: {} slack {} -> {} (imp: {}), "
+                 "WNS {} -> {}, EnTNS {} -> {}, StTNS {} -> {}{}",
+                 phase_name,
+                 phase_marker,
+                 threshold_idx + 1,
+                 num_thresholds,
+                 point_type,
+                 delayAsString(prev_point_slack, sta_, digits),
+                 delayAsString(new_point_slack, sta_, digits),
+                 delayAsString(improvement, sta_, digits),
+                 delayAsString(prev_wns, sta_, digits),
+                 delayAsString(new_wns, sta_, digits),
+                 delayAsString(prev_endpoint_tns, sta_, 1),
+                 delayAsString(new_endpoint_tns, sta_, 1),
+                 delayAsString(prev_startpoint_tns, sta_, 1),
+                 delayAsString(new_startpoint_tns, sta_, 1),
+                 better ? " [ACCEPT]" : " [REJECT]");
+
+      if (better) {
+        // Accept the changes
+        if (move_tracker_) {
+          move_tracker_->commitMoves();
+        }
+        resizer_->journalEnd();
+        prev_point_slack = new_point_slack;
+
+        // Check for diminishing returns
+        if (improvement < diminishing_returns_threshold) {
+          debugPrint(logger_,
+                     RSZ,
+                     "repair_setup",
+                     1,
+                     "{}{} Phase: Improvement {} < {} (diminishing returns), "
+                     "moving to next {}",
+                     phase_name,
+                     phase_marker,
+                     delayAsString(improvement, sta_, digits),
+                     delayAsString(diminishing_returns_threshold, sta_, digits),
+                     point_type);
+          break;  // Move to next point
+        }
+      } else {
+        // Reject the changes
+        if (move_tracker_) {
+          move_tracker_->rejectMoves();
+        }
+        resizer_->journalRestore();
+
+        // Mark the chosen (pin, move) combinations as rejected
+        for (const auto& [pin, move] : chosen_moves) {
+          rejected_pin_moves_current_endpoint_[pin].insert(move);
+        }
+
+        debugPrint(logger_,
+                   RSZ,
+                   "repair_setup",
+                   2,
+                   "{}{} Phase: Changes rejected, moving to next threshold",
+                   phase_name,
+                   phase_marker);
+      }
+    }
+
+    points_processed++;
+  }
+
+  // Print phase completion
+  printProgress(
+      opto_iteration, true, false, false, phase_marker, use_startpoints);
+
+  auto phase_end_time = std::chrono::steady_clock::now();
+  auto phase_elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+                           phase_end_time - phase_start_time)
+                           .count();
+
+  // Get final metrics using proxy methods
+  Slack final_wns = violator_collector_->getWNS();
+  Slack final_tns = violator_collector_->getTNS(use_startpoints);
+
+  debugPrint(logger_,
+             RSZ,
+             "repair_setup",
+             1,
+             "{}{} Phase complete. {}s processed: {}, WNS: {}, TNS: {}, "
+             "Time: {:.2f}s",
+             phase_name,
+             phase_marker,
+             point_type_cap,
+             points_processed,
              delayAsString(final_wns, sta_, digits),
              delayAsString(final_tns, sta_, 1),
              phase_elapsed / 1000.0);
