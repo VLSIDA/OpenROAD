@@ -3,9 +3,12 @@
 
 #pragma once
 
+#include <cstddef>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -125,10 +128,32 @@ class GraphicsImpl : public gpl::AbstractGraphics,
     Nesterov
   };
 
+  // These are used for coloring each instance based on its group
+  std::vector<gui::Painter::Color> instances_colors_ = {
+      gui::Painter::kDarkGreen,
+      gui::Painter::kDarkBlue,
+      gui::Painter::kBrown,
+      gui::Painter::kDarkYellow,
+  };
+
+  // These are used for bin forces, fillers, and dummies (lighter) for each
+  // region.
+  std::vector<gui::Painter::Color> region_colors_ = {
+      gui::Painter::kDarkMagenta,
+      gui::Painter::kYellow,
+      gui::Painter::kBlue,
+      gui::Painter::kCyan,
+
+  };
+
   void drawForce(gui::Painter& painter);
   void drawCells(const std::vector<GCell*>& cells, gui::Painter& painter);
-  void drawCells(const std::vector<GCellHandle>& cells, gui::Painter& painter);
-  void drawSingleGCell(const GCell* gCell, gui::Painter& painter);
+  void drawCells(const std::vector<GCellHandle>& cells,
+                 gui::Painter& painter,
+                 size_t nb_index);
+  void drawSingleGCell(const GCell* gCell,
+                       gui::Painter& painter,
+                       size_t nb_index = 0);
 
   std::shared_ptr<PlacerBaseCommon> pbc_;
   std::shared_ptr<NesterovBaseCommon> nbc_;
@@ -137,13 +162,17 @@ class GraphicsImpl : public gpl::AbstractGraphics,
   NesterovPlace* np_ = nullptr;
   static constexpr size_t kInvalidIndex = std::numeric_limits<size_t>::max();
   size_t selected_ = kInvalidIndex;
+  size_t nb_selected_index_ = kInvalidIndex;
   bool draw_bins_ = false;
   utl::Logger* logger_ = nullptr;
   HeatMapType heatmap_type_ = Density;
   LineSegs mbff_edges_;
   std::vector<odb::dbInst*> mbff_cluster_;
   Mode mode_;
-  gui::Chart* chart_{nullptr};
+  gui::Chart* main_chart_{nullptr};
+  gui::Chart* density_chart_{nullptr};
+  gui::Chart* phi_chart_{nullptr};
+  gui::Chart* stepLength_chart_{nullptr};
   bool debug_on_ = false;
 
   void initHeatmap();

@@ -8,8 +8,11 @@
 #include <cmath>
 #include <cstddef>
 #include <limits>
+#include <queue>
 #include <sstream>
 #include <string>
+#include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -290,226 +293,367 @@ bool RepairSetup::repairSetup(const float setup_slack_margin,
 
     if (phase_index < 26) {
       return 'a' + phase_index;
+      // Restore to previous good checkpoint
+      debugPrint(logger_,
+                 RSZ,
+                 "repair_setup",
+                 2,
+                 "Restoring best slack end slack {} worst slack {}",
+                 delayAsString(prev_end_slack, sta_, digits),
+                 delayAsString(prev_worst_slack, sta_, digits));
+      resizer_->journalRestore();
+      break;
     }
-    phase_index -= 26;
-
-    if (phase_index < 26) {
-      return 'A' + phase_index;
+    if (opto_iteration % opto_small_interval_ == 0) {
+      prev_termination = false;
     }
 
-    // Fallback if we exceed all markers (unlikely)
-    return '?';
-  };
-
-  std::istringstream iss(phases_str);
-  std::string phase_name;
-
-  // Track global phase index for unified marker assignment
-  int phase_index = 0;
-  char marker = getPhaseMarker(phase_index++);
-
-  while (iss >> phase_name) {
-    if (phase_name == "WNS_PATH" || phase_name == "WNS") {
-      repairSetup_WNS(
-          setup_slack_margin,
-          max_passes,
-          max_repairs_per_pass,
-          verbose,
-          opto_iteration,
-          initial_tns,
-          prev_tns,
-          false,    // use_cone_collection = false (use path-based collection)
-          marker);  // phase_marker
-
-      if (move_tracker_) {
-        move_tracker_->printMoveSummary("WNS_PATH Phase Summary");
-        move_tracker_->printEndpointSummary("WNS_PATH Phase Endpoint Profiler");
-        move_tracker_->clear();
+    if (end_slack > setup_slack_margin) {
+      --num_viols;
+      if (pass != 1) {
+        debugPrint(logger_,
+                   RSZ,
+                   "repair_setup",
+                   2,
+                   "Restoring best slack end slack {} worst slack {}",
+                   delayAsString(prev_end_slack, sta_, digits),
+                   delayAsString(prev_worst_slack, sta_, digits));
+        resizer_->journalRestore();
+      } else {
+        resizer_->journalEnd();
       }
-    } else if (phase_name == "WNS_CONE") {
-      repairSetup_WNS(
-          setup_slack_margin,
-          max_passes,
-          max_repairs_per_pass,
-          verbose,
-          opto_iteration,
-          initial_tns,
-          prev_tns,
-          true,     // use_cone_collection = true (use cone-based collection)
-          marker);  // phase_marker
+      // clang-format off
+        debugPrint(logger_, RSZ, "repair_setup", 1, "bailing out at {}/{} "
+                   "end_slack {} is larger than setup_slack_margin {}",
+                   end_index, max_end_count, end_slack, setup_slack_margin);
+      // clang-format on
+      break;
+    }
+    Path* end_path = sta_->vertexWorstSlackPath(end, max_);
 
-      if (move_tracker_) {
-        move_tracker_->printMoveSummary("WNS_CONE Phase Summary");
-        move_tracker_->printEndpointSummary("WNS_CONE Phase Endpoint Profiler");
-        move_tracker_->clear();
+    const bool changed = repairPath(end_path, end_slack, setup_slack_margin);
+    if (!changed) {
+      if (pass != 1) {
+        debugPrint(logger_,
+                   RSZ,
+                   "repair_setup",
+                   2,
+                   "No change after {} decreasing slack passes.",
+                   decreasing_slack_passes);
+        debugPrint(logger_,
+                   RSZ,
+                   "repair_setup",
+                   2,
+                   "Restoring best slack end slack {} worst slack {}",
+                   delayAsString(prev_end_slack, sta_, digits),
+                   delayAsString(prev_worst_slack, sta_, digits));
+        resizer_->journalRestore();
+      } else {
+        resizer_->journalEnd();
       }
-    } else if (phase_name == "TNS") {
-      repairSetup_TNS(setup_slack_margin,
-                      max_passes,
-                      max_repairs_per_pass,
-                      verbose,
-                      opto_iteration,
-                      initial_tns,
-                      prev_tns,
-                      marker);  // phase_marker
-
-      if (move_tracker_) {
-        move_tracker_->printMoveSummary("TNS Phase Summary");
-        move_tracker_->printEndpointSummary("TNS Phase Endpoint Profiler");
-        move_tracker_->clear();
+      // clang-format off
+        debugPrint(logger_, RSZ, "repair_setup", 1, "bailing out {} no changes"
+                   " after {} decreasing passes", end->name(network_),
+                   decreasing_slack_passes);
+      // clang-format on
+      break;
+    }
+    estimate_parasitics_->updateParasitics();
+    sta_->findRequireds();
+    end_slack = sta_->vertexSlack(end, max_);
+    sta_->worstSlack(max_, worst_slack, worst_vertex);
+    const bool better
+        = (fuzzyGreater(worst_slack, prev_worst_slack)
+           || (end_index != 1 && fuzzyEqual(worst_slack, prev_worst_slack)
+               && fuzzyGreater(end_slack, prev_end_slack)));
+    debugPrint(logger_,
+               RSZ,
+               "repair_setup",
+               2,
+               "pass {} slack = {} worst_slack = {} {}",
+               pass,
+               delayAsString(end_slack, sta_, digits),
+               delayAsString(worst_slack, sta_, digits),
+               better ? "save" : "");
+    if (better) {
+      if (end_slack > setup_slack_margin) {
+        --num_viols;
       }
-    } else if (phase_name == "EP_FI") {
-      repairSetup_EP_FI(setup_slack_margin,
-                        max_passes,
-                        verbose,
-                        opto_iteration,
-                        marker);  // phase_marker
-
-      if (move_tracker_) {
-        move_tracker_->printMoveSummary("EP_FI Phase Summary");
-        move_tracker_->printEndpointSummary("EP_FI Phase Endpoint Profiler");
-        move_tracker_->clear();
-      }
-    } else if (phase_name == "SP_FO") {
-      repairSetup_SP_FO(setup_slack_margin,
-                        max_passes,
-                        verbose,
-                        opto_iteration,
-                        marker);  // phase_marker
-
-      if (move_tracker_) {
-        move_tracker_->printMoveSummary("SP_FO Phase Summary");
-        move_tracker_->printEndpointSummary("SP_FO Phase Startpoint Profiler");
-        move_tracker_->clear();
-      }
+      prev_end_slack = end_slack;
+      prev_worst_slack = worst_slack;
+      decreasing_slack_passes = 0;
+      resizer_->journalEnd();
+      // Progress, Save checkpoint so we can back up to here.
+      resizer_->journalBegin();
     } else {
-      logger_->error(RSZ,
-                     217,
-                     "Unknown phase name '{}'. Valid phase names are: WNS, "
-                     "TNS, EP_FI, SP_FO",
-                     phase_name);
+      fallback_ = true;
+      // Allow slack to increase to get out of local minima.
+      // Do not update prev_end_slack so it saves the high water mark.
+      decreasing_slack_passes++;
+      if (decreasing_slack_passes > decreasing_slack_max_passes_) {
+        // Undo changes that reduced slack.
+        debugPrint(logger_,
+                   RSZ,
+                   "repair_setup",
+                   2,
+                   "decreasing slack for {} passes.",
+                   decreasing_slack_passes);
+        debugPrint(logger_,
+                   RSZ,
+                   "repair_setup",
+                   2,
+                   "Restoring best end slack {} worst slack {}",
+                   delayAsString(prev_end_slack, sta_, digits),
+                   delayAsString(prev_worst_slack, sta_, digits));
+        resizer_->journalRestore();
+        // clang-format off
+          debugPrint(logger_, RSZ, "repair_setup", 1, "bailing out {} decreasing"
+                     " passes {} > decreasig pass limit {}", end->name(network_),
+                     decreasing_slack_passes, decreasing_slack_max_passes_);
+        // clang-format on
+        break;
+      }
     }
 
-    // Update marker for next phase
-    marker = getPhaseMarker(phase_index++);
+    if (resizer_->overMaxArea()) {
+      // clang-format off
+        debugPrint(logger_, RSZ, "repair_setup", 1, "bailing out {} resizer"
+                   " over max area", end->name(network_));
+      // clang-format on
+      resizer_->journalEnd();
+      break;
+    }
+    if (end_index == 1) {
+      end = worst_vertex;
+    }
+    pass++;
+    if (max_iterations > 0 && opto_iteration >= max_iterations) {
+      resizer_->journalEnd();
+      break;
+    }
+  }  // while pass <= max_passes
+  if (verbose || opto_iteration == 1)
+  {
+    printProgress(opto_iteration, true, false, false, num_viols);
+  }
+  phase_index -= 26;
+
+  if (phase_index < 26) {
+    return 'A' + phase_index;
   }
 
-  // VT swap phase (runs after all phases if conditions are met)
-  if (!skip_crit_vt_swap && !skip_vt_swap
-      && resizer_->lib_data_->sorted_vt_categories.size() > 1) {
-    // Swap most critical cells to fastest VT
-    OptoParams params(setup_slack_margin,
-                      verbose,
-                      skip_pin_swap,
-                      skip_gate_cloning,
-                      skip_size_down,
-                      skip_buffering,
-                      skip_buffer_removal,
-                      skip_vt_swap);
-    if (swapVTCritCells(params, num_viols)) {
-      estimate_parasitics_->updateParasitics();
-      sta_->findRequireds();
-    }
+  // Fallback if we exceed all markers (unlikely)
+  return '?';
+};
+
+std::istringstream iss(phases_str);
+std::string phase_name;
+
+// Track global phase index for unified marker assignment
+int phase_index = 0;
+char marker = getPhaseMarker(phase_index++);
+
+while (iss >> phase_name) {
+  if (phase_name == "WNS_PATH" || phase_name == "WNS") {
+    repairSetup_WNS(
+        setup_slack_margin,
+        max_passes,
+        max_repairs_per_pass,
+        verbose,
+        opto_iteration,
+        initial_tns,
+        prev_tns,
+        false,    // use_cone_collection = false (use path-based collection)
+        marker);  // phase_marker
+
     if (move_tracker_) {
-      move_tracker_->printMoveSummary("VT Swap Phase Summary");
+      move_tracker_->printMoveSummary("WNS_PATH Phase Summary");
+      move_tracker_->printEndpointSummary("WNS_PATH Phase Endpoint Profiler");
       move_tracker_->clear();
     }
-  }
+  } else if (phase_name == "WNS_CONE") {
+    repairSetup_WNS(
+        setup_slack_margin,
+        max_passes,
+        max_repairs_per_pass,
+        verbose,
+        opto_iteration,
+        initial_tns,
+        prev_tns,
+        true,     // use_cone_collection = true (use cone-based collection)
+        marker);  // phase_marker
 
-  // Print final summary row showing end state of all phases
-  // (end=true will also print the footer)
-  printProgress(opto_iteration, true, true, false, ' ');
-
-  // Print comprehensive optimization reports (only if tracking is enabled)
-  if (move_tracker_) {
-    // Pass all critical pins to MoveTracker for missed opportunities analysis
-    const auto& critical_pins = violator_collector_->getViolatingPins();
-    move_tracker_->trackCriticalPins(critical_pins);
-
-    logger_->info(RSZ, 211, "");
-    logger_->info(RSZ, 212, "=== Optimization Analysis Reports ===");
-    move_tracker_->printSlackDistribution("Pin Slack Distribution");
-    move_tracker_->printTopBinEndpoints(
-        "Most Critical Endpoints After Optimization");
-    move_tracker_->printCriticalEndpointPathHistogram(
-        "Critical Endpoint Path Distribution");
-    move_tracker_->printSuccessReport("Successful Optimizations Report");
-    move_tracker_->printFailureReport("Unsuccessful Optimizations Report");
-    move_tracker_->printMissedOpportunitiesReport(
-        "Missed Opportunities Report");
-    logger_->info(RSZ, 213, "");
-  }
-
-  int buffer_moves_ = resizer_->buffer_move_->numCommittedMoves();
-  int size_up_moves_ = resizer_->size_up_move_->numCommittedMoves();
-  int size_down_moves_ = resizer_->size_down_move_->numCommittedMoves();
-  int swap_pins_moves_ = resizer_->swap_pins_move_->numCommittedMoves();
-  int clone_moves_ = resizer_->clone_move_->numCommittedMoves();
-  int split_load_moves_ = resizer_->split_load_move_->numCommittedMoves();
-  int unbuffer_moves_ = resizer_->unbuffer_move_->numCommittedMoves();
-  int vt_swap_moves_ = resizer_->vt_swap_speed_move_->numCommittedMoves();
-  int size_up_match_moves_ = resizer_->size_up_match_move_->numCommittedMoves();
-
-  if (unbuffer_moves_ > 0) {
-    repaired = true;
-    logger_->info(RSZ, 59, "Removed {} buffers.", unbuffer_moves_);
-  }
-  if (buffer_moves_ > 0 || split_load_moves_ > 0) {
-    repaired = true;
-    if (split_load_moves_ == 0) {
-      logger_->info(RSZ, 40, "Inserted {} buffers.", buffer_moves_);
-    } else {
-      logger_->info(RSZ,
-                    45,
-                    "Inserted {} buffers, {} to split loads.",
-                    buffer_moves_ + split_load_moves_,
-                    split_load_moves_);
+    if (move_tracker_) {
+      move_tracker_->printMoveSummary("WNS_CONE Phase Summary");
+      move_tracker_->printEndpointSummary("WNS_CONE Phase Endpoint Profiler");
+      move_tracker_->clear();
     }
+  } else if (phase_name == "TNS") {
+    repairSetup_TNS(setup_slack_margin,
+                    max_passes,
+                    max_repairs_per_pass,
+                    verbose,
+                    opto_iteration,
+                    initial_tns,
+                    prev_tns,
+                    marker);  // phase_marker
+
+    if (move_tracker_) {
+      move_tracker_->printMoveSummary("TNS Phase Summary");
+      move_tracker_->printEndpointSummary("TNS Phase Endpoint Profiler");
+      move_tracker_->clear();
+    }
+  } else if (phase_name == "EP_FI") {
+    repairSetup_EP_FI(setup_slack_margin,
+                      max_passes,
+                      verbose,
+                      opto_iteration,
+                      marker);  // phase_marker
+
+    if (move_tracker_) {
+      move_tracker_->printMoveSummary("EP_FI Phase Summary");
+      move_tracker_->printEndpointSummary("EP_FI Phase Endpoint Profiler");
+      move_tracker_->clear();
+    }
+  } else if (phase_name == "SP_FO") {
+    repairSetup_SP_FO(setup_slack_margin,
+                      max_passes,
+                      verbose,
+                      opto_iteration,
+                      marker);  // phase_marker
+
+    if (move_tracker_) {
+      move_tracker_->printMoveSummary("SP_FO Phase Summary");
+      move_tracker_->printEndpointSummary("SP_FO Phase Startpoint Profiler");
+      move_tracker_->clear();
+    }
+  } else {
+    logger_->error(RSZ,
+                   217,
+                   "Unknown phase name '{}'. Valid phase names are: WNS, "
+                   "TNS, EP_FI, SP_FO",
+                   phase_name);
   }
-  logger_->metric("design__instance__count__setup_buffer",
-                  buffer_moves_ + split_load_moves_);
-  if (size_up_moves_ + size_down_moves_ + size_up_match_moves_ + vt_swap_moves_
-      > 0) {
-    repaired = true;
+
+  // Update marker for next phase
+  marker = getPhaseMarker(phase_index++);
+}
+
+// VT swap phase (runs after all phases if conditions are met)
+if (!skip_crit_vt_swap && !skip_vt_swap
+    && resizer_->lib_data_->sorted_vt_categories.size() > 1) {
+  // Swap most critical cells to fastest VT
+  OptoParams params(setup_slack_margin,
+                    verbose,
+                    skip_pin_swap,
+                    skip_gate_cloning,
+                    skip_size_down,
+                    skip_buffering,
+                    skip_buffer_removal,
+                    skip_vt_swap);
+  if (swapVTCritCells(params, num_viols)) {
+    estimate_parasitics_->updateParasitics();
+    sta_->findRequireds();
+  }
+  if (move_tracker_) {
+    move_tracker_->printMoveSummary("VT Swap Phase Summary");
+    move_tracker_->clear();
+  }
+}
+
+// Print final summary row showing end state of all phases
+// (end=true will also print the footer)
+printProgress(opto_iteration, true, true, false, ' ');
+
+// Print comprehensive optimization reports (only if tracking is enabled)
+if (move_tracker_) {
+  // Pass all critical pins to MoveTracker for missed opportunities analysis
+  const auto& critical_pins = violator_collector_->getViolatingPins();
+  move_tracker_->trackCriticalPins(critical_pins);
+
+  logger_->info(RSZ, 211, "");
+  logger_->info(RSZ, 212, "=== Optimization Analysis Reports ===");
+  move_tracker_->printSlackDistribution("Pin Slack Distribution");
+  move_tracker_->printTopBinEndpoints(
+      "Most Critical Endpoints After Optimization");
+  move_tracker_->printCriticalEndpointPathHistogram(
+      "Critical Endpoint Path Distribution");
+  move_tracker_->printSuccessReport("Successful Optimizations Report");
+  move_tracker_->printFailureReport("Unsuccessful Optimizations Report");
+  move_tracker_->printMissedOpportunitiesReport("Missed Opportunities Report");
+  logger_->info(RSZ, 213, "");
+}
+
+int buffer_moves_ = resizer_->buffer_move_->numCommittedMoves();
+int size_up_moves_ = resizer_->size_up_move_->numCommittedMoves();
+int size_down_moves_ = resizer_->size_down_move_->numCommittedMoves();
+int swap_pins_moves_ = resizer_->swap_pins_move_->numCommittedMoves();
+int clone_moves_ = resizer_->clone_move_->numCommittedMoves();
+int split_load_moves_ = resizer_->split_load_move_->numCommittedMoves();
+int unbuffer_moves_ = resizer_->unbuffer_move_->numCommittedMoves();
+int vt_swap_moves_ = resizer_->vt_swap_speed_move_->numCommittedMoves();
+int size_up_match_moves_ = resizer_->size_up_match_move_->numCommittedMoves();
+
+if (unbuffer_moves_ > 0) {
+  repaired = true;
+  logger_->info(RSZ, 59, "Removed {} buffers.", unbuffer_moves_);
+}
+if (buffer_moves_ > 0 || split_load_moves_ > 0) {
+  repaired = true;
+  if (split_load_moves_ == 0) {
+    logger_->info(RSZ, 40, "Inserted {} buffers.", buffer_moves_);
+  } else {
     logger_->info(RSZ,
-                  51,
-                  "Resized {} instances: {} up, {} up match, {} down, {} VT",
-                  size_up_moves_ + size_up_match_moves_ + size_down_moves_
-                      + vt_swap_moves_,
-                  size_up_moves_,
-                  size_up_match_moves_,
-                  size_down_moves_,
-                  vt_swap_moves_);
+                  45,
+                  "Inserted {} buffers, {} to split loads.",
+                  buffer_moves_ + split_load_moves_,
+                  split_load_moves_);
   }
-  if (swap_pins_moves_ > 0) {
-    repaired = true;
-    logger_->info(RSZ, 43, "Swapped pins on {} instances.", swap_pins_moves_);
-  }
-  if (clone_moves_ > 0) {
-    repaired = true;
-    logger_->info(RSZ, 49, "Cloned {} instances.", clone_moves_);
-  }
-  const Slack worst_slack = sta_->worstSlack(max_);
-  if (fuzzyLess(worst_slack, setup_slack_margin)) {
-    repaired = true;
-    logger_->warn(RSZ, 62, "Unable to repair all setup violations.");
-  }
-  if (resizer_->overMaxArea()) {
-    logger_->error(RSZ, 25, "max utilization reached.");
-  }
+}
+logger_->metric("design__instance__count__setup_buffer",
+                buffer_moves_ + split_load_moves_);
+if (size_up_moves_ + size_down_moves_ + size_up_match_moves_ + vt_swap_moves_
+    > 0) {
+  repaired = true;
+  logger_->info(
+      RSZ,
+      51,
+      "Resized {} instances: {} up, {} up match, {} down, {} VT",
+      size_up_moves_ + size_up_match_moves_ + size_down_moves_ + vt_swap_moves_,
+      size_up_moves_,
+      size_up_match_moves_,
+      size_down_moves_,
+      vt_swap_moves_);
+}
+if (swap_pins_moves_ > 0) {
+  repaired = true;
+  logger_->info(RSZ, 43, "Swapped pins on {} instances.", swap_pins_moves_);
+}
+if (clone_moves_ > 0) {
+  repaired = true;
+  logger_->info(RSZ, 49, "Cloned {} instances.", clone_moves_);
+}
+const Slack worst_slack = sta_->worstSlack(max_);
+if (fuzzyLess(worst_slack, setup_slack_margin)) {
+  repaired = true;
+  logger_->warn(RSZ, 62, "Unable to repair all setup violations.");
+}
+if (resizer_->overMaxArea()) {
+  logger_->error(RSZ, 25, "max utilization reached.");
+}
 
-  auto end_time = std::chrono::steady_clock::now();
-  auto elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(
-                          end_time - start_time)
-                          .count();
-  debugPrint(logger_,
-             RSZ,
-             "repair_setup",
-             1,
-             "Total repair_timing time: {:.2f} seconds",
-             elapsed_time / 1000.0);
+auto end_time = std::chrono::steady_clock::now();
+auto elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(
+                        end_time - start_time)
+                        .count();
+debugPrint(logger_,
+           RSZ,
+           "repair_setup",
+           1,
+           "Total repair_timing time: {:.2f} seconds",
+           elapsed_time / 1000.0);
 
-  return repaired;
+return repaired;
 }
 
 // For testing.
@@ -1075,6 +1219,14 @@ void RepairSetup::repairSetupLastGasp(const OptoParams& params)
       }
 
       if (resizer_->overMaxArea()) {
+        resizer_->journalEnd();
+        break;
+      }
+      if (end_index == 1) {
+        end = worst_vertex;
+      }
+      pass++;
+      if (max_iterations > 0 && opto_iteration >= max_iterations) {
         resizer_->journalEnd();
         break;
       }

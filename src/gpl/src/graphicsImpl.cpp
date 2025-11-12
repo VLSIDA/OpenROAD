@@ -5,12 +5,14 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <limits>
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -20,6 +22,7 @@
 #include "nesterovPlace.h"
 #include "odb/db.h"
 #include "placerBase.h"
+#include "point.h"
 #include "utl/Logger.h"
 
 namespace gpl {
@@ -75,18 +78,58 @@ void GraphicsImpl::debugForNesterovPlace(
 
   if (enabled()) {
     // Setup the chart
-    chart_ = gui::Gui::get()->addChart(
-        "GPL", "Iteration", {"HPWL (μm)", "Overflow"});
-    chart_->setXAxisFormat("%d");
-    chart_->setYAxisFormats({"%.2e", "%.2f"});
-    chart_->setYAxisMin({std::nullopt, 0});
+    gui::Gui* gui = gui::Gui::get();
+    main_chart_ = gui->addChart("GPL", "Iteration", {"HPWL (μm)", "Overflow"});
+    main_chart_->setXAxisFormat("%d");
+    main_chart_->setYAxisFormats({"%.2e", "%.2f"});
+    main_chart_->setYAxisMin({std::nullopt, 0});
 
+    // Useful for debugging : Density penalty and PhiCoef
+    if (logger_->debugCheck(utl::GPL, "debugPlot", 1)) {
+      if (!nbVec_.empty()) {
+        std::vector<std::string> region_names;
+        region_names.reserve(nbVec_.size());
+        for (size_t i = 0; i < nbVec_.size(); ++i) {
+          std::string name;
+          if (nbVec_[i] && nbVec_[i]->getPb() && nbVec_[i]->getPb()->group()) {
+            name = fmt::format(
+                "nb[{}] {}", i, nbVec_[i]->getPb()->group()->getName());
+          } else {
+            name = fmt::format("nb[{}]", i);
+          }
+          region_names.push_back(name);
+        }
+        density_chart_ = gui->addChart(
+            "GPL Density Penalty", "Iteration", {"DensityPenalty", "phiCoef"});
+        density_chart_->setXAxisFormat("%d");
+        density_chart_->setYAxisFormats({"%.2e", "%.2f"});
+        density_chart_->setYAxisMin({0.0, nbc_->getNbVars().minPhiCoef});
+
+        stepLength_chart_ = gui->addChart(
+            "GPL StepLength",
+            "Iteration",
+            {"StepLength", "CoordiDistance", "GradDistance", "Std area"});
+        stepLength_chart_->setXAxisFormat("%d");
+        stepLength_chart_->setYAxisFormats({"%.2e", "%.2f", "%.2f"});
+        stepLength_chart_->setYAxisMin({0.0, 0.0, 0.0});
+      }
+    }
     initHeatmap();
     if (inst) {
       for (size_t idx = 0; idx < nbc_->getGCells().size(); ++idx) {
         auto cell = nbc_->getGCellByIndex(idx);
         if (cell->contains(inst)) {
           selected_ = idx;
+          break;
+        }
+      }
+    }
+
+    for (const auto& nb : nbVec_) {
+      for (size_t idx = 0; idx < nb->getGCells().size(); ++idx) {
+        GCellHandle cell_handle = nb->getGCells()[idx];
+        if (cell_handle->contains(inst)) {
+          nb_selected_index_ = idx;
           break;
         }
       }
@@ -161,7 +204,8 @@ void GraphicsImpl::drawInitial(gui::Painter& painter)
 
 void GraphicsImpl::drawForce(gui::Painter& painter)
 {
-  for (const auto& nb : nbVec_) {
+  for (size_t nb_idx = 0; nb_idx < nbVec_.size(); ++nb_idx) {
+    const auto& nb = nbVec_[nb_idx];
     const auto& bins = nb->getBins();
     if (bins.empty()) {
       continue;
@@ -190,7 +234,9 @@ void GraphicsImpl::drawForce(gui::Painter& painter)
       int cx = bin.cx();
       int cy = bin.cy();
 
-      painter.setPen(gui::Painter::kRed, true);
+      gui::Painter::Color color
+          = region_colors_[nb_idx % region_colors_.size()];
+      painter.setPen(color, true);
       painter.drawLine(cx, cy, cx + dx, cy + dy);
 
       // Draw a circle at the outer end of the line
@@ -198,18 +244,19 @@ void GraphicsImpl::drawForce(gui::Painter& painter)
       int circle_y = static_cast<int>(cy + dy);
       float bin_area = bin.dx() * bin.dy();
       int circle_radius = static_cast<int>(0.05 * std::sqrt(bin_area / M_PI));
-      painter.setPen(gui::Painter::kRed, true);
+      painter.setPen(color, true);
       painter.drawCircle(circle_x, circle_y, circle_radius);
     }
   }
 }
 
 void GraphicsImpl::drawCells(const std::vector<GCellHandle>& cells,
-                             gui::Painter& painter)
+                             gui::Painter& painter,
+                             size_t nb_index)
 {
   for (const auto& handle : cells) {
     const GCell* gCell = handle;
-    drawSingleGCell(gCell, painter);
+    drawSingleGCell(gCell, painter, nb_index);
   }
 }
 
@@ -221,7 +268,9 @@ void GraphicsImpl::drawCells(const std::vector<GCell*>& cells,
   }
 }
 
-void GraphicsImpl::drawSingleGCell(const GCell* gCell, gui::Painter& painter)
+void GraphicsImpl::drawSingleGCell(const GCell* gCell,
+                                   gui::Painter& painter,
+                                   size_t nb_index)
 {
   const int gcx = gCell->dCx();
   const int gcy = gCell->dCy();
@@ -235,17 +284,28 @@ void GraphicsImpl::drawSingleGCell(const GCell* gCell, gui::Painter& painter)
   // Highlight modified instances (overrides base color, unless selected)
   switch (gCell->changeType()) {
     case GCell::GCellChange::kRoutability:
-      color = {255, 255, 255, 100};  // White
+      color = gui::Painter::kWhite;
       break;
-    case GCell::GCellChange::kTimingDriven:
-      color = {180, 150, 255, 100};  // Light purple
+    case GCell::GCellChange::kNewInstance:
+      color = gui::Painter::kDarkRed;
+      break;
+    case GCell::GCellChange::kDownsize:
+      color = gui::Painter::kDarkBlue;
+      break;
+    case GCell::GCellChange::kUpsize:
+      color = gui::Painter::kOrange;
+      break;
+    case GCell::GCellChange::kResizeNoChange:
+      color = gui::Painter::kDarkYellow;
       break;
     default:
       if (gCell->isInstance()) {
-        color = gCell->isLocked() ? gui::Painter::kDarkCyan
-                                  : gui::Painter::kDarkGreen;
+        color = gCell->isLocked()
+                    ? gui::Painter::kTurquoise
+                    : instances_colors_[nb_index % instances_colors_.size()];
       } else if (gCell->isFiller()) {
-        color = gui::Painter::kDarkMagenta;
+        // Use different colors for each NesterovBase
+        color = region_colors_[nb_index % region_colors_.size()];
       }
       color.a = 180;
       break;
@@ -257,27 +317,11 @@ void GraphicsImpl::drawSingleGCell(const GCell* gCell, gui::Painter& painter)
     color.a = 180;
   }
 
+  gui::Painter::Color outline = gui::Painter::kBlack;
+  outline.a = 150;
+  painter.setPen(outline, /*cosmetic=*/false, /*width=*/1);
   painter.setBrush(color);
   painter.drawRect({xl, yl, xh, yh});
-
-  if (gCell->isInstance()) {
-    odb::dbInst* db_inst = gCell->insts()[0]->dbInst();
-    if (db_inst != nullptr) {
-      odb::dbBox* bbox = db_inst->getBBox();
-      if (bbox != nullptr) {
-        int origLx = bbox->xMin();
-        int origLy = bbox->yMin();
-        int origUx = bbox->xMax();
-        int origUy = bbox->yMax();
-
-        gui::Painter::Color outline = gui::Painter::kBlack;
-        outline.a = 150;  // Semi-transparent
-
-        painter.setPen(outline, /*cosmetic=*/false, /*width=*/1);
-        painter.drawRect({origLx, origLy, origUx, origUy});
-      }
-    }
-  }
 }
 
 void GraphicsImpl::drawNesterov(gui::Painter& painter)
@@ -307,14 +351,26 @@ void GraphicsImpl::drawNesterov(gui::Painter& painter)
   // Draw the placeable objects
   painter.setPen(gui::Painter::kWhite);
   drawCells(nbc_->getGCells(), painter);
-  for (const auto& nb : nbVec_) {
-    drawCells(nb->getGCells(), painter);
+  for (size_t nb_idx = 0; nb_idx < nbVec_.size(); ++nb_idx) {
+    const auto& nb = nbVec_[nb_idx];
+    drawCells(nb->getGCells(), painter, nb_idx);
   }
 
-  painter.setBrush(gui::Painter::Color(gui::Painter::kLightGray, 50));
-  for (const auto& pb : pbVec_) {
-    for (auto& inst : pb->nonPlaceInsts()) {
-      painter.drawRect({inst->lx(), inst->ly(), inst->ux(), inst->uy()});
+  // Create lighter versions of the region_colors_ with alpha 50
+  std::vector<gui::Painter::Color> light_colors;
+  light_colors.reserve(region_colors_.size());
+  for (const auto& color : region_colors_) {
+    light_colors.emplace_back(color.r, color.g, color.b, 50);
+  }
+
+  for (size_t pb_idx = 0; pb_idx < pbVec_.size(); ++pb_idx) {
+    const auto& pb = pbVec_[pb_idx];
+    gui::Painter::Color color = light_colors[pb_idx % light_colors.size()];
+    painter.setBrush(color);
+
+    for (auto& pb_inst : pb->nonPlaceInsts()) {
+      painter.drawRect(
+          {pb_inst->lx(), pb_inst->ly(), pb_inst->ux(), pb_inst->uy()});
     }
   }
 
@@ -334,6 +390,75 @@ void GraphicsImpl::drawNesterov(gui::Painter& painter)
         painter.drawLine(
             pin->cx(), pin->cy(), other_pin->cx(), other_pin->cy());
       }
+    }
+
+    // Draw gradient direction lines in the GUI from the GCell center.
+    // We scale vectors to fit nicely within the cell (similar to drawForce()).
+    const GCell* gcell = nbc_->getGCellByIndex(selected_);
+    auto wlCoeffX = np_->getWireLengthCoefX();
+    auto wlCoeffY = np_->getWireLengthCoefY();
+    size_t nb_index = 0;
+    if (nb_selected_index_ != kInvalidIndex) {
+      nb_index = nb_selected_index_;
+    } else {
+      logger_->warn(
+          utl::GPL, 317, "Selected instance not found in any NesterovBase");
+    }
+    FloatPoint densityGrad = nbVec_[nb_index]->getDensityGradient(gcell);
+    FloatPoint wlGrad
+        = nbc_->getWireLengthGradientWA(gcell, wlCoeffX, wlCoeffY);
+    const int cx = gcell->dCx();
+    const int cy = gcell->dCy();
+
+    // Calculate the maximum length for the lines based on the GCell size
+    const int max_len = std::max(1, std::min(gcell->dx(), gcell->dy()));
+    const float target_len = 0.45f * static_cast<float>(max_len);
+
+    // Determine the maximum magnitude for proper scaling
+    const float wl_magnitude = std::hypot(wlGrad.x, wlGrad.y);
+    const float densityPenalty = nbVec_[nb_index]->getDensityPenalty();
+    const float density_magnitude = std::hypot(densityPenalty * densityGrad.x,
+                                               densityPenalty * densityGrad.y);
+    const float overall_x = wlGrad.x + (densityPenalty * densityGrad.x);
+    const float overall_y = wlGrad.y + (densityPenalty * densityGrad.y);
+    const float overall_magnitude = std::hypot(overall_x, overall_y);
+    const float max_magnitude
+        = std::max({wl_magnitude, density_magnitude, overall_magnitude});
+
+    auto scaleVector = [&](float vx, float vy) -> std::pair<float, float> {
+      const float magnitude = std::hypot(vx, vy);
+      if (magnitude <= std::numeric_limits<float>::epsilon()) {
+        return {0.0f, 0.0f};
+      }
+      return {vx / max_magnitude * target_len, vy / max_magnitude * target_len};
+    };
+
+    // Draw WL gradient line
+    {
+      auto [dx, dy] = scaleVector(wlGrad.x, wlGrad.y);
+      painter.setPen(gui::Painter::kRed, true);  // Use red for WL gradient
+      painter.drawLine(
+          cx, cy, cx + static_cast<int>(dx), cy + static_cast<int>(dy));
+    }
+
+    // Draw Density gradient line
+    {
+      const float scaled_dx = densityPenalty * densityGrad.x;
+      const float scaled_dy = densityPenalty * densityGrad.y;
+      auto [dx, dy] = scaleVector(scaled_dx, scaled_dy);
+      painter.setPen(gui::Painter::kBlue,
+                     true);  // Use blue for Density gradient
+      painter.drawLine(
+          cx, cy, cx + static_cast<int>(dx), cy + static_cast<int>(dy));
+    }
+
+    // Draw Overall gradient line
+    {
+      auto [dx, dy] = scaleVector(overall_x, overall_y);
+      painter.setPen(gui::Painter::kBlack,
+                     true);  // Use black for Overall gradient
+      painter.drawLine(
+          cx, cy, cx + static_cast<int>(dx), cy + static_cast<int>(dy));
     }
   }
 
@@ -372,35 +497,42 @@ void GraphicsImpl::drawObjects(gui::Painter& painter)
 }
 
 void GraphicsImpl::reportSelected()
-{  // TODO: PD_FIX
+{
   if (selected_ == kInvalidIndex) {
     return;
   }
-  logger_->report("Inst: {}", nbc_->getGCellByIndex(selected_)->getName());
+  const GCell* gcell = nbc_->getGCellByIndex(selected_);
+  logger_->report("Inst: {}", gcell->getName());
 
   if (np_) {
     auto wlCoeffX = np_->getWireLengthCoefX();
     auto wlCoeffY = np_->getWireLengthCoefY();
 
     logger_->report("  Wire Length Gradient");
-    for (auto& gPin : nbc_->getGCellByIndex(selected_)->gPins()) {
-      FloatPoint wlGrad
+    for (auto& gPin : gcell->gPins()) {
+      FloatPoint wlGradPin
           = nbc_->getWireLengthGradientPinWA(gPin, wlCoeffX, wlCoeffY);
       const float weight = gPin->getGNet()->getTotalWeight();
       logger_->report("          ({:+.2e}, {:+.2e}) (weight = {}) pin {}",
-                      wlGrad.x,
-                      wlGrad.y,
+                      wlGradPin.x,
+                      wlGradPin.y,
                       weight,
                       gPin->getPbPin()->getName());
     }
 
-    FloatPoint wlGrad = nbc_->getWireLengthGradientWA(
-        nbc_->getGCellByIndex(selected_), wlCoeffX, wlCoeffY);
+    FloatPoint wlGrad
+        = nbc_->getWireLengthGradientWA(gcell, wlCoeffX, wlCoeffY);
     logger_->report("  sum wl  ({: .2e}, {: .2e})", wlGrad.x, wlGrad.y);
 
-    auto densityGrad
-        = nbVec_[0]->getDensityGradient(nbc_->getGCellByIndex(selected_));
-    float densityPenalty = nbVec_[0]->getDensityPenalty();
+    size_t nb_index = 0;
+    if (nb_selected_index_ != kInvalidIndex) {
+      nb_index = nb_selected_index_;
+    } else {
+      logger_->warn(
+          utl::GPL, 318, "Selected instance not found in any NesterovBase");
+    }
+    FloatPoint densityGrad = nbVec_[nb_index]->getDensityGradient(gcell);
+    float densityPenalty = nbVec_[nb_index]->getDensityPenalty();
     logger_->report("  density ({: .2e}, {: .2e}) (penalty: {})",
                     densityPenalty * densityGrad.x,
                     densityPenalty * densityGrad.y,
@@ -414,24 +546,57 @@ void GraphicsImpl::reportSelected()
 void GraphicsImpl::addIter(const int iter, const double overflow)
 {
   odb::dbBlock* block = pbc_->db()->getChip()->getBlock();
-  chart_->addPoint(iter, {block->dbuToMicrons(nbc_->getHpwl()), overflow});
+  main_chart_->addPoint(iter, {block->dbuToMicrons(nbc_->getHpwl()), overflow});
+
+  if (logger_->debugCheck(utl::GPL, "debugPlot", 1)) {
+    if (density_chart_) {
+      std::vector<double> values;
+      if (!nbVec_.empty() && nbVec_[0]) {
+        values.push_back((static_cast<double>(nbVec_[0]->getDensityPenalty())));
+        values.push_back(static_cast<double>(nbVec_[0]->getStoredPhiCoef()));
+      } else {
+        values.push_back(0.0);
+        values.push_back(0.0);
+      }
+      density_chart_->addPoint(iter, values);
+    }
+
+    if (stepLength_chart_) {
+      std::vector<double> values;
+      if (!nbVec_.empty() && nbVec_[0]) {
+        values.push_back(static_cast<double>(nbVec_[0]->getStoredStepLength()));
+        values.push_back(
+            static_cast<double>(nbVec_[0]->getStoredCoordiDistance()));
+        values.push_back(
+            static_cast<double>(nbVec_[0]->getStoredGradDistance()));
+        values.push_back(
+            static_cast<double>(nbVec_[0]->getNesterovInstsArea()));
+      } else {
+        values.push_back(0.0);
+        values.push_back(0.0);
+        values.push_back(0.0);
+        values.push_back(0.0);
+      }
+      stepLength_chart_->addPoint(iter, values);
+    }
+  }
 }
 
 void GraphicsImpl::addTimingDrivenIter(const int iter)
 {
-  chart_->addVerticalMarker(iter, gui::Painter::kTurquoise);
+  main_chart_->addVerticalMarker(iter, gui::Painter::kTurquoise);
 }
 
 void GraphicsImpl::addRoutabilitySnapshot(int iter)
 {
-  chart_->addVerticalMarker(iter, gui::Painter::kYellow);
+  main_chart_->addVerticalMarker(iter, gui::Painter::kYellow);
 }
 
 void GraphicsImpl::addRoutabilityIter(const int iter, const bool revert)
 {
   gui::Painter::Color color
       = revert ? gui::Painter::kRed : gui::Painter::kGreen;
-  chart_->addVerticalMarker(iter, color);
+  main_chart_->addVerticalMarker(iter, color);
 }
 
 void GraphicsImpl::cellPlotImpl(bool pause)
@@ -484,6 +649,20 @@ gui::SelectionSet GraphicsImpl::select(odb::dbTechLayer* layer,
     }
 
     selected_ = idx;
+    odb::dbInst* db_inst
+        = cell->isInstance() ? cell->insts().front()->dbInst() : nullptr;
+    if (db_inst != nullptr) {
+      for (size_t nb_idx = 0; nb_idx < nbVec_.size(); ++nb_idx) {
+        for (size_t gc_idx = 0; gc_idx < nbVec_[nb_idx]->getGCells().size();
+             ++gc_idx) {
+          GCellHandle cell_handle = nbVec_[nb_idx]->getGCells()[gc_idx];
+          if (cell_handle->contains(db_inst)) {
+            nb_selected_index_ = nb_idx;
+            break;
+          }
+        }
+      }
+    }
     gui::Gui::get()->redraw();
     if (cell->isInstance()) {
       reportSelected();

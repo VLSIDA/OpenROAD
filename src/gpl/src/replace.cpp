@@ -81,8 +81,8 @@ void Replace::reset()
   routabilityCheckOverflow_ = 0.3;
   routabilityMaxDensity_ = 0.99;
   routabilityTargetRcMetric_ = 1.01;
-  routabilityInflationRatioCoef_ = 3;
-  routabilityMaxInflationRatio_ = 6;
+  routabilityInflationRatioCoef_ = 2;
+  routabilityMaxInflationRatio_ = 3;
   routabilityRcK1_ = routabilityRcK2_ = 1.0;
   routabilityRcK3_ = routabilityRcK4_ = 0.0;
   routabilityMaxInflationIter_ = 4;
@@ -205,6 +205,10 @@ void Replace::doInitialPlace(int threads)
     }
 
     if (pbVec_.front()->placeInsts().empty()) {
+      log_->warn(
+          GPL,
+          123,
+          "No placeable instances in the top-level region. Removing it.");
       pbVec_.erase(pbVec_.begin());
     }
 
@@ -283,6 +287,8 @@ bool Replace::initNesterovPlace(int threads)
       nbVars.isSetBinCnt = true;
       nbVars.binCntX = binGridCntX_;
       nbVars.binCntY = binGridCntY_;
+      nbVars.minPhiCoef = minPhiCoef_;
+      nbVars.maxPhiCoef = maxPhiCoef_;
     }
 
     nbVars.useUniformTargetDensity = uniformTargetDensityMode_;
@@ -320,8 +326,6 @@ bool Replace::initNesterovPlace(int threads)
   if (!np_) {
     NesterovPlaceVars npVars;
 
-    npVars.minPhiCoef = minPhiCoef_;
-    npVars.maxPhiCoef = maxPhiCoef_;
     npVars.referenceHpwl = referenceHpwl_;
     npVars.routability_end_overflow = routabilityCheckOverflow_;
     npVars.keepResizeBelowOverflow = keepResizeBelowOverflow_;
