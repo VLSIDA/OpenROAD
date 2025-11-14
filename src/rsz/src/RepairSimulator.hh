@@ -30,7 +30,6 @@ using utl::RSZ;
 class RepairSimulator
 {
  public:
-  // Constructor
   RepairSimulator(Resizer* resizer, ViolatorCollector* violator_collector)
       : resizer_(resizer)
   {
@@ -39,19 +38,24 @@ class RepairSimulator
     violator_collector_ = violator_collector;
   }
 
-  void init(float slack_margin);
-  std::pair<const Pin*, BaseMove*> simulate(const Pin* endpoint,
-                                            const std::vector<const Pin*>& pins,
-                                            const std::vector<BaseMove*>& moves,
-                                            int depth,
-                                            float setup_slack_margin);
+  ~RepairSimulator() { clear(); }
+
+  void init(const Pin* endpoint,
+            std::vector<const Pin*>& pins,
+            std::vector<BaseMove*>& moves,
+            int depth,
+            float setup_slack_margin);
+  void clear();
+  void simulate();
+  std::pair<const Pin*, BaseMove*> getBestImmediateMove();
+  void commitMove(const Pin* pin, const BaseMove* move);
 
  private:
   class SimulationTreeNode
   {
    public:
     SimulationTreeNode(const Pin* pin, BaseMove* move, int depth)
-        : pin_(pin), move_(move), depth_(depth), slack_(0.0)
+        : pin_(pin), move_(move), depth_(depth)
     {
     }
 
@@ -65,17 +69,21 @@ class RepairSimulator
     const Pin* pin_;
     BaseMove* move_;
     int depth_;
-    Slack slack_;
+    Slack slack_{0.0};
     std::vector<SimulationTreeNode*> children_;
   };
 
-  void simulateDFS(const Pin* endpoint,
-                   SimulationTreeNode* node,
-                   const std::vector<const Pin*>& pins,
-                   const std::vector<BaseMove*>& moves,
-                   int max_depth,
-                   float setup_slack_margin);
+  void simulateDFS(SimulationTreeNode* node);
   void trickleUpBestSlack(SimulationTreeNode* node);
+
+  const Pin* endpoint_;
+  const std::vector<const Pin*>* pins_;
+  const std::vector<BaseMove*>* moves_;
+  int max_depth_;
+  float setup_slack_margin_;
+
+  SimulationTreeNode* root_;
+
   Resizer* resizer_;
   Logger* logger_;
   Network* network_;

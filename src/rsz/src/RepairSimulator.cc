@@ -12,65 +12,78 @@
 namespace rsz {
 
 using std::string;
-using utl::RSZ;
 
 using sta::fuzzyLess;
 using sta::Pin;
+using utl::RSZ;
+
+void RepairSimulator::init(const Pin* endpoint,
+                           std::vector<const Pin*>& pins,
+                           std::vector<BaseMove*>& moves,
+                           int depth,
+                           float setup_slack_margin)
+{
+  endpoint_ = endpoint;
+  pins_ = &pins;
+  moves_ = &moves;
+  max_depth_ = depth;
+  setup_slack_margin_ = setup_slack_margin;
+  root_ = new SimulationTreeNode(nullptr, nullptr, 0);
+}
+
+void RepairSimulator::clear()
+{
+  endpoint_ = nullptr;
+  pins_ = nullptr;
+  moves_ = nullptr;
+  delete root_;
+  root_ = nullptr;
+}
 
 // Run the actual simulation
-std::pair<const Pin*, BaseMove*> RepairSimulator::simulate(
-    const Pin* endpoint,
-    const std::vector<const Pin*>& pins,
-    const std::vector<BaseMove*>& moves,
-    int depth,
-    float setup_slack_margin)
+void RepairSimulator::simulate()
 {
   debugPrint(logger_, RSZ, "repair_simulator", 1, "Started repair simulation");
 
   // Generate the simulation tree
-  SimulationTreeNode* root = new SimulationTreeNode(nullptr, nullptr, 0);
-  simulateDFS(endpoint, root, pins, moves, depth, setup_slack_margin);
+  simulateDFS(root_);
 
   // Get the possible slack of root's children
-  for (SimulationTreeNode* child : root->children_) {
+  for (SimulationTreeNode* child : root_->children_) {
     trickleUpBestSlack(child);
   }
 
+  debugPrint(logger_, RSZ, "repair_simulator", 1, "Finished repair simulation");
+}
+
+// Return the best immediate move of the simulation tree
+std::pair<const Pin*, BaseMove*> RepairSimulator::getBestImmediateMove()
+{
   // Find the best immediate move from root's children
   SimulationTreeNode* best_child = nullptr;
   Slack best_slack = -sta::INF;
-  for (SimulationTreeNode* child : root->children_) {
+  for (SimulationTreeNode* child : root_->children_) {
     if (fuzzyLess(best_slack, child->slack_)) {
       best_slack = child->slack_;
       best_child = child;
     }
   }
-
   std::pair<const Pin*, BaseMove*> result = {nullptr, nullptr};
   if (best_child != nullptr) {
     result = {best_child->pin_, best_child->move_};
   }
-
-  debugPrint(logger_, RSZ, "repair_simulator", 1, "Finished repair simulation");
-
-  delete root;
   return result;
 }
 
 // Recursive DFS simulation helper
-void RepairSimulator::simulateDFS(const Pin* endpoint,
-                                  SimulationTreeNode* node,
-                                  const std::vector<const Pin*>& pins,
-                                  const std::vector<BaseMove*>& moves,
-                                  int max_depth,
-                                  float setup_slack_margin)
+void RepairSimulator::simulateDFS(SimulationTreeNode* node)
 {
-  if (node->depth_ >= max_depth) {
+  if (node->depth_ >= max_depth_) {
     return;
   }
 
-  for (const Pin* pin : pins) {
-    for (BaseMove* move : moves) {
+  for (const Pin* pin : *pins_) {
+    for (BaseMove* move : *moves_) {
       debugPrint(logger_,
                  RSZ,
                  "repair_simulator",
@@ -83,7 +96,7 @@ void RepairSimulator::simulateDFS(const Pin* endpoint,
           = new SimulationTreeNode(pin, move, node->depth_ + 1);
 
       odb::dbDatabase::beginEco(resizer_->block_);
-      if (!move->doMove(pin, setup_slack_margin)) {
+      if (!move->doMove(pin, setup_slack_margin_)) {
         odb::dbDatabase::undoEco(resizer_->block_);
         delete child;
         debugPrint(logger_,
@@ -95,9 +108,9 @@ void RepairSimulator::simulateDFS(const Pin* endpoint,
                    network_->pathName(pin));
         continue;
       }
-      child->slack_ = violator_collector_->getPathSlackByIndex(endpoint, 0);
+      child->slack_ = violator_collector_->getPathSlackByIndex(endpoint_, 0);
       node->children_.push_back(child);
-      simulateDFS(endpoint, child, pins, moves, max_depth, setup_slack_margin);
+      simulateDFS(child);
       odb::dbDatabase::undoEco(resizer_->block_);
 
       debugPrint(logger_,
