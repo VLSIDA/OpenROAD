@@ -4,18 +4,20 @@
 #pragma once
 
 #include <cmath>
-#include <string>
 #include <vector>
 
 #include "BaseMove.hh"
 #include "ViolatorCollector.hh"
+#include "dbBlock.h"
+#include "dbJournal.h"
 #include "rsz/Resizer.hh"
 #include "sta/Graph.hh"
-#include "sta/Sta.hh"
 #include "utl/Logger.h"
 
 namespace rsz {
 
+using odb::_dbBlock;
+using odb::dbJournal;
 using sta::Network;
 using sta::Pin;
 using sta::Slack;
@@ -41,26 +43,27 @@ class RepairSimulator
   ~RepairSimulator() { clear(); }
 
   void init(const Pin* endpoint,
-            std::vector<const Pin*>& pins,
-            std::vector<BaseMove*>& moves,
-            int depth,
+            const std::vector<const Pin*>& pins,
+            const std::vector<BaseMove*>& moves,
+            int level,
             float setup_slack_margin);
   void clear();
   void simulate();
   std::pair<const Pin*, BaseMove*> getBestImmediateMove();
-  void commitMove(const Pin* pin, const BaseMove* move);
+  void commitMove(const Pin* pin, BaseMove* move);
 
  private:
   class SimulationTreeNode
   {
    public:
-    SimulationTreeNode(const Pin* pin, BaseMove* move, int depth)
-        : pin_(pin), move_(move), depth_(depth)
+    SimulationTreeNode(const Pin* pin, BaseMove* move, int level)
+        : pin_(pin), move_(move), level_(level), eco_(nullptr)
     {
     }
 
     ~SimulationTreeNode()
     {
+      delete eco_;
       for (auto* child : children_) {
         delete child;
       }
@@ -68,21 +71,35 @@ class RepairSimulator
 
     const Pin* pin_;
     BaseMove* move_;
-    int depth_;
+    int level_;
     Slack slack_{0.0};
+    // Isolated ECO journal of this node (doesn't include other nodes' ECOs)
+    dbJournal* eco_;
     std::vector<SimulationTreeNode*> children_;
   };
 
   void simulateDFS(SimulationTreeNode* node);
   void trickleUpBestSlack(SimulationTreeNode* node);
+  void decrementLevel(SimulationTreeNode* node);
+
+  // Prevents use-after-free error
+  void addDestroyedPin(const Pin* pin, BaseMove* move);
+  void removeDestroyedPin(const Pin* pin, BaseMove* move);
+  bool isPinDestroyed(const Pin* pin);
+
+  // Skips already rejected moves
+  void addRejectedMove(const Pin* pin, BaseMove* move);
+  bool isMoveRejected(const Pin* pin, BaseMove* move);
 
   const Pin* endpoint_;
   const std::vector<const Pin*>* pins_;
   const std::vector<BaseMove*>* moves_;
-  int max_depth_;
+  int max_level_;
   float setup_slack_margin_;
 
   SimulationTreeNode* root_;
+  std::unordered_set<const Pin*> destroyed_pins_;
+  std::map<const Pin*, std::unordered_set<BaseMove*>> rejected_moves_;
 
   Resizer* resizer_;
   Logger* logger_;

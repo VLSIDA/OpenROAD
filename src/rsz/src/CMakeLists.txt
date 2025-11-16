@@ -54,6 +54,8 @@ target_include_directories(rsz
 target_include_directories(rsz_lib
   PUBLIC
     ../include
+  PRIVATE
+    ../../odb/src/db
 )
 
 target_link_libraries(rsz_lib
