@@ -30,6 +30,7 @@ void RepairSimulator::init(const Pin* endpoint,
   max_level_ = level;
   setup_slack_margin_ = setup_slack_margin;
   root_ = new SimulationTreeNode(nullptr, nullptr, 0);
+  root_->slack_ = violator_collector_->getPathSlackByIndex(endpoint, 0);
 }
 
 void RepairSimulator::clear()
@@ -50,8 +51,9 @@ void RepairSimulator::simulate()
              RSZ,
              "repair_simulator",
              1,
-             "Started repair simulation for endpoint: {}",
-             network_->pathName(endpoint_));
+             "Started repair simulation for endpoint: {} with slack {}",
+             network_->pathName(endpoint_),
+             delayAsString(root_->slack_, sta_, 3));
 
   std::string pins_str;
   for (const Pin* pin : *pins_) {
@@ -67,62 +69,10 @@ void RepairSimulator::simulate()
   }
   debugPrint(logger_, RSZ, "repair_simulator", 2, "Moves:{}", moves_str);
 
-  // Generate the simulation tree
+  // Expand the simulation tree
   simulateDFS(root_);
 
-  // Get the possible slack of root's children
-  for (SimulationTreeNode* child : root_->children_) {
-    trickleUpBestSlack(child);
-  }
-
   debugPrint(logger_, RSZ, "repair_simulator", 1, "Finished repair simulation");
-}
-
-// Return the best immediate move of the simulation tree
-std::pair<const Pin*, BaseMove*> RepairSimulator::getBestImmediateMove()
-{
-  // Find the best immediate move from root's children
-  SimulationTreeNode* best_child = nullptr;
-  Slack best_slack = -sta::INF;
-  for (SimulationTreeNode* child : root_->children_) {
-    if (fuzzyLess(best_slack, child->slack_)) {
-      best_slack = child->slack_;
-      best_child = child;
-    }
-  }
-  std::pair<const Pin*, BaseMove*> result = {nullptr, nullptr};
-  if (best_child != nullptr) {
-    result = {best_child->pin_, best_child->move_};
-  }
-  return result;
-}
-
-void RepairSimulator::commitMove(const Pin* pin, BaseMove* move)
-{
-  debugPrint(logger_,
-             RSZ,
-             "repair_simulator",
-             3,
-             "Committing {} for {} on level 1",
-             move->name(),
-             network_->pathName(pin));
-
-  // Find the child node that corresponds to the given move
-  for (auto it = root_->children_.begin(); it != root_->children_.end(); it++) {
-    SimulationTreeNode* node = *it;
-    if (node->pin_ == pin && node->move_ == move) {
-      root_->children_.erase(it);
-      delete root_;
-      root_ = node;
-      break;
-    }
-  }
-  // Redo the node journal
-  addDestroyedPin(root_->pin_, root_->move_);
-  root_->eco_->redo();
-  delete root_->eco_;
-  root_->eco_ = nullptr;
-  decrementLevel(root_);
 }
 
 // Recursive DFS simulation helper
@@ -134,7 +84,7 @@ void RepairSimulator::simulateDFS(SimulationTreeNode* node)
   }
 
   // Continue with the children if we've already simulated this node
-  if (!node->children_.empty()) {
+  if (node->is_simulated_) {
     for (SimulationTreeNode* child : node->children_) {
       const char* pin_name = network_->pathName(child->pin_);
       debugPrint(logger_,
@@ -199,6 +149,7 @@ void RepairSimulator::simulateDFS(SimulationTreeNode* node)
         delete child;
         continue;
       }
+
       child->eco_ = new dbJournal(resizer_->block_);
       _dbBlock* block = (_dbBlock*) resizer_->block_;
       child->eco_->append(block->_journal);
@@ -219,24 +170,101 @@ void RepairSimulator::simulateDFS(SimulationTreeNode* node)
       removeDestroyedPin(pin, move);
     }
   }
+  node->is_simulated_ = true;
 }
 
-// Trickle the best slacks up the tree
-void RepairSimulator::trickleUpBestSlack(SimulationTreeNode* node)
+// Return the best immediate move of the simulation tree
+std::pair<const Pin*, BaseMove*> RepairSimulator::getBestImmediateMove()
 {
-  if (node->children_.empty()) {
-    return;
-  }
-  for (SimulationTreeNode* child : node->children_) {
-    trickleUpBestSlack(child);
-  }
+  // Recursively search for the best immediate move among root's children
+  SimulationTreeNode* best_descendant = nullptr;
+  SimulationTreeNode* best_child = nullptr;
   Slack best_slack = -sta::INF;
-  for (SimulationTreeNode* child : node->children_) {
-    if (fuzzyLess(best_slack, child->slack_)) {
-      best_slack = child->slack_;
+  for (SimulationTreeNode* child : root_->children_) {
+    SimulationTreeNode* descendant_of_child = getBestPossibleNodeDFS(child);
+    if (fuzzyLess(best_slack, descendant_of_child->slack_)) {
+      best_descendant = descendant_of_child;
+      best_child = child;
+      best_slack = descendant_of_child->slack_;
     }
   }
-  node->slack_ = best_slack;
+  std::pair<const Pin*, BaseMove*> result = {nullptr, nullptr};
+  if (best_child != nullptr && fuzzyLess(root_->slack_, best_slack)) {
+    result = {best_child->pin_, best_child->move_};
+    debugPrint(logger_,
+               RSZ,
+               "repair_simulator",
+               1,
+               "Found the best immediate move: {} for {}. "
+               "Potential slack {} -> {} -{}-> {}",
+               best_child->move_->name(),
+               network_->pathName(best_child->pin_),
+               delayAsString(root_->slack_, sta_, 3),
+               delayAsString(best_child->slack_, sta_, 3),
+               best_descendant->level_ - root_->level_ - 1,
+               delayAsString(best_slack, sta_, 3));
+  } else {
+    debugPrint(logger_,
+               RSZ,
+               "repair_simulator",
+               1,
+               "Couldn't find a good immediate move!");
+  }
+  return result;
+}
+
+// Best immediate move DFS helper
+RepairSimulator::SimulationTreeNode* RepairSimulator::getBestPossibleNodeDFS(SimulationTreeNode* node)
+{
+  if (node->level_ >= max_level_) {
+    return node;
+  }
+  SimulationTreeNode* best_descendant = nullptr;
+  Slack best_slack = -sta::INF;
+  for (SimulationTreeNode* child : node->children_) {
+    SimulationTreeNode* descendant = getBestPossibleNodeDFS(child);
+    if (fuzzyLess(best_slack, descendant->slack_)) {
+      best_descendant = descendant;
+      best_slack = descendant->slack_;
+    }
+  }
+  return best_descendant;
+}
+
+void RepairSimulator::commitMove(const Pin* pin, BaseMove* move)
+{
+  debugPrint(logger_,
+             RSZ,
+             "repair_simulator",
+             3,
+             "Committing {} for {} on level 1",
+             move->name(),
+             network_->pathName(pin));
+
+  // Find the child node that corresponds to the given move
+  for (auto it = root_->children_.begin(); it != root_->children_.end(); it++) {
+    SimulationTreeNode* node = *it;
+    if (node->pin_ == pin && node->move_ == move) {
+      root_->children_.erase(it);
+      delete root_;
+      root_ = node;
+      break;
+    }
+  }
+  // Redo the node journal
+  addDestroyedPin(root_->pin_, root_->move_);
+  root_->eco_->redo();
+  delete root_->eco_;
+  root_->eco_ = nullptr;
+  decrementLevel(root_);
+  Slack new_endpoint_slack = violator_collector_->getPathSlackByIndex(endpoint_, 0);
+  if (fuzzyLess(new_endpoint_slack, root_->slack_)) {
+    logger_->warn(RSZ,
+                  168,
+                  "Endpoint's actual slack is worse than simulated slack: {} < {}",
+                  delayAsString(new_endpoint_slack, sta_, 3),
+                  delayAsString(root_->slack_, sta_, 3));
+  }
 }
 
 // Recursively decrement each node's level

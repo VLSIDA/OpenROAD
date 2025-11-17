@@ -18,6 +18,7 @@ namespace rsz {
 
 using odb::_dbBlock;
 using odb::dbJournal;
+using sta::Sta;
 using sta::Network;
 using sta::Pin;
 using sta::Slack;
@@ -36,6 +37,7 @@ class RepairSimulator
       : resizer_(resizer)
   {
     logger_ = resizer_->logger_;
+    sta_ = resizer_->sta_;
     network_ = resizer_->network_;
     violator_collector_ = violator_collector;
   }
@@ -57,7 +59,7 @@ class RepairSimulator
   {
    public:
     SimulationTreeNode(const Pin* pin, BaseMove* move, int level)
-        : pin_(pin), move_(move), level_(level), eco_(nullptr)
+        : pin_(pin), move_(move), level_(level)
     {
     }
 
@@ -72,14 +74,15 @@ class RepairSimulator
     const Pin* pin_;
     BaseMove* move_;
     int level_;
+    bool is_simulated_{false};
     Slack slack_{0.0};
     // Isolated ECO journal of this node (doesn't include other nodes' ECOs)
-    dbJournal* eco_;
+    dbJournal* eco_{nullptr};
     std::vector<SimulationTreeNode*> children_;
   };
 
   void simulateDFS(SimulationTreeNode* node);
-  void trickleUpBestSlack(SimulationTreeNode* node);
+  SimulationTreeNode* getBestPossibleNodeDFS(SimulationTreeNode* node);
   void decrementLevel(SimulationTreeNode* node);
 
   // Prevents use-after-free error
@@ -103,6 +106,7 @@ class RepairSimulator
 
   Resizer* resizer_;
   Logger* logger_;
+  Sta* sta_;
   Network* network_;
   ViolatorCollector* violator_collector_;
 };
