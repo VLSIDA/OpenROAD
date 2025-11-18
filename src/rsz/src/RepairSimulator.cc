@@ -90,7 +90,7 @@ void RepairSimulator::simulateDFS(SimulationTreeNode* node)
       debugPrint(logger_,
                  RSZ,
                  "repair_simulator",
-                 3,
+                 5,
                  "Redoing {} for {} on level {}",
                  child->move_->name(),
                  pin_name,
@@ -101,7 +101,7 @@ void RepairSimulator::simulateDFS(SimulationTreeNode* node)
       debugPrint(logger_,
                  RSZ,
                  "repair_simulator",
-                 3,
+                 5,
                  "Undoing {} for {} on level {}",
                  child->move_->name(),
                  pin_name,
@@ -124,7 +124,7 @@ void RepairSimulator::simulateDFS(SimulationTreeNode* node)
       debugPrint(logger_,
                  RSZ,
                  "repair_simulator",
-                 3,
+                 5,
                  "Doing {} for {} on level {}",
                  move->name(),
                  pin_name,
@@ -139,7 +139,7 @@ void RepairSimulator::simulateDFS(SimulationTreeNode* node)
         debugPrint(logger_,
                    RSZ,
                    "repair_simulator",
-                   3,
+                   5,
                    "Rejected {} for {} on level {}",
                    move->name(),
                    pin_name,
@@ -153,6 +153,8 @@ void RepairSimulator::simulateDFS(SimulationTreeNode* node)
       child->eco_ = new dbJournal(resizer_->block_);
       _dbBlock* block = (_dbBlock*) resizer_->block_;
       child->eco_->append(block->_journal);
+      resizer_->estimate_parasitics_->updateParasitics();
+      sta_->findRequireds();
       child->slack_ = violator_collector_->getPathSlackByIndex(endpoint_, 0);
       node->children_.push_back(child);
       simulateDFS(child);
@@ -160,7 +162,7 @@ void RepairSimulator::simulateDFS(SimulationTreeNode* node)
       debugPrint(logger_,
                  RSZ,
                  "repair_simulator",
-                 3,
+                 5,
                  "Undoing {} for {} on level {}",
                  move->name(),
                  pin_name,
@@ -177,6 +179,7 @@ void RepairSimulator::simulateDFS(SimulationTreeNode* node)
 std::pair<const Pin*, BaseMove*> RepairSimulator::getBestImmediateMove()
 {
   // Recursively search for the best immediate move among root's children
+  debugPrint(logger_, RSZ, "repair_simulator", 4, "Simulated moves:");
   SimulationTreeNode* best_descendant = nullptr;
   SimulationTreeNode* best_child = nullptr;
   Slack best_slack = -sta::INF;
@@ -216,6 +219,14 @@ std::pair<const Pin*, BaseMove*> RepairSimulator::getBestImmediateMove()
 // Best immediate move DFS helper
 RepairSimulator::SimulationTreeNode* RepairSimulator::getBestPossibleNodeDFS(SimulationTreeNode* node)
 {
+  debugPrint(logger_,
+             RSZ,
+             "repair_simulator",
+             4,
+             std::string(node->level_ * 2, ' ') + "{} for {} with slack {}",
+             node->move_->name(),
+             network_->pathName(node->pin_),
+             delayAsString(node->slack_, sta_, 3));
   if (node->level_ >= max_level_) {
     return node;
   }
@@ -228,6 +239,9 @@ RepairSimulator::SimulationTreeNode* RepairSimulator::getBestPossibleNodeDFS(Sim
       best_slack = descendant->slack_;
     }
   }
+  if (best_descendant == nullptr) {
+    return node;
+  }
   return best_descendant;
 }
 
@@ -237,7 +251,7 @@ void RepairSimulator::commitMove(const Pin* pin, BaseMove* move)
              RSZ,
              "repair_simulator",
              3,
-             "Committing {} for {} on level 1",
+             "Committing {} for {}",
              move->name(),
              network_->pathName(pin));
 
@@ -257,6 +271,8 @@ void RepairSimulator::commitMove(const Pin* pin, BaseMove* move)
   delete root_->eco_;
   root_->eco_ = nullptr;
   decrementLevel(root_);
+  resizer_->estimate_parasitics_->updateParasitics();
+  sta_->findRequireds();
   Slack new_endpoint_slack = violator_collector_->getPathSlackByIndex(endpoint_, 0);
   if (fuzzyLess(new_endpoint_slack, root_->slack_)) {
     logger_->warn(RSZ,

@@ -54,6 +54,8 @@ class RepairSimulator
   std::pair<const Pin*, BaseMove*> getBestImmediateMove();
   void commitMove(const Pin* pin, BaseMove* move);
 
+  const Pin* getEndpoint() { return endpoint_; }
+
  private:
   class SimulationTreeNode
   {
@@ -100,7 +102,7 @@ class RepairSimulator
   int max_level_;
   float setup_slack_margin_;
 
-  SimulationTreeNode* root_;
+  SimulationTreeNode* root_{nullptr};
   std::unordered_set<const Pin*> destroyed_pins_;
   std::map<const Pin*, std::unordered_set<BaseMove*>> rejected_moves_;
 
