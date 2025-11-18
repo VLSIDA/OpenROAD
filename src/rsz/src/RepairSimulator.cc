@@ -29,7 +29,7 @@ void RepairSimulator::init(const Pin* endpoint,
   moves_ = &moves;
   max_level_ = level;
   setup_slack_margin_ = setup_slack_margin;
-  root_ = new SimulationTreeNode(nullptr, nullptr, 0);
+  root_ = new SimulationTreeNode(resizer_, nullptr, nullptr, 0);
   root_->slack_ = violator_collector_->getPathSlackByIndex(endpoint, 0);
 }
 
@@ -82,94 +82,34 @@ void RepairSimulator::simulateDFS(SimulationTreeNode* node)
   if (node->level_ >= max_level_) {
     return;
   }
-
   // Continue with the children if we've already simulated this node
   if (node->is_simulated_) {
     for (SimulationTreeNode* child : node->children_) {
-      const char* pin_name = network_->pathName(child->pin_);
-      debugPrint(logger_,
-                 RSZ,
-                 "repair_simulator",
-                 5,
-                 "Redoing {} for {} on level {}",
-                 child->move_->name(),
-                 pin_name,
-                 child->level_);
-      addDestroyedPin(child->pin_, child->move_);
-      child->eco_->redo();
+      doMove(child);
       simulateDFS(child);
-      debugPrint(logger_,
-                 RSZ,
-                 "repair_simulator",
-                 5,
-                 "Undoing {} for {} on level {}",
-                 child->move_->name(),
-                 pin_name,
-                 child->level_);
-      child->eco_->undo();
-      removeDestroyedPin(child->pin_, child->move_);
+      undoMove(child);
     }
     return;
   }
-
+  // Simulate the children of this node
   for (const Pin* pin : *pins_) {
     if (isPinDestroyed(pin)) {
       continue;
     }
-    const char* pin_name = network_->pathName(pin);
     for (BaseMove* move : *moves_) {
       if (isMoveRejected(pin, move)) {
         continue;
       }
-      debugPrint(logger_,
-                 RSZ,
-                 "repair_simulator",
-                 5,
-                 "Doing {} for {} on level {}",
-                 move->name(),
-                 pin_name,
-                 node->level_ + 1);
-
       SimulationTreeNode* child
-          = new SimulationTreeNode(pin, move, node->level_ + 1);
-
-      odb::dbDatabase::beginEco(resizer_->block_);
-      addDestroyedPin(pin, move);
-      if (!move->doMove(pin, setup_slack_margin_)) {
-        debugPrint(logger_,
-                   RSZ,
-                   "repair_simulator",
-                   5,
-                   "Rejected {} for {} on level {}",
-                   move->name(),
-                   pin_name,
-                   node->level_ + 1);
-        odb::dbDatabase::undoEco(resizer_->block_);
-        removeDestroyedPin(pin, move);
+          = new SimulationTreeNode(resizer_, pin, move, node->level_ + 1);
+      if (!doMove(child)) {
         delete child;
+        //addRejectedMove(pin, move);
         continue;
       }
-
-      child->eco_ = new dbJournal(resizer_->block_);
-      _dbBlock* block = (_dbBlock*) resizer_->block_;
-      child->eco_->append(block->_journal);
-      resizer_->estimate_parasitics_->updateParasitics();
-      sta_->findRequireds();
-      child->slack_ = violator_collector_->getPathSlackByIndex(endpoint_, 0);
       node->children_.push_back(child);
       simulateDFS(child);
-
-      debugPrint(logger_,
-                 RSZ,
-                 "repair_simulator",
-                 5,
-                 "Undoing {} for {} on level {}",
-                 move->name(),
-                 pin_name,
-                 node->level_ + 1);
-
-      odb::dbDatabase::undoEco(resizer_->block_);
-      removeDestroyedPin(pin, move);
+      undoMove(child);
     }
   }
   node->is_simulated_ = true;
@@ -245,34 +185,74 @@ RepairSimulator::SimulationTreeNode* RepairSimulator::getBestPossibleNodeDFS(Sim
   return best_descendant;
 }
 
+bool RepairSimulator::doMove(SimulationTreeNode* node)
+{
+  // We have already simulated this node
+  if (node->eco_) {
+    debugPrint(logger_, RSZ, "repair_simulator", 5, "Redoing {}", node->name_);
+    addDestroyedPin(node->pin_, node->move_);
+    node->eco_->redo();
+    resizer_->estimate_parasitics_->updateParasitics();
+    sta_->findRequireds();
+    return true;
+  }
+  // This node needs to be simulated from scratch
+  debugPrint(logger_, RSZ, "repair_simulator", 5, "Doing {}", node->name_);
+  addDestroyedPin(node->pin_, node->move_);
+  node->odb_eco_active_ = true;
+  odb::dbDatabase::beginEco(resizer_->block_);
+  bool accepted = node->move_->doMove(node->pin_, setup_slack_margin_);
+  if (accepted) {
+    node->eco_ = new dbJournal(resizer_->block_);
+    _dbBlock* block = (_dbBlock*) resizer_->block_;
+    node->eco_->append(block->_journal);
+    resizer_->estimate_parasitics_->updateParasitics();
+    sta_->findRequireds();
+    node->slack_ = violator_collector_->getPathSlackByIndex(endpoint_, 0);
+  } else {
+    debugPrint(logger_, RSZ, "repair_simulator", 5, "Rejected {}", node->name_);
+    odb::dbDatabase::undoEco(resizer_->block_);
+    node->odb_eco_active_ = false;
+    removeDestroyedPin(node->pin_, node->move_);
+  }
+  return accepted;
+}
+
+void RepairSimulator::undoMove(SimulationTreeNode* node)
+{
+  if (node->odb_eco_active_) {
+    odb::dbDatabase::undoEco(resizer_->block_);
+    node->odb_eco_active_ = false;
+    removeDestroyedPin(node->pin_, node->move_);
+    debugPrint(logger_, RSZ, "repair_simulator", 5, "Undoing {}", node->name_);
+  } else {
+    node->eco_->undo();
+    removeDestroyedPin(node->pin_, node->move_);
+  }
+}
+
 void RepairSimulator::commitMove(const Pin* pin, BaseMove* move)
 {
-  debugPrint(logger_,
-             RSZ,
-             "repair_simulator",
-             3,
-             "Committing {} for {}",
-             move->name(),
-             network_->pathName(pin));
 
   // Find the child node that corresponds to the given move
+  bool found = false;
   for (auto it = root_->children_.begin(); it != root_->children_.end(); it++) {
     SimulationTreeNode* node = *it;
     if (node->pin_ == pin && node->move_ == move) {
       root_->children_.erase(it);
       delete root_;
       root_ = node;
+      found = true;
       break;
     }
   }
+  assert(found);
+  debugPrint(logger_, RSZ, "repair_simulator", 3, "Committing {}", root_->name_);
   // Redo the node journal
-  addDestroyedPin(root_->pin_, root_->move_);
-  root_->eco_->redo();
+  doMove(root_);
   delete root_->eco_;
   root_->eco_ = nullptr;
   decrementLevel(root_);
-  resizer_->estimate_parasitics_->updateParasitics();
-  sta_->findRequireds();
   Slack new_endpoint_slack = violator_collector_->getPathSlackByIndex(endpoint_, 0);
   if (fuzzyLess(new_endpoint_slack, root_->slack_)) {
     logger_->warn(RSZ,

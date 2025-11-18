@@ -4,6 +4,7 @@
 #pragma once
 
 #include <cmath>
+#include <string>
 #include <vector>
 
 #include "BaseMove.hh"
@@ -60,9 +61,12 @@ class RepairSimulator
   class SimulationTreeNode
   {
    public:
-    SimulationTreeNode(const Pin* pin, BaseMove* move, int level)
+    SimulationTreeNode(Resizer* resizer, const Pin* pin, BaseMove* move, int level)
         : pin_(pin), move_(move), level_(level)
     {
+      std::string pin_name = pin ? resizer->network_->pathName(pin) : "null";
+      std::string move_name = move ? move->name() : "null";
+      name_ = fmt::format("SimNode({}, {}, L{})", pin_name, move_name, level);
     }
 
     ~SimulationTreeNode()
@@ -76,13 +80,17 @@ class RepairSimulator
     const Pin* pin_;
     BaseMove* move_;
     int level_;
+    std::string name_;
     bool is_simulated_{false};
+    bool odb_eco_active_{false};
     Slack slack_{0.0};
     // Isolated ECO journal of this node (doesn't include other nodes' ECOs)
     dbJournal* eco_{nullptr};
     std::vector<SimulationTreeNode*> children_;
   };
 
+  bool doMove(SimulationTreeNode* node);
+  void undoMove(SimulationTreeNode* node);
   void simulateDFS(SimulationTreeNode* node);
   SimulationTreeNode* getBestPossibleNodeDFS(SimulationTreeNode* node);
   void decrementLevel(SimulationTreeNode* node);
