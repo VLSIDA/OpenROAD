@@ -189,7 +189,7 @@ bool RepairSimulator::doMove(SimulationTreeNode* node)
 {
   // We have already simulated this node
   if (node->eco_) {
-    debugPrint(logger_, RSZ, "repair_simulator", 5, "Redoing {}", node->name_);
+    debugPrint(logger_, RSZ, "repair_simulator", 5, "Redoing {}", node->name());
     addDestroyedPin(node->pin_, node->move_);
     node->eco_->redo();
     node->move_->addMove(node->pin_, node->tracked_changes_);
@@ -198,7 +198,7 @@ bool RepairSimulator::doMove(SimulationTreeNode* node)
     return true;
   }
   // This node needs to be simulated from scratch
-  debugPrint(logger_, RSZ, "repair_simulator", 5, "Doing {}", node->name_);
+  debugPrint(logger_, RSZ, "repair_simulator", 5, "Doing {}", node->name());
   addDestroyedPin(node->pin_, node->move_);
   node->odb_eco_active_ = true;
   odb::dbDatabase::beginEco(resizer_->block_);
@@ -212,7 +212,7 @@ bool RepairSimulator::doMove(SimulationTreeNode* node)
     node->slack_ = violator_collector_->getCurrentEndpointSlack();
     node->tracked_changes_ = node->move_->tracking_stack_.back().second;
   } else {
-    debugPrint(logger_, RSZ, "repair_simulator", 5, "Rejected {}", node->name_);
+    debugPrint(logger_, RSZ, "repair_simulator", 5, "Rejected {}", node->name());
     odb::dbDatabase::undoEco(resizer_->block_);
     node->odb_eco_active_ = false;
     removeDestroyedPin(node->pin_, node->move_);
@@ -222,7 +222,7 @@ bool RepairSimulator::doMove(SimulationTreeNode* node)
 
 void RepairSimulator::undoMove(SimulationTreeNode* node)
 {
-  debugPrint(logger_, RSZ, "repair_simulator", 5, "Undoing {}", node->name_);
+  debugPrint(logger_, RSZ, "repair_simulator", 5, "Undoing {}", node->name());
   if (node->odb_eco_active_) {
     odb::dbDatabase::undoEco(resizer_->block_);
     node->odb_eco_active_ = false;
@@ -249,7 +249,7 @@ void RepairSimulator::commitMove(const Pin* pin, BaseMove* move)
     }
   }
   assert(found);
-  debugPrint(logger_, RSZ, "repair_simulator", 3, "Committing {}", root_->name_);
+  debugPrint(logger_, RSZ, "repair_simulator", 3, "Committing {}", root_->name());
   // Redo the node journal
   doMove(root_);
   odb::dbDatabase::beginEco(resizer_->block_);

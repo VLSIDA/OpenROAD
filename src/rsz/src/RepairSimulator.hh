@@ -64,9 +64,8 @@ class RepairSimulator
     SimulationTreeNode(Resizer* resizer, const Pin* pin, BaseMove* move, int level)
         : pin_(pin), move_(move), level_(level)
     {
-      std::string pin_name = pin ? resizer->network_->pathName(pin) : "null";
-      std::string move_name = move ? move->name() : "null";
-      name_ = fmt::format("SimNode({}, {}, L{})", pin_name, move_name, level);
+      pin_name_ = pin ? resizer->network_->pathName(pin) : "null";
+      move_name_ = move ? move->name() : "null";
     }
 
     ~SimulationTreeNode()
@@ -77,10 +76,15 @@ class RepairSimulator
       }
     }
 
+    std::string name() {
+      return fmt::format("SimNode({}, {}, L{})", pin_name_, move_name_, level_);
+    }
+
     const Pin* pin_;
     BaseMove* move_;
     int level_;
-    std::string name_;
+    std::string pin_name_;
+    std::string move_name_;
     bool is_simulated_{false};
     bool odb_eco_active_{false};
     Slack slack_{0.0};
