@@ -166,7 +166,7 @@ bool SizeDownMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                  new_cell->name(),
                  delayAsString(fanout_slack.second, sta_, 3));
 
-      addMove(load_inst);
+      addMove(drvr_pin, {{load_inst, 1}});
       accept_move = true;
     } else {
       debugPrint(logger_,

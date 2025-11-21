@@ -30,7 +30,7 @@ void RepairSimulator::init(const Pin* endpoint,
   max_level_ = level;
   setup_slack_margin_ = setup_slack_margin;
   root_ = new SimulationTreeNode(resizer_, nullptr, nullptr, 0);
-  root_->slack_ = violator_collector_->getPathSlackByIndex(endpoint, 0);
+  root_->slack_ = violator_collector_->getCurrentEndpointSlack();
 }
 
 void RepairSimulator::clear()
@@ -192,6 +192,7 @@ bool RepairSimulator::doMove(SimulationTreeNode* node)
     debugPrint(logger_, RSZ, "repair_simulator", 5, "Redoing {}", node->name_);
     addDestroyedPin(node->pin_, node->move_);
     node->eco_->redo();
+    node->move_->addMove(node->pin_, node->tracked_changes_);
     resizer_->estimate_parasitics_->updateParasitics();
     sta_->findRequireds();
     return true;
@@ -208,7 +209,8 @@ bool RepairSimulator::doMove(SimulationTreeNode* node)
     node->eco_->append(block->_journal);
     resizer_->estimate_parasitics_->updateParasitics();
     sta_->findRequireds();
-    node->slack_ = violator_collector_->getPathSlackByIndex(endpoint_, 0);
+    node->slack_ = violator_collector_->getCurrentEndpointSlack();
+    node->tracked_changes_ = node->move_->tracking_stack_.back().second;
   } else {
     debugPrint(logger_, RSZ, "repair_simulator", 5, "Rejected {}", node->name_);
     odb::dbDatabase::undoEco(resizer_->block_);
@@ -220,15 +222,15 @@ bool RepairSimulator::doMove(SimulationTreeNode* node)
 
 void RepairSimulator::undoMove(SimulationTreeNode* node)
 {
+  debugPrint(logger_, RSZ, "repair_simulator", 5, "Undoing {}", node->name_);
   if (node->odb_eco_active_) {
     odb::dbDatabase::undoEco(resizer_->block_);
     node->odb_eco_active_ = false;
-    removeDestroyedPin(node->pin_, node->move_);
-    debugPrint(logger_, RSZ, "repair_simulator", 5, "Undoing {}", node->name_);
   } else {
     node->eco_->undo();
-    removeDestroyedPin(node->pin_, node->move_);
   }
+  removeDestroyedPin(node->pin_, node->move_);
+  node->move_->removeMove();
 }
 
 void RepairSimulator::commitMove(const Pin* pin, BaseMove* move)
@@ -250,10 +252,18 @@ void RepairSimulator::commitMove(const Pin* pin, BaseMove* move)
   debugPrint(logger_, RSZ, "repair_simulator", 3, "Committing {}", root_->name_);
   // Redo the node journal
   doMove(root_);
+  odb::dbDatabase::beginEco(resizer_->block_);
+  _dbBlock* block = (_dbBlock*) resizer_->block_;
+  // There should always be an active journal ECO originating from RepairSetup
+  if (block->_journal) {
+    block->_journal->append(root_->eco_);
+  } else {
+    block->_journal_stack.top()->append(root_->eco_);
+  }
   delete root_->eco_;
   root_->eco_ = nullptr;
   decrementLevel(root_);
-  Slack new_endpoint_slack = violator_collector_->getPathSlackByIndex(endpoint_, 0);
+  Slack new_endpoint_slack = violator_collector_->getCurrentEndpointSlack();
   if (fuzzyLess(new_endpoint_slack, root_->slack_)) {
     logger_->warn(RSZ,
                   168,

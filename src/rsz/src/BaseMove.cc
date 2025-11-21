@@ -85,7 +85,7 @@ BaseMove::BaseMove(Resizer* resizer)
 
   accepted_count_ = 0;
   rejected_count_ = 0;
-  all_inst_set_ = InstanceSet(db_network_);
+  accepted_inst_set_ = InstanceSet(db_network_);
   pending_count_ = 0;
   pending_inst_set_ = InstanceSet(db_network_);
 }
@@ -94,7 +94,9 @@ void BaseMove::commitMoves()
 {
   accepted_count_ += pending_count_;
   pending_count_ = 0;
+  accepted_inst_set_.insertSet(&pending_inst_set_);
   pending_inst_set_.clear();
+  tracking_stack_.clear();
 }
 
 void BaseMove::init()
@@ -103,7 +105,8 @@ void BaseMove::init()
   rejected_count_ = 0;
   accepted_count_ = 0;
   pending_inst_set_.clear();
-  all_inst_set_.clear();
+  accepted_inst_set_.clear();
+  tracking_stack_.clear();
 }
 
 void BaseMove::undoMoves()
@@ -111,11 +114,12 @@ void BaseMove::undoMoves()
   rejected_count_ += pending_count_;
   pending_count_ = 0;
   pending_inst_set_.clear();
+  tracking_stack_.clear();
 }
 
 int BaseMove::hasMoves(Instance* inst) const
 {
-  return all_inst_set_.count(inst);
+  return accepted_inst_set_.count(inst);
 }
 
 int BaseMove::hasPendingMoves(Instance* inst) const
@@ -153,9 +157,50 @@ void BaseMove::addMove(Instance* inst, int count)
   pending_count_ += count;
   // Add it to all moves, even though it wasn't accepted.
   // This is the behavior to match the current resizer.
-  all_inst_set_.insert(inst);
+  //all_inst_set_.insert(inst);
   // Also add it to the pending moves
   pending_inst_set_.insert(inst);
+}
+
+void BaseMove::addMove(const Pin* pin, const std::map<Instance*, int>& pending_changes)
+{
+  tracking_stack_.emplace_back(pin, pending_changes);
+  for (const auto& [inst, count] : pending_changes) {
+    addMove(inst, count);
+  }
+}
+
+void BaseMove::addMove(const Pin* pin, std::initializer_list<std::pair<Instance*, int>> pending_changes)
+{
+  std::map<Instance*, int> pending_map;
+  pending_map.insert(pending_changes.begin(), pending_changes.end());
+  addMove(pin, pending_map);
+}
+
+void BaseMove::removeMove(Instance* inst, int count)
+{
+  pending_count_ -= count;
+  pending_inst_set_.erase(inst);
+}
+
+void BaseMove::removeMove()
+{
+  const Pin* pin = tracking_stack_.back().first;
+  const auto pending_changes = tracking_stack_.back().second;
+  tracking_stack_.pop_back();
+  for (const auto& [inst, count] : pending_changes) {
+    bool found = false;
+    for (const auto& [tracked_pin, tracked_changes] : tracking_stack_) {
+      if (tracked_pin == pin && tracked_changes.find(inst) != tracked_changes.end()) {
+        found = true;
+        break;
+      }
+    }
+    if (found) {
+      pending_inst_set_.erase(inst);
+    }
+    pending_count_ -= count;
+  }
 }
 
 double BaseMove::area(Cell* cell)

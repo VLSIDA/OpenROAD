@@ -139,7 +139,7 @@ bool SwapPinsMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
              input_port->name(),
              swap_port->name());
   swapPins(drvr, input_port, swap_port);
-  addMove(drvr);
+  addMove(drvr_pin, {{drvr, 1}});
   return true;
 }
 

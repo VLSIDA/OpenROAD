@@ -82,7 +82,7 @@ bool SizeUpMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                network_->pathName(drvr_pin),
                drvr_port->libertyCell()->name(),
                upsize->name());
-    addMove(drvr);
+    addMove(drvr_pin, {{drvr, 1}});
     return true;
   }
   debugPrint(logger_,
@@ -158,7 +158,7 @@ bool SizeUpMatchMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                    network_->pathName(drvr_pin),
                    drvr_cell->name(),
                    prev_cell->name());
-        addMove(drvr);
+        addMove(drvr_pin, {{drvr, 1}});
         return true;
       }
     }

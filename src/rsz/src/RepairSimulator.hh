@@ -86,6 +86,7 @@ class RepairSimulator
     Slack slack_{0.0};
     // Isolated ECO journal of this node (doesn't include other nodes' ECOs)
     dbJournal* eco_{nullptr};
+    std::map<Instance*, int> tracked_changes_;
     std::vector<SimulationTreeNode*> children_;
   };
 

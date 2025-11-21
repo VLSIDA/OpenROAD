@@ -7,6 +7,7 @@
 #include <array>
 #include <cmath>
 #include <cstddef>
+#include <initializer_list>
 #include <vector>
 
 #include "db_sta/dbNetwork.hh"
@@ -135,6 +136,10 @@ class BaseMove : public sta::dbStaState
   int numMoves() const;
   // Add a new pending optimization
   void addMove(Instance* inst, int count = 1);
+  void addMove(const Pin* pin, const std::map<Instance*, int>& pending_changes);
+  void addMove(const Pin* pin, std::initializer_list<std::pair<Instance*, int>> pending_changes);
+  void removeMove(Instance* inst, int count = 1);
+  void removeMove();
 
  protected:
   Resizer* resizer_;
@@ -152,11 +157,12 @@ class BaseMove : public sta::dbStaState
   // This can result in long run-time.
   // These are all of the optimized insts of this type .
   // Some may not have been accepted, but this replicates the prior behavior.
-  InstanceSet all_inst_set_;
+  InstanceSet accepted_inst_set_;
   // This is just the set of the pending moves.
   InstanceSet pending_inst_set_;
+  // This is used to handle tracking with nested and isolated ECO journals
+  std::vector<std::pair<const Pin*, std::map<Instance*, int>>> tracking_stack_;
   int pending_count_ = 0;
-  int all_count_ = 0;
   int rejected_count_ = 0;
   int accepted_count_ = 0;
 
@@ -254,6 +260,8 @@ class BaseMove : public sta::dbStaState
   static constexpr int split_load_min_fanout_ = 8;
   static constexpr int buffer_removal_max_fanout_ = 10;
   static constexpr float rebuffer_relaxation_factor_ = 0.03;
+
+  friend class RepairSimulator;
 };
 
 }  // namespace rsz

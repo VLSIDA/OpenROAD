@@ -187,6 +187,8 @@ bool UnbufferMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                  "ACCEPT unbuffer {}",
                  network_->pathName(drvr));
       removeBuffer(drvr);
+      removeMove(drvr);
+      addMove(drvr_pin, {{drvr, 1}});
       return true;
     }
     debugPrint(logger_,

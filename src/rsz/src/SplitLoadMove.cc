@@ -142,7 +142,7 @@ bool SplitLoadMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
              3,
              "split_load make_buffer {}",
              network_->pathName(buffer));
-  addMove(buffer);
+  addMove(drvr_pin, {{buffer, 1}});
 
   // H-fix make the out net in the driver parent
   Net* out_net = db_network_->makeNet(parent);

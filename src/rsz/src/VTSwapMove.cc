@@ -49,7 +49,7 @@ bool VTSwapSpeedMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                     network_->pathName(drvr_pin),
                     drvr_cell->name(),
                     best_cell->name());
-    addMove(drvr_inst);
+    addMove(drvr_pin, {{drvr_inst, 1}});
     return true;
   }
 

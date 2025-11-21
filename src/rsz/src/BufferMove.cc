@@ -75,7 +75,7 @@ bool BufferMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                "ACCEPT buffer {} inserted {}",
                network_->pathName(drvr_pin),
                rebuffer_count);
-    addMove(drvr_inst, rebuffer_count);
+    addMove(drvr_pin, {{drvr_inst, rebuffer_count}});
   } else {
     debugPrint(logger_,
                RSZ,

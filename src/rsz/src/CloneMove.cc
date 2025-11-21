@@ -85,13 +85,11 @@ bool CloneMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
     return false;
   }
   // We can probably relax this with the new ECO code
-  if (resizer_->buffer_move_->hasPendingMoves(db_network_->instance(drvr_pin))
-      > 0) {
+  if (resizer_->buffer_move_->hasMoves(db_network_->instance(drvr_pin)) > 0) {
     return false;
   }
   // We can probably relax this with the new ECO code
-  if (resizer_->split_load_move_->hasPendingMoves(
-          db_network_->instance(drvr_pin))
+  if (resizer_->split_load_move_->hasMoves(db_network_->instance(drvr_pin))
       > 0) {
     return false;
   }
@@ -188,10 +186,9 @@ bool CloneMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
              original_cell->name(),
              network_->pathName(clone_inst),
              clone_cell->name());
-  addMove(clone_inst);
   // We add the driver instance to the pending move set, but don't count it as a
   // move.
-  addMove(drvr_inst, 0);
+  addMove(drvr_pin, {{clone_inst, 1}, {drvr_inst, 0}});
 
   // Hierarchy fix, make out_net in parent.
 
