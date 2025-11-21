@@ -158,9 +158,8 @@ void RepairSetup::setupMoveSequence(const std::vector<MoveType>& sequence,
     }
     // Always  have sizing
     move_sequence.push_back(resizer_->size_up_move_.get());
-    // Disabled by default for now
     if (!skip_size_down) {
-      // move_sequence.push_back(resizer_->size_down_move_.get());
+      move_sequence.push_back(resizer_->size_down_move_.get());
     }
     if (!skip_pin_swap) {
       move_sequence.push_back(resizer_->swap_pins_move_.get());
@@ -173,6 +172,9 @@ void RepairSetup::setupMoveSequence(const std::vector<MoveType>& sequence,
     }
     if (!skip_buffering) {
       move_sequence.push_back(resizer_->split_load_move_.get());
+    }
+    if (!skip_vt_swap && resizer_->lib_data_->sorted_vt_categories.size() > 1) {
+      move_sequence.push_back(resizer_->vt_swap_speed_move_.get());
     }
   }
 
