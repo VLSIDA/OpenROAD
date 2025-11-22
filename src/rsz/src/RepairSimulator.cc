@@ -203,10 +203,11 @@ bool RepairSimulator::doMove(SimulationTreeNode* node)
   node->odb_eco_active_ = true;
   odb::dbDatabase::beginEco(resizer_->block_);
   bool accepted = node->move_->doMove(node->pin_, setup_slack_margin_);
+  odb::dbDatabase::endEco(resizer_->block_);
   if (accepted) {
     node->eco_ = new dbJournal(resizer_->block_);
     _dbBlock* block = (_dbBlock*) resizer_->block_;
-    node->eco_->append(block->_journal);
+    node->eco_->append(block->_journal_stack.top());
     resizer_->estimate_parasitics_->updateParasitics();
     sta_->findRequireds();
     node->slack_ = violator_collector_->getCurrentEndpointSlack();
