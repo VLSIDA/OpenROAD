@@ -56,6 +56,19 @@ using sta::Vertex;
 
 bool SwapPinsMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
 {
+  Instance* drvr = network_->instance(drvr_pin);
+
+  // Skip if this is don't touch
+  if (resizer_->dontTouch(drvr)) {
+    return false;
+  }
+
+  // Check if we have already dealt with this instance
+  // and prevent any further swaps.
+  if (hasMoves(drvr) > 0) {
+    return false;
+  }
+
   // Skip if there is no liberty model or this is a single-input cell
   LibertyPort* drvr_port = network_->libertyPort(drvr_pin);
   if (drvr_port == nullptr) {
@@ -68,7 +81,7 @@ bool SwapPinsMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
   if (cell->isBuffer() || cell->isInverter()) {
     return false;
   }
-  Instance* drvr = network_->instance(drvr_pin);
+
   const DcalcAnalysisPt* dcalc_ap = resizer_->tgt_slew_dcalc_ap_;
   // int lib_ap = dcalc_ap->libertyIndex(); : check cornerPort
   const float load_cap = graph_delay_calc_->loadCap(drvr_pin, dcalc_ap);
@@ -77,10 +90,6 @@ bool SwapPinsMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
   Pin* load_pin;
   getPrevNextPins(drvr_pin, prev_drvr_pin, drvr_input_pin, load_pin);
 
-  if (resizer_->dontTouch(drvr)) {
-    return false;
-  }
-
   // We get the driver port and the cell for that port.
   LibertyPort* input_port = network_->libertyPort(drvr_input_pin);
   LibertyPort* swap_port = input_port;
@@ -88,12 +97,6 @@ bool SwapPinsMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
 
   // Skip output to output paths
   if (input_port->direction()->isOutput()) {
-    return false;
-  }
-
-  // Check if we have already dealt with this instance
-  // and prevent any further swaps.
-  if (hasMoves(drvr) > 0) {
     return false;
   }
 

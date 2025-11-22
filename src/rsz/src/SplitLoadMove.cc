@@ -58,7 +58,6 @@ using sta::VertexOutEdgeIterator;
 bool SplitLoadMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
 {
   Vertex* drvr_vertex = graph_->pinDrvrVertex(drvr_pin);
-  const Slack drvr_slack = sta_->vertexSlack(drvr_vertex, resizer_->max_);
 
   const int fanout = this->fanout(drvr_vertex);
   // Don't split loads on low fanout nets.
@@ -77,15 +76,9 @@ bool SplitLoadMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
              "split loads {}",
              network_->pathName(drvr_pin));
 
-  debugPrint(logger_,
-             RSZ,
-             "split_load",
-             3,
-             "split loads {}",
-             network_->pathName(drvr_pin));
-
   // Sort fanouts of the drvr on the critical path by slack margin
   // wrt the critical path slack.
+  const Slack drvr_slack = sta_->vertexSlack(drvr_vertex, resizer_->max_);
   vector<pair<Vertex*, Slack>> fanout_slacks;
   VertexOutEdgeIterator edge_iter(drvr_vertex, graph_);
   while (edge_iter.hasNext()) {

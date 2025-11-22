@@ -74,8 +74,6 @@ Point CloneMove::computeCloneGateLocation(
 bool CloneMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
 {
   Vertex* drvr_vertex = graph_->pinDrvrVertex(drvr_pin);
-  const Slack drvr_slack = sta_->vertexSlack(drvr_vertex, resizer_->max_);
-
   const int fanout = this->fanout(drvr_vertex);
   if (fanout <= split_load_min_fanout_) {
     return false;
@@ -84,13 +82,15 @@ bool CloneMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
   if (!resizer_->okToBufferNet(drvr_pin)) {
     return false;
   }
-  // We can probably relax this with the new ECO code
-  if (resizer_->buffer_move_->hasMoves(db_network_->instance(drvr_pin)) > 0) {
-    return false;
-  }
-  // We can probably relax this with the new ECO code
-  if (resizer_->split_load_move_->hasMoves(db_network_->instance(drvr_pin))
-      > 0) {
+
+  Instance* drvr_inst = db_network_->instance(drvr_pin);
+  if (!resizer_->isSingleOutputCombinational(drvr_inst)) {
+    debugPrint(logger_,
+               RSZ,
+               "opt_moves",
+               3,
+               "REJECT clone {}",
+               network_->pathName(drvr_pin));
     return false;
   }
 
@@ -101,15 +101,10 @@ bool CloneMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
              3,
              "clone driver {}",
              network_->pathName(drvr_pin));
-  debugPrint(logger_,
-             RSZ,
-             "repair_setup",
-             3,
-             "clone driver {}",
-             network_->pathName(drvr_pin));
 
   // Sort fanouts of the drvr on the critical path by slack margin
   // wrt the critical path slack.
+  const Slack drvr_slack = sta_->vertexSlack(drvr_vertex, resizer_->max_);
   vector<pair<Vertex*, Slack>> fanout_slacks;
   VertexOutEdgeIterator edge_iter(drvr_vertex, graph_);
   while (edge_iter.hasNext()) {
@@ -136,18 +131,6 @@ bool CloneMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                      && network_->pathNameLess(pair1.first->pin(),
                                                pair2.first->pin())));
        });
-
-  Instance* drvr_inst = db_network_->instance(drvr_vertex->pin());
-
-  if (!resizer_->isSingleOutputCombinational(drvr_inst)) {
-    debugPrint(logger_,
-               RSZ,
-               "opt_moves",
-               3,
-               "REJECT clone {}",
-               network_->pathName(drvr_pin));
-    return false;
-  }
 
   // Hierarchy fix
   Instance* parent = db_network_->getOwningInstanceParent(drvr_vertex->pin());
