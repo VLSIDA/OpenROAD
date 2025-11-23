@@ -641,3 +641,19 @@ proc setup_tclreadline { } {
 
 # namespace ord
 }
+
+# ============================================================
+# Clock Mesh (by Wajid)
+# ============================================================
+
+sta::define_cmd_args "run_clock_mesh" { }
+
+proc run_clock_mesh { args } {
+  sta::check_argc_eq0 "run_clock_mesh" $args
+
+  if { [ord::get_db_block] == "NULL" } {
+    utl::error "MESH" 101 "No design block found. Load DEF before running mesh."
+  }
+
+  mesh
+}

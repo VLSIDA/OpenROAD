@@ -50,6 +50,7 @@
 #include "grt/MakeGlobalRouter.h"
 #include "gui/MakeGui.h"
 #include "ifp/MakeInitFloorplan.hh"
+#include "mesh/ClockMesh.hh"
 #include "mpl/MakeMacroPlacer.h"
 #include "mpl/rtl_mp.h"
 #include "odb/3dblox.h"
@@ -275,6 +276,7 @@ void OpenRoad::init(Tcl_Interp* tcl_interp,
   tap::initTapcell(tcl_interp);
   mpl::initMacroPlacer(tcl_interp);
   exa::initExample(tcl_interp);
+  mesh::initClockMesh(this);
   rcx::initOpenRCX(tcl_interp);
   pad::initICeWall(tcl_interp);
   rmp::initRestructure(tcl_interp);
