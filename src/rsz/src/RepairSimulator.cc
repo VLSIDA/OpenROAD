@@ -55,20 +55,6 @@ void RepairSimulator::simulate()
              network_->pathName(endpoint_),
              delayAsString(root_->slack_, sta_, 3));
 
-  std::string pins_str;
-  for (const Pin* pin : *pins_) {
-    pins_str += " ";
-    pins_str += network_->pathName(pin);
-  }
-  debugPrint(logger_, RSZ, "repair_simulator", 2, "Pins:{}", pins_str);
-
-  std::string moves_str;
-  for (BaseMove* move : *moves_) {
-    moves_str += " ";
-    moves_str += move->name();
-  }
-  debugPrint(logger_, RSZ, "repair_simulator", 2, "Moves:{}", moves_str);
-
   // Expand the simulation tree
   simulateDFS(root_);
 
@@ -157,7 +143,8 @@ std::pair<const Pin*, BaseMove*> RepairSimulator::getBestImmediateMove()
 }
 
 // Best immediate move DFS helper
-RepairSimulator::SimulationTreeNode* RepairSimulator::getBestPossibleNodeDFS(SimulationTreeNode* node)
+RepairSimulator::SimulationTreeNode* RepairSimulator::getBestPossibleNodeDFS(
+    SimulationTreeNode* node)
 {
   debugPrint(logger_,
              RSZ,
@@ -213,7 +200,8 @@ bool RepairSimulator::doMove(SimulationTreeNode* node)
     node->slack_ = violator_collector_->getCurrentEndpointSlack();
     node->tracked_changes_ = node->move_->tracking_stack_.back().second;
   } else {
-    debugPrint(logger_, RSZ, "repair_simulator", 5, "Rejected {}", node->name());
+    debugPrint(
+        logger_, RSZ, "repair_simulator", 5, "Rejected {}", node->name());
     odb::dbDatabase::undoEco(resizer_->block_);
     node->odb_eco_active_ = false;
     removeDestroyedPin(node->pin_, node->move_);
@@ -236,7 +224,6 @@ void RepairSimulator::undoMove(SimulationTreeNode* node)
 
 void RepairSimulator::commitMove(const Pin* pin, BaseMove* move)
 {
-
   // Find the child node that corresponds to the given move
   bool found = false;
   for (auto it = root_->children_.begin(); it != root_->children_.end(); it++) {
@@ -250,7 +237,8 @@ void RepairSimulator::commitMove(const Pin* pin, BaseMove* move)
     }
   }
   assert(found);
-  debugPrint(logger_, RSZ, "repair_simulator", 3, "Committing {}", root_->name());
+  debugPrint(
+      logger_, RSZ, "repair_simulator", 3, "Committing {}", root_->name());
   // Redo the node journal
   doMove(root_);
   odb::dbDatabase::beginEco(resizer_->block_);
@@ -266,11 +254,12 @@ void RepairSimulator::commitMove(const Pin* pin, BaseMove* move)
   decrementLevel(root_);
   Slack new_endpoint_slack = violator_collector_->getCurrentEndpointSlack();
   if (fuzzyLess(new_endpoint_slack, root_->slack_)) {
-    logger_->warn(RSZ,
-                  168,
-                  "Endpoint's actual slack is worse than simulated slack: {} < {}",
-                  delayAsString(new_endpoint_slack, sta_, 3),
-                  delayAsString(root_->slack_, sta_, 3));
+    logger_->warn(
+        RSZ,
+        168,
+        "Endpoint's actual slack is worse than simulated slack: {} < {}",
+        delayAsString(new_endpoint_slack, sta_, 3),
+        delayAsString(root_->slack_, sta_, 3));
   }
 }
 

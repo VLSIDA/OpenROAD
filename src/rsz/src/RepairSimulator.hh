@@ -87,10 +87,13 @@ class RepairSimulator
     std::string move_name_;
     bool is_simulated_{false};
     bool odb_eco_active_{false};
+    // Slack of path endpoint
     Slack slack_{0.0};
     // Isolated ECO journal of this node (doesn't include other nodes' ECOs)
     dbJournal* eco_{nullptr};
+    // Track BaseMove::addMove() changes to properly revert them
     std::map<Instance*, int> tracked_changes_;
+    // Children of this node
     std::vector<SimulationTreeNode*> children_;
   };
 
