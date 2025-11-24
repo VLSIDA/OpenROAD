@@ -3,7 +3,10 @@
 
 #include "RepairSimulator.hh"
 
+#include <queue>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "BaseMove.hh"
 #include "odb/db.h"
@@ -22,12 +25,14 @@ void RepairSimulator::init(const Pin* endpoint,
                            const std::vector<const Pin*>& pins,
                            const std::vector<BaseMove*>& moves,
                            int level,
+                           SearchMode mode,
                            float setup_slack_margin)
 {
   endpoint_ = endpoint;
   pins_ = &pins;
   moves_ = &moves;
   max_level_ = level;
+  mode_ = mode;
   setup_slack_margin_ = setup_slack_margin;
   root_ = new SimulationTreeNode(resizer_, nullptr, nullptr, 0);
   root_->slack_ = violator_collector_->getCurrentEndpointSlack();
@@ -56,12 +61,83 @@ void RepairSimulator::simulate()
              delayAsString(root_->slack_, sta_, 3));
 
   // Expand the simulation tree
-  simulateDFS(root_);
+  switch (mode_) {
+    case SearchMode::BFS:
+      simulateBFS(root_);
+      break;
+    case SearchMode::DFS:
+      simulateDFS(root_);
+      break;
+  }
 
   debugPrint(logger_, RSZ, "repair_simulator", 1, "Finished repair simulation");
 }
 
-// Recursive DFS simulation helper
+// BFS simulation helper
+void RepairSimulator::simulateBFS(SimulationTreeNode* node)
+{
+  // Queue stores pairs of (node, path_from_root_to_node)
+  std::queue<std::pair<SimulationTreeNode*, std::vector<SimulationTreeNode*>>>
+      queue;
+  std::vector<SimulationTreeNode*> root_path;
+  root_path.push_back(node);
+  queue.emplace(node, root_path);
+  // Breadth-first search
+  while (!queue.empty()) {
+    std::pair<SimulationTreeNode*, std::vector<SimulationTreeNode*>>
+        current_pair = queue.front();
+    queue.pop();
+    SimulationTreeNode* current = current_pair.first;
+    std::vector<SimulationTreeNode*> path = current_pair.second;
+    // Skip if reached max level
+    if (current->level_ >= max_level_) {
+      continue;
+    }
+    // Continue with existing children if already simulated
+    if (current->is_simulated_) {
+      for (SimulationTreeNode* child : current->children_) {
+        std::vector<SimulationTreeNode*> child_path = path;
+        child_path.push_back(child);
+        queue.emplace(child, child_path);
+      }
+      continue;
+    }
+    // Apply all moves along the path from root to current (excluding root)
+    for (size_t i = 1; i < path.size(); i++) {
+      doMove(path[i]);
+    }
+    // Create children for current node
+    for (const Pin* pin : *pins_) {
+      if (isPinDestroyed(pin)) {
+        continue;
+      }
+      for (BaseMove* move : *moves_) {
+        if (isMoveRejected(pin, move)) {
+          continue;
+        }
+        SimulationTreeNode* child
+            = new SimulationTreeNode(resizer_, pin, move, current->level_ + 1);
+        if (!doMove(child)) {
+          delete child;
+          continue;
+        }
+        current->children_.push_back(child);
+        // Create path for child and add to queue
+        std::vector<SimulationTreeNode*> child_path = path;
+        child_path.push_back(child);
+        queue.emplace(child, child_path);
+        undoMove(child);
+      }
+    }
+    // Undo all moves back to root
+    for (int i = path.size() - 1; i >= 1; i--) {
+      undoMove(path[i]);
+    }
+    current->is_simulated_ = true;
+  }
+}
+
+// DFS simulation helper
 void RepairSimulator::simulateDFS(SimulationTreeNode* node)
 {
   // Skip if reached the max level

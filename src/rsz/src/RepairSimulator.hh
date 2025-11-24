@@ -34,6 +34,13 @@ using utl::RSZ;
 class RepairSimulator
 {
  public:
+
+ enum class SearchMode
+ {
+   DFS,
+   BFS
+ };
+
   RepairSimulator(Resizer* resizer, ViolatorCollector* violator_collector)
       : resizer_(resizer)
   {
@@ -49,6 +56,7 @@ class RepairSimulator
             const std::vector<const Pin*>& pins,
             const std::vector<BaseMove*>& moves,
             int level,
+            SearchMode mode,
             float setup_slack_margin);
   void clear();
   void simulate();
@@ -99,6 +107,7 @@ class RepairSimulator
 
   bool doMove(SimulationTreeNode* node);
   void undoMove(SimulationTreeNode* node);
+  void simulateBFS(SimulationTreeNode* node);
   void simulateDFS(SimulationTreeNode* node);
   SimulationTreeNode* getBestPossibleNodeDFS(SimulationTreeNode* node);
   void decrementLevel(SimulationTreeNode* node);
@@ -116,6 +125,7 @@ class RepairSimulator
   const std::vector<const Pin*>* pins_;
   const std::vector<BaseMove*>* moves_;
   int max_level_;
+  SearchMode mode_;
   float setup_slack_margin_;
 
   SimulationTreeNode* root_{nullptr};
