@@ -26,6 +26,7 @@ void RepairSimulator::init(const Pin* endpoint,
                            const std::vector<BaseMove*>& moves,
                            int level,
                            SearchMode mode,
+                           int time_limit,
                            float setup_slack_margin)
 {
   endpoint_ = endpoint;
@@ -33,6 +34,7 @@ void RepairSimulator::init(const Pin* endpoint,
   moves_ = &moves;
   max_level_ = level;
   mode_ = mode;
+  time_limit_ = time_limit;
   setup_slack_margin_ = setup_slack_margin;
   root_ = new SimulationTreeNode(resizer_, nullptr, nullptr, 0);
   root_->slack_ = violator_collector_->getCurrentEndpointSlack();
@@ -60,21 +62,43 @@ void RepairSimulator::simulate()
              network_->pathName(endpoint_),
              delayAsString(root_->slack_, sta_, 3));
 
+  start_time_ = std::chrono::steady_clock::now();
+
   // Expand the simulation tree
+  bool finished;
   switch (mode_) {
     case SearchMode::BFS:
-      simulateBFS(root_);
+      finished = simulateBFS(root_);
       break;
     case SearchMode::DFS:
-      simulateDFS(root_);
+      finished = simulateDFS(root_);
       break;
   }
 
-  debugPrint(logger_, RSZ, "repair_simulator", 1, "Finished repair simulation");
+  auto end_time = std::chrono::steady_clock::now();
+  auto elapsed_secs
+      = std::chrono::duration_cast<std::chrono::seconds>(end_time - start_time_)
+            .count();
+  if (finished) {
+    debugPrint(logger_,
+               RSZ,
+               "repair_simulator",
+               1,
+               "Finished repair simulation in {} secs",
+               elapsed_secs);
+  } else {
+    debugPrint(
+        logger_,
+        RSZ,
+        "repair_simulator",
+        1,
+        "Finished repair simulation early after {} secs due to time limit",
+        elapsed_secs);
+  }
 }
 
 // BFS simulation helper
-void RepairSimulator::simulateBFS(SimulationTreeNode* node)
+bool RepairSimulator::simulateBFS(SimulationTreeNode* node)
 {
   // Queue stores pairs of (node, path_from_root_to_node)
   std::queue<std::pair<SimulationTreeNode*, std::vector<SimulationTreeNode*>>>
@@ -93,88 +117,113 @@ void RepairSimulator::simulateBFS(SimulationTreeNode* node)
     if (current->level_ >= max_level_) {
       continue;
     }
-    // Continue with existing children if already simulated
-    if (current->is_simulated_) {
+    // If this node has simulated at least some of its all its children, add
+    // them to the queue
+    if (current->simulation_finished_ || current->simulation_aborted_) {
+      assert(current->simulation_started_);
       for (SimulationTreeNode* child : current->children_) {
         std::vector<SimulationTreeNode*> child_path = path;
         child_path.push_back(child);
         queue.emplace(child, child_path);
       }
+      if (current->simulation_finished_) {
+        continue;
+      }
+      current->simulation_aborted_ = false;
+    }
+    // Continue if no pending children are left
+    if (current->simulation_started_ && current->children_pending_.empty()) {
+      current->simulation_finished_ = true;
       continue;
     }
     // Apply all moves along the path from root to current (excluding root)
     for (size_t i = 1; i < path.size(); i++) {
       doMove(path[i]);
     }
-    // Create children for current node
-    for (const Pin* pin : *pins_) {
-      if (isPinDestroyed(pin)) {
+    // Create all children as pending
+    if (!current->simulation_started_) {
+      current->children_pending_ = createChildren(current);
+    }
+    current->simulation_started_ = true;
+    // Process all children
+    while (!current->children_pending_.empty()) {
+      auto child = current->children_pending_.front();
+      current->children_pending_.pop();
+      if (!doMove(child)) {
+        delete child;
         continue;
       }
-      for (BaseMove* move : *moves_) {
-        if (isMoveRejected(pin, move)) {
-          continue;
-        }
-        SimulationTreeNode* child
-            = new SimulationTreeNode(resizer_, pin, move, current->level_ + 1);
-        if (!doMove(child)) {
-          delete child;
-          continue;
-        }
-        current->children_.push_back(child);
-        // Create path for child and add to queue
-        std::vector<SimulationTreeNode*> child_path = path;
-        child_path.push_back(child);
-        queue.emplace(child, child_path);
-        undoMove(child);
+      current->children_.push_back(child);
+      // Create path for child and add to queue
+      std::vector<SimulationTreeNode*> child_path = path;
+      child_path.push_back(child);
+      queue.emplace(child, child_path);
+      undoMove(child);
+      if (hasTimeLimitPassed()) {
+        current->simulation_aborted_ = true;
+        break;
       }
     }
     // Undo all moves back to root
     for (int i = path.size() - 1; i >= 1; i--) {
       undoMove(path[i]);
     }
-    current->is_simulated_ = true;
+    if (current->simulation_aborted_) {
+      return false;
+    }
+    current->simulation_finished_ = true;
   }
+  return true;
 }
 
 // DFS simulation helper
-void RepairSimulator::simulateDFS(SimulationTreeNode* node)
+bool RepairSimulator::simulateDFS(SimulationTreeNode* node)
 {
   // Skip if reached the max level
   if (node->level_ >= max_level_) {
-    return;
+    return true;
   }
-  // Continue with the children if we've already simulated this node
-  if (node->is_simulated_) {
+  // If this node has simulated at least some of its all its children, run them
+  // first
+  if (node->simulation_finished_ || node->simulation_aborted_) {
+    assert(node->simulation_started_);
     for (SimulationTreeNode* child : node->children_) {
       doMove(child);
-      simulateDFS(child);
+      bool finished = simulateDFS(child);
       undoMove(child);
+      if (!finished) {
+        node->simulation_aborted_ = true;
+        return false;
+      }
     }
-    return;
+    if (node->simulation_finished_) {
+      return true;
+    }
+    node->simulation_aborted_ = false;
   }
-  // Simulate the children of this node
-  for (const Pin* pin : *pins_) {
-    if (isPinDestroyed(pin)) {
+  // Create all children as pending
+  if (!node->simulation_started_) {
+    node->children_pending_ = createChildren(node);
+  }
+  node->simulation_started_ = true;
+  // Process all children
+  while (!node->children_pending_.empty()) {
+    auto child = node->children_pending_.front();
+    node->children_pending_.pop();
+    if (!doMove(child)) {
+      delete child;
       continue;
     }
-    for (BaseMove* move : *moves_) {
-      if (isMoveRejected(pin, move)) {
-        continue;
-      }
-      SimulationTreeNode* child
-          = new SimulationTreeNode(resizer_, pin, move, node->level_ + 1);
-      if (!doMove(child)) {
-        delete child;
-        //addRejectedMove(pin, move);
-        continue;
-      }
-      node->children_.push_back(child);
-      simulateDFS(child);
-      undoMove(child);
+    node->children_.push_back(child);
+    bool finished = simulateDFS(child);
+    undoMove(child);
+    if (!finished) {
+      node->simulation_aborted_ = true;
+      return false;
     }
   }
-  node->is_simulated_ = true;
+  node->simulation_finished_ = true;
+  return true;
 }
 
 // Return the best immediate move of the simulation tree
@@ -220,7 +269,7 @@ std::pair<const Pin*, BaseMove*> RepairSimulator::getBestImmediateMove()
 
 // Best immediate move DFS helper
 RepairSimulator::SimulationTreeNode* RepairSimulator::getBestPossibleNodeDFS(
-    SimulationTreeNode* node)
+    RepairSimulator::SimulationTreeNode* node)
 {
   debugPrint(logger_,
              RSZ,
@@ -348,6 +397,23 @@ void RepairSimulator::decrementLevel(SimulationTreeNode* node)
   }
 }
 
+std::queue<RepairSimulator::SimulationTreeNode*>
+RepairSimulator::createChildren(RepairSimulator::SimulationTreeNode* parent)
+{
+  std::queue<RepairSimulator::SimulationTreeNode*> children;
+  for (const Pin* pin : *pins_) {
+    if (isPinDestroyed(pin)) {
+      continue;
+    }
+    for (BaseMove* move : *moves_) {
+      auto child
+          = new SimulationTreeNode(resizer_, pin, move, parent->level_ + 1);
+      children.emplace(child);
+    }
+  }
+  return children;
+}
+
 void RepairSimulator::addDestroyedPin(const Pin* pin, BaseMove* move)
 {
   if (move == (BaseMove*) resizer_->unbuffer_move_.get()) {
@@ -367,14 +433,16 @@ bool RepairSimulator::isPinDestroyed(const Pin* pin)
   return destroyed_pins_.find(pin) != destroyed_pins_.end();
 }
 
-void RepairSimulator::addRejectedMove(const Pin* pin, BaseMove* move)
+bool RepairSimulator::hasTimeLimitPassed()
 {
-  rejected_moves_[pin].insert(move);
-}
-
-bool RepairSimulator::isMoveRejected(const Pin* pin, BaseMove* move)
-{
-  return rejected_moves_[pin].find(move) != rejected_moves_[pin].end();
+  if (time_limit_ < 0) {
+    return false;
+  }
+  auto end_time = std::chrono::steady_clock::now();
+  auto elapsed_secs
+      = std::chrono::duration_cast<std::chrono::seconds>(end_time - start_time_)
+            .count();
+  return elapsed_secs >= time_limit_;
 }
 
 }  // namespace rsz

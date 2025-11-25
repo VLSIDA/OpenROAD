@@ -19,10 +19,10 @@ namespace rsz {
 
 using odb::_dbBlock;
 using odb::dbJournal;
-using sta::Sta;
 using sta::Network;
 using sta::Pin;
 using sta::Slack;
+using sta::Sta;
 using sta::Vertex;
 using sta::VertexSet;
 using std::pair;
@@ -34,12 +34,11 @@ using utl::RSZ;
 class RepairSimulator
 {
  public:
-
- enum class SearchMode
- {
-   DFS,
-   BFS
- };
+  enum class SearchMode
+  {
+    DFS,
+    BFS
+  };
 
   RepairSimulator(Resizer* resizer, ViolatorCollector* violator_collector)
       : resizer_(resizer)
@@ -57,6 +56,7 @@ class RepairSimulator
             const std::vector<BaseMove*>& moves,
             int level,
             SearchMode mode,
+            int time_limit,
             float setup_slack_margin);
   void clear();
   void simulate();
@@ -69,7 +69,10 @@ class RepairSimulator
   class SimulationTreeNode
   {
    public:
-    SimulationTreeNode(Resizer* resizer, const Pin* pin, BaseMove* move, int level)
+    SimulationTreeNode(Resizer* resizer,
+                       const Pin* pin,
+                       BaseMove* move,
+                       int level)
         : pin_(pin), move_(move), level_(level)
     {
       pin_name_ = pin ? resizer->network_->pathName(pin) : "null";
@@ -84,7 +87,8 @@ class RepairSimulator
       }
     }
 
-    std::string name() {
+    std::string name()
+    {
       return fmt::format("SimNode({}, {}, L{})", pin_name_, move_name_, level_);
     }
 
@@ -93,7 +97,9 @@ class RepairSimulator
     int level_;
     std::string pin_name_;
     std::string move_name_;
-    bool is_simulated_{false};
+    bool simulation_started_{false};
+    bool simulation_finished_{false};
+    bool simulation_aborted_{false};
     bool odb_eco_active_{false};
     // Slack of path endpoint
     Slack slack_{0.0};
@@ -103,34 +109,39 @@ class RepairSimulator
     std::map<Instance*, int> tracked_changes_;
     // Children of this node
     std::vector<SimulationTreeNode*> children_;
+    // Children of this node haven't been simulated yet
+    std::queue<SimulationTreeNode*> children_pending_;
   };
 
   bool doMove(SimulationTreeNode* node);
   void undoMove(SimulationTreeNode* node);
-  void simulateBFS(SimulationTreeNode* node);
-  void simulateDFS(SimulationTreeNode* node);
+  bool simulateBFS(SimulationTreeNode* node);
+  bool simulateDFS(SimulationTreeNode* node);
   SimulationTreeNode* getBestPossibleNodeDFS(SimulationTreeNode* node);
   void decrementLevel(SimulationTreeNode* node);
+  std::queue<SimulationTreeNode*> createChildren(SimulationTreeNode* parent);
 
   // Prevents use-after-free error
   void addDestroyedPin(const Pin* pin, BaseMove* move);
   void removeDestroyedPin(const Pin* pin, BaseMove* move);
   bool isPinDestroyed(const Pin* pin);
 
-  // Skips already rejected moves
-  void addRejectedMove(const Pin* pin, BaseMove* move);
-  bool isMoveRejected(const Pin* pin, BaseMove* move);
+  // Measure simulation and time progress
+  bool hasTimeLimitPassed();
 
   const Pin* endpoint_;
   const std::vector<const Pin*>* pins_;
   const std::vector<BaseMove*>* moves_;
   int max_level_;
   SearchMode mode_;
+  int time_limit_;
   float setup_slack_margin_;
 
   SimulationTreeNode* root_{nullptr};
   std::unordered_set<const Pin*> destroyed_pins_;
   std::map<const Pin*, std::unordered_set<BaseMove*>> rejected_moves_;
+
+  std::chrono::time_point<std::chrono::steady_clock> start_time_;
 
   Resizer* resizer_;
   Logger* logger_;
