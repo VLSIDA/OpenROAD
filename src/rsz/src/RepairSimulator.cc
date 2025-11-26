@@ -159,6 +159,20 @@ bool RepairSimulator::simulateBFS(SimulationTreeNode* node)
       child_path.push_back(child);
       queue.emplace(child, child_path);
       undoMove(child);
+      // Early termination if we found a good enough solution
+      if (!fuzzyLess(child->slack_, setup_slack_margin_)) {
+        debugPrint(logger_,
+                   RSZ,
+                   "repair_simulator",
+                   2,
+                   "BFS found optimal solution at level {}",
+                   child->level_);
+        // Undo all moves back to root before returning
+        for (int i = path.size() - 1; i >= 1; i--) {
+          undoMove(path[i]);
+        }
+        return true;
+      }
       if (hasTimeLimitPassed()) {
         current->simulation_aborted_ = true;
         break;
@@ -220,6 +234,17 @@ bool RepairSimulator::simulateDFS(SimulationTreeNode* node)
     if (!finished) {
       node->simulation_aborted_ = true;
       return false;
+    }
+    // Early termination if we found a good enough solution
+    if (!fuzzyLess(child->slack_, setup_slack_margin_)) {
+      debugPrint(logger_,
+                 RSZ,
+                 "repair_simulator",
+                 2,
+                 "DFS found optimal solution at level {}",
+                 child->level_);
+      node->simulation_finished_ = true;
+      return true;
     }
   }
   node->simulation_finished_ = true;
