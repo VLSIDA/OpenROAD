@@ -3,6 +3,7 @@
 
 #include "RepairSimulator.hh"
 
+#include <cmath>
 #include <queue>
 #include <string>
 #include <utility>
@@ -73,6 +74,12 @@ void RepairSimulator::simulate()
     case SearchMode::DFS:
       finished = simulateDFS(root_);
       break;
+    case SearchMode::MCTS:
+      finished = simulateMCTS(root_);
+      break;
+    default:
+      logger_->error(RSZ, 156, "Search mode unknown");
+      return;
   }
 
   auto end_time = std::chrono::steady_clock::now();
@@ -248,6 +255,107 @@ bool RepairSimulator::simulateDFS(SimulationTreeNode* node)
     }
   }
   node->simulation_finished_ = true;
+  return true;
+}
+
+// MCTS simulation helper
+bool RepairSimulator::simulateMCTS(RepairSimulator::SimulationTreeNode* node)
+{
+  // Adaptive iteration count based on search space size
+  const int branching_factor = pins_->size() * moves_->size();
+  const int base_iterations = branching_factor * max_level_;
+  const int num_iterations = std::min(10000, std::max(100, base_iterations * 2));
+  const float exploration_constant = 1.414;  // sqrt(2)
+
+  debugPrint(logger_,
+             RSZ,
+             "repair_simulator",
+             2,
+             "MCTS running with max {} iterations (branching={}, depth={})",
+             num_iterations,
+             branching_factor,
+             max_level_);
+
+  for (int iter = 0; iter < num_iterations; iter++) {
+    std::vector<SimulationTreeNode*> path;
+    SimulationTreeNode* current = node;
+    path.push_back(current);
+    // Phase 1: Selection - traverse tree using UCB1
+    while (current->level_ < max_level_ && current->simulation_finished_
+           && !current->children_.empty()) {
+      SimulationTreeNode* best_child = nullptr;
+      float best_ucb = -sta::INF;
+      for (SimulationTreeNode* child : current->children_) {
+        float ucb;
+        if (child->mcts_visits_ == 0) {
+          ucb = sta::INF;  // Prioritize unvisited nodes
+        } else {
+          float exploitation = child->mcts_best_slack_;
+          float exploration
+              = exploration_constant
+                * std::sqrt(std::log(current->mcts_visits_)
+                            / child->mcts_visits_);
+          ucb = exploitation + exploration;
+        }
+        if (ucb > best_ucb) {
+          best_ucb = ucb;
+          best_child = child;
+        }
+      }
+      if (best_child == nullptr) {
+        break;
+      }
+      current = best_child;
+      doMove(current);
+      path.push_back(current);
+    }
+    // Phase 2: Expansion - add one child if not fully expanded
+    if (current->level_ < max_level_) {
+      if (!current->simulation_started_) {
+        current->children_pending_ = createChildren(current);
+        current->simulation_started_ = true;
+      }
+      if (!current->children_pending_.empty()) {
+        auto child = current->children_pending_.front();
+        current->children_pending_.pop();
+        if (doMove(child)) {
+          current->children_.push_back(child);
+          path.push_back(child);
+          current = child;
+        } else {
+          delete child;
+        }
+      } else {
+        current->simulation_finished_ = true;
+      }
+    }
+    // Phase 3: Evaluation - get slack at current node
+    Slack new_path_slack = violator_collector_->getCurrentEndpointSlack();
+    // Phase 4: Backpropagation - update statistics
+    for (SimulationTreeNode* node : path) {
+      node->mcts_visits_++;
+      if (node->mcts_visits_ == 1 || fuzzyLess(node->mcts_best_slack_, new_path_slack)) {
+        node->mcts_best_slack_ = new_path_slack;
+      }
+    }
+    // Undo all moves back to root
+    for (int i = path.size() - 1; i >= 1; i--) {
+      undoMove(path[i]);
+    }
+    if (hasTimeLimitPassed()) {
+      return false;
+    }
+    // Early termination if we found a good enough solution
+    if (!fuzzyLess(new_path_slack, setup_slack_margin_)) {
+      debugPrint(logger_,
+                 RSZ,
+                 "repair_simulator",
+                 2,
+                 "MCTS found optimal solution at iteration {}",
+                 iter);
+      break;
+    }
+  }
   return true;
 }
 

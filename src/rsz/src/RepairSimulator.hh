@@ -37,7 +37,8 @@ class RepairSimulator
   enum class SearchMode
   {
     DFS,
-    BFS
+    BFS,
+    MCTS
   };
 
   RepairSimulator(Resizer* resizer, ViolatorCollector* violator_collector)
@@ -103,6 +104,9 @@ class RepairSimulator
     bool odb_eco_active_{false};
     // Slack of path endpoint
     Slack slack_{0.0};
+    // MCTS variables
+    int mcts_visits_{0};
+    Slack mcts_best_slack_{-sta::INF};
     // Isolated ECO journal of this node (doesn't include other nodes' ECOs)
     dbJournal* eco_{nullptr};
     // Track BaseMove::addMove() changes to properly revert them
@@ -117,6 +121,7 @@ class RepairSimulator
   void undoMove(SimulationTreeNode* node);
   bool simulateBFS(SimulationTreeNode* node);
   bool simulateDFS(SimulationTreeNode* node);
+  bool simulateMCTS(SimulationTreeNode* node);
   SimulationTreeNode* getBestPossibleNodeDFS(SimulationTreeNode* node);
   void decrementLevel(SimulationTreeNode* node);
   std::queue<SimulationTreeNode*> createChildren(SimulationTreeNode* parent);
