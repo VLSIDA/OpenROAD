@@ -974,7 +974,7 @@ void dbJournal::redo_swapObject()
           utl::ODB,
           "DB_ECO",
           2,
-          "ECO: swapMaster dbInst({} {:p}) '{}', prev lib/master: {}/{}, "
+          "REDO ECO: swapMaster dbInst({} {:p}) '{}', prev lib/master: {}/{}, "
           "new lib/master: {}/{}",
           inst_id,
           static_cast<void*>(inst),
