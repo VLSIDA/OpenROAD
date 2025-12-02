@@ -516,15 +516,6 @@ void RepairSimulator::commitMove(const Pin* pin, BaseMove* move)
   delete root_->eco_;
   root_->eco_ = nullptr;
   decrementLevel(root_);
-  Slack new_endpoint_slack = violator_collector_->getCurrentEndpointSlack();
-  if (fuzzyLess(new_endpoint_slack, root_->slack_)) {
-    logger_->warn(
-        RSZ,
-        168,
-        "Endpoint's actual slack is worse than simulated slack: {} < {}",
-        delayAsString(new_endpoint_slack, sta_, 3),
-        delayAsString(root_->slack_, sta_, 3));
-  }
 }
 
 // Recursively decrement each node's level
