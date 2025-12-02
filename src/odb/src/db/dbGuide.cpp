@@ -161,7 +161,15 @@ dbGuide* dbGuide::create(dbNet* net,
                box);
     block->_journal->beginAction(dbJournal::CREATE_OBJECT);
     block->_journal->pushParam(dbGuideObj);
+    block->_journal->pushParam(owner->getOID());
     block->_journal->pushParam(guide->getOID());
+    block->_journal->pushParam(guide->box_.xMin());
+    block->_journal->pushParam(guide->box_.yMin());
+    block->_journal->pushParam(guide->box_.xMax());
+    block->_journal->pushParam(guide->box_.yMax());
+    block->_journal->pushParam(guide->layer_);
+    block->_journal->pushParam(guide->via_layer_);
+    block->_journal->pushParam(guide->is_congested_);
     block->_journal->endAction();
   }
 
@@ -200,6 +208,7 @@ void dbGuide::destroy(dbGuide* guide)
     block->_journal->beginAction(dbJournal::DELETE_OBJECT);
     block->_journal->pushParam(dbGuideObj);
     block->_journal->pushParam(net->getOID());
+    block->_journal->pushParam(_guide->getOID());
     block->_journal->pushParam(_guide->box_.xMin());
     block->_journal->pushParam(_guide->box_.yMin());
     block->_journal->pushParam(_guide->box_.xMax());

@@ -262,6 +262,40 @@ void dbJournal::redo_createObject()
   auto obj_type = popObjectType();
 
   switch (obj_type) {
+    case dbGuideObj: {
+      uint net_id;
+      uint guide_id;
+      int x_min;
+      int y_min;
+      int x_max;
+      int y_max;
+      uint layer_id;
+      uint via_layer_id;
+      bool is_congested;
+      _log.pop(net_id);
+      _log.pop(guide_id);
+      _log.pop(x_min);
+      _log.pop(y_min);
+      _log.pop(x_max);
+      _log.pop(y_max);
+      _log.pop(layer_id);
+      _log.pop(via_layer_id);
+      _log.pop(is_congested);
+      (void) guide_id;
+      auto net  = dbNet::getNet(_block, net_id);
+      auto layer = dbTechLayer::getTechLayer(_block->getTech(), layer_id);
+      auto via_layer = dbTechLayer::getTechLayer(_block->getTech(), via_layer_id);
+      auto guide = dbGuide::create(net, layer, via_layer, {x_min, y_min, x_max, y_max}, is_congested);
+      debugPrint(_logger,
+                 utl::ODB,
+                 "DB_ECO",
+                 2,
+                 "REDO ECO: create dbGuide({}, {:p})",
+                 guide->getId(),
+                 static_cast<void*>(guide));
+      break;
+    }
+
     case dbNetObj: {
       std::string name;
       uint net_id;
@@ -476,6 +510,46 @@ void dbJournal::redo_deleteObject()
   auto obj_type = popObjectType();
 
   switch (obj_type) {
+    case dbGuideObj: {
+      uint net_id;
+      uint guide_id;
+      int x_min;
+      int y_min;
+      int x_max;
+      int y_max;
+      uint layer_id;
+      uint via_layer_id;
+      bool is_congested;
+      _log.pop(net_id);
+      _log.pop(guide_id);
+      _log.pop(x_min);
+      _log.pop(y_min);
+      _log.pop(x_max);
+      _log.pop(y_max);
+      _log.pop(layer_id);
+      _log.pop(via_layer_id);
+      _log.pop(is_congested);
+      (void) net_id;
+      (void) x_min;
+      (void) y_min;
+      (void) x_max;
+      (void) y_max;
+      (void) layer_id;
+      (void) via_layer_id;
+      (void) is_congested;
+      dbGuide* guide = dbGuide::getGuide(_block, guide_id);
+      debugPrint(_logger,
+                 utl::ODB,
+                 "DB_ECO",
+                 2,
+                 "REDO ECO: destroy dbGuide at id {}, in layer{} box {}",
+                 guide_id,
+                 guide->getLayer()->getName(),
+                 guide->getBox());
+      dbGuide::destroy(guide);
+      break;
+    }
+
     case dbNetObj: {
       std::string name;
       uint net_id;
@@ -679,6 +753,7 @@ void dbJournal::redo_deleteObject()
       dbModNet::destroy(modnet);
       break;
     }
+
     default: {
       _logger->critical(
           utl::ODB, 1108, "Unknown type of action for redo_deleteObject");
@@ -1798,8 +1873,32 @@ void dbJournal::undo_createObject()
 
   switch (obj_type) {
     case dbGuideObj: {
+      uint net_id;
       uint guide_id;
+      int x_min;
+      int y_min;
+      int x_max;
+      int y_max;
+      uint layer_id;
+      uint via_layer_id;
+      bool is_congested;
+      _log.pop(net_id);
       _log.pop(guide_id);
+      _log.pop(x_min);
+      _log.pop(y_min);
+      _log.pop(x_max);
+      _log.pop(y_max);
+      _log.pop(layer_id);
+      _log.pop(via_layer_id);
+      _log.pop(is_congested);
+      (void) net_id;
+      (void) x_min;
+      (void) y_min;
+      (void) x_max;
+      (void) y_max;
+      (void) layer_id;
+      (void) via_layer_id;
+      (void) is_congested;
       dbGuide* guide = dbGuide::getGuide(_block, guide_id);
       debugPrint(_logger,
                  utl::ODB,
@@ -1978,6 +2077,7 @@ void dbJournal::undo_deleteObject()
   switch (obj_type) {
     case dbGuideObj: {
       uint net_id;
+      uint guide_id;
       int x_min;
       int y_min;
       int x_max;
@@ -1986,6 +2086,7 @@ void dbJournal::undo_deleteObject()
       uint via_layer_id;
       bool is_congested;
       _log.pop(net_id);
+      _log.pop(guide_id);
       _log.pop(x_min);
       _log.pop(y_min);
       _log.pop(x_max);
@@ -1993,6 +2094,7 @@ void dbJournal::undo_deleteObject()
       _log.pop(layer_id);
       _log.pop(via_layer_id);
       _log.pop(is_congested);
+      (void) guide_id;
       auto net = dbNet::getNet(_block, net_id);
       auto layer = dbTechLayer::getTechLayer(_block->getTech(), layer_id);
       auto via_layer
