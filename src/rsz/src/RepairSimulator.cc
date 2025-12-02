@@ -436,10 +436,11 @@ bool RepairSimulator::doMove(SimulationTreeNode* node)
   if (node->eco_) {
     debugPrint(logger_, RSZ, "repair_simulator", 5, "Redoing {}", node->name());
     addDestroyedPin(node->pin_, node->move_);
+    if (((_dbBlock*) resizer_->block_)->_journal) {
+      odb::dbDatabase::endEco(resizer_->block_);
+    }
     node->eco_->redo();
     node->move_->addMove(node->pin_, node->tracked_changes_);
-    resizer_->estimate_parasitics_->updateParasitics();
-    sta_->findRequireds();
     return true;
   }
   // This node needs to be simulated from scratch
@@ -450,12 +451,17 @@ bool RepairSimulator::doMove(SimulationTreeNode* node)
   bool accepted = node->move_->doMove(node->pin_, setup_slack_margin_);
   odb::dbDatabase::endEco(resizer_->block_);
   if (accepted) {
+    // Save move ECO
     node->eco_ = new dbJournal(resizer_->block_);
     _dbBlock* block = (_dbBlock*) resizer_->block_;
     node->eco_->append(block->_journal_stack.top());
+    // Save STA update ECO
+    odb::dbDatabase::beginEco(resizer_->block_);
     resizer_->estimate_parasitics_->updateParasitics();
     sta_->findRequireds();
     node->slack_ = violator_collector_->getCurrentEndpointSlack();
+    odb::dbDatabase::endEco(resizer_->block_);
+    // Track changes to prevent BaseMove::addMove() from corrupting
     node->tracked_changes_ = node->move_->tracking_stack_.back().second;
   } else {
     debugPrint(
@@ -471,7 +477,8 @@ void RepairSimulator::undoMove(SimulationTreeNode* node)
 {
   debugPrint(logger_, RSZ, "repair_simulator", 5, "Undoing {}", node->name());
   if (node->odb_eco_active_) {
-    odb::dbDatabase::undoEco(resizer_->block_);
+    odb::dbDatabase::undoEco(resizer_->block_);  // Undo STA ECO
+    odb::dbDatabase::undoEco(resizer_->block_);  // Undo move ECO
     node->odb_eco_active_ = false;
   } else {
     node->eco_->undo();
@@ -497,11 +504,10 @@ void RepairSimulator::commitMove(const Pin* pin, BaseMove* move)
   assert(found);
   debugPrint(
       logger_, RSZ, "repair_simulator", 3, "Committing {}", root_->name());
-  // Redo the node journal
+  // Redo this node's ECO
   doMove(root_);
-  odb::dbDatabase::beginEco(resizer_->block_);
+  // There should always be an active ECO journal originating from RepairSetup
   _dbBlock* block = (_dbBlock*) resizer_->block_;
-  // There should always be an active journal ECO originating from RepairSetup
   if (block->_journal) {
     block->_journal->append(root_->eco_);
   } else {
