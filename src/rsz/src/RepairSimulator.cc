@@ -501,7 +501,7 @@ void RepairSimulator::commitMove(const Pin* pin, BaseMove* move)
       break;
     }
   }
-  assert(found);
+  ZASSERT(found);
   debugPrint(
       logger_, RSZ, "repair_simulator", 3, "Committing {}", root_->name());
   // Redo this node's ECO
