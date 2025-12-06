@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2019-2025, The OpenROAD Authors
 
-#include "RepairSimulator.hh"
+#include "RepairSearch.hh"
 
 #include <cmath>
 #include <queue>
@@ -22,7 +22,7 @@ using sta::fuzzyLess;
 using sta::Pin;
 using utl::RSZ;
 
-void RepairSimulator::init(const Pin* endpoint,
+void RepairSearch::init(const Pin* endpoint,
                            const std::vector<const Pin*>& pins,
                            const std::vector<BaseMove*>& moves,
                            int level,
@@ -37,11 +37,11 @@ void RepairSimulator::init(const Pin* endpoint,
   mode_ = mode;
   time_limit_ = time_limit;
   setup_slack_margin_ = setup_slack_margin;
-  root_ = new SimulationTreeNode(resizer_, nullptr, nullptr, 0);
+  root_ = new SearchTreeNode(resizer_, nullptr, nullptr, 0);
   root_->slack_ = violator_collector_->getCurrentEndpointSlack();
 }
 
-void RepairSimulator::clear()
+void RepairSearch::clear()
 {
   endpoint_ = nullptr;
   pins_ = nullptr;
@@ -52,30 +52,30 @@ void RepairSimulator::clear()
   rejected_moves_.clear();
 }
 
-// Run the actual simulation
-void RepairSimulator::simulate()
+// Run the actual move search
+void RepairSearch::search()
 {
   debugPrint(logger_,
              RSZ,
-             "repair_simulator",
+             "repair_search",
              1,
-             "Started repair simulation for endpoint: {} with slack {}",
+             "Started repair search for endpoint: {} with slack {}",
              network_->pathName(endpoint_),
              delayAsString(root_->slack_, sta_, 3));
 
   start_time_ = std::chrono::steady_clock::now();
 
-  // Expand the simulation tree
+  // Expand the search tree
   bool finished;
   switch (mode_) {
     case SearchMode::BFS:
-      finished = simulateBFS(root_);
+      finished = searchBFS(root_);
       break;
     case SearchMode::DFS:
-      finished = simulateDFS(root_);
+      finished = searchDFS(root_);
       break;
     case SearchMode::MCTS:
-      finished = simulateMCTS(root_);
+      finished = searchMCTS(root_);
       break;
     default:
       logger_->error(RSZ, 156, "Search mode unknown");
@@ -89,58 +89,57 @@ void RepairSimulator::simulate()
   if (finished) {
     debugPrint(logger_,
                RSZ,
-               "repair_simulator",
+               "repair_search",
                1,
-               "Finished repair simulation in {} secs",
+               "Finished repair search in {} secs",
                elapsed_secs);
   } else {
     debugPrint(
         logger_,
         RSZ,
-        "repair_simulator",
+        "repair_search",
         1,
-        "Finished repair simulation early after {} secs due to time limit",
+        "Finished repair search early after {} secs due to time limit",
         elapsed_secs);
   }
 }
 
-// BFS simulation helper
-bool RepairSimulator::simulateBFS(SimulationTreeNode* node)
+bool RepairSearch::searchBFS(SearchTreeNode* node)
 {
   // Queue stores pairs of (node, path_from_root_to_node)
-  std::queue<std::pair<SimulationTreeNode*, std::vector<SimulationTreeNode*>>>
+  std::queue<std::pair<SearchTreeNode*, std::vector<SearchTreeNode*>>>
       queue;
-  std::vector<SimulationTreeNode*> root_path;
+  std::vector<SearchTreeNode*> root_path;
   root_path.push_back(node);
   queue.emplace(node, root_path);
   // Breadth-first search
   while (!queue.empty()) {
-    std::pair<SimulationTreeNode*, std::vector<SimulationTreeNode*>>
+    std::pair<SearchTreeNode*, std::vector<SearchTreeNode*>>
         current_pair = queue.front();
     queue.pop();
-    SimulationTreeNode* current = current_pair.first;
-    std::vector<SimulationTreeNode*> path = current_pair.second;
+    SearchTreeNode* current = current_pair.first;
+    std::vector<SearchTreeNode*> path = current_pair.second;
     // Skip if reached max level
     if (current->level_ >= max_level_) {
       continue;
     }
-    // If this node has simulated at least some of its all its children, add
+    // If this node has explored at least some of its all its children, add
     // them to the queue
-    if (current->simulation_finished_ || current->simulation_aborted_) {
-      assert(current->simulation_started_);
-      for (SimulationTreeNode* child : current->children_) {
-        std::vector<SimulationTreeNode*> child_path = path;
+    if (current->search_finished_ || current->search_aborted_) {
+      assert(current->search_started_);
+      for (SearchTreeNode* child : current->children_) {
+        std::vector<SearchTreeNode*> child_path = path;
         child_path.push_back(child);
         queue.emplace(child, child_path);
       }
-      if (current->simulation_finished_) {
+      if (current->search_finished_) {
         continue;
       }
-      current->simulation_aborted_ = false;
+      current->search_aborted_ = false;
     }
     // Continue if no pending children are left
-    if (current->simulation_started_ && current->children_pending_.empty()) {
-      current->simulation_finished_ = true;
+    if (current->search_started_ && current->children_pending_.empty()) {
+      current->search_finished_ = true;
       continue;
     }
     // Apply all moves along the path from root to current (excluding root)
@@ -148,10 +147,10 @@ bool RepairSimulator::simulateBFS(SimulationTreeNode* node)
       doMove(path[i]);
     }
     // Create all children as pending
-    if (!current->simulation_started_) {
+    if (!current->search_started_) {
       current->children_pending_ = createChildren(current);
     }
-    current->simulation_started_ = true;
+    current->search_started_ = true;
     // Process all children
     while (!current->children_pending_.empty()) {
       auto child = current->children_pending_.front();
@@ -162,7 +161,7 @@ bool RepairSimulator::simulateBFS(SimulationTreeNode* node)
       }
       current->children_.push_back(child);
       // Create path for child and add to queue
-      std::vector<SimulationTreeNode*> child_path = path;
+      std::vector<SearchTreeNode*> child_path = path;
       child_path.push_back(child);
       queue.emplace(child, child_path);
       undoMove(child);
@@ -170,7 +169,7 @@ bool RepairSimulator::simulateBFS(SimulationTreeNode* node)
       if (!fuzzyLess(child->slack_, setup_slack_margin_)) {
         debugPrint(logger_,
                    RSZ,
-                   "repair_simulator",
+                   "repair_search",
                    2,
                    "BFS found optimal solution at level {}",
                    child->level_);
@@ -181,7 +180,7 @@ bool RepairSimulator::simulateBFS(SimulationTreeNode* node)
         return true;
       }
       if (hasTimeLimitPassed()) {
-        current->simulation_aborted_ = true;
+        current->search_aborted_ = true;
         break;
       }
     }
@@ -189,44 +188,43 @@ bool RepairSimulator::simulateBFS(SimulationTreeNode* node)
     for (int i = path.size() - 1; i >= 1; i--) {
       undoMove(path[i]);
     }
-    if (current->simulation_aborted_) {
+    if (current->search_aborted_) {
       return false;
     }
-    current->simulation_finished_ = true;
+    current->search_finished_ = true;
   }
   return true;
 }
 
-// DFS simulation helper
-bool RepairSimulator::simulateDFS(SimulationTreeNode* node)
+bool RepairSearch::searchDFS(SearchTreeNode* node)
 {
   // Skip if reached the max level
   if (node->level_ >= max_level_) {
     return true;
   }
-  // If this node has simulated at least some of its all its children, run them
+  // If this node has explored at least some of its all its children, run them
   // first
-  if (node->simulation_finished_ || node->simulation_aborted_) {
-    assert(node->simulation_started_);
-    for (SimulationTreeNode* child : node->children_) {
+  if (node->search_finished_ || node->search_aborted_) {
+    assert(node->search_started_);
+    for (SearchTreeNode* child : node->children_) {
       doMove(child);
-      bool finished = simulateDFS(child);
+      bool finished = searchDFS(child);
       undoMove(child);
       if (!finished) {
-        node->simulation_aborted_ = true;
+        node->search_aborted_ = true;
         return false;
       }
     }
-    if (node->simulation_finished_) {
+    if (node->search_finished_) {
       return true;
     }
-    node->simulation_aborted_ = false;
+    node->search_aborted_ = false;
   }
   // Create all children as pending
-  if (!node->simulation_started_) {
+  if (!node->search_started_) {
     node->children_pending_ = createChildren(node);
   }
-  node->simulation_started_ = true;
+  node->search_started_ = true;
   // Process all children
   while (!node->children_pending_.empty()) {
     auto child = node->children_pending_.front();
@@ -236,30 +234,29 @@ bool RepairSimulator::simulateDFS(SimulationTreeNode* node)
       continue;
     }
     node->children_.push_back(child);
-    bool finished = simulateDFS(child);
+    bool finished = searchDFS(child);
     undoMove(child);
     if (!finished) {
-      node->simulation_aborted_ = true;
+      node->search_aborted_ = true;
       return false;
     }
     // Early termination if we found a good enough solution
     if (!fuzzyLess(child->slack_, setup_slack_margin_)) {
       debugPrint(logger_,
                  RSZ,
-                 "repair_simulator",
+                 "repair_search",
                  2,
                  "DFS found optimal solution at level {}",
                  child->level_);
-      node->simulation_finished_ = true;
+      node->search_finished_ = true;
       return true;
     }
   }
-  node->simulation_finished_ = true;
+  node->search_finished_ = true;
   return true;
 }
 
-// MCTS simulation helper
-bool RepairSimulator::simulateMCTS(RepairSimulator::SimulationTreeNode* node)
+bool RepairSearch::searchMCTS(RepairSearch::SearchTreeNode* node)
 {
   // Adaptive iteration count based on search space size
   const int branching_factor = pins_->size() * moves_->size();
@@ -269,7 +266,7 @@ bool RepairSimulator::simulateMCTS(RepairSimulator::SimulationTreeNode* node)
 
   debugPrint(logger_,
              RSZ,
-             "repair_simulator",
+             "repair_search",
              2,
              "MCTS running with max {} iterations (branching={}, depth={})",
              num_iterations,
@@ -277,15 +274,15 @@ bool RepairSimulator::simulateMCTS(RepairSimulator::SimulationTreeNode* node)
              max_level_);
 
   for (int iter = 0; iter < num_iterations; iter++) {
-    std::vector<SimulationTreeNode*> path;
-    SimulationTreeNode* current = node;
+    std::vector<SearchTreeNode*> path;
+    SearchTreeNode* current = node;
     path.push_back(current);
     // Phase 1: Selection - traverse tree using UCB1
-    while (current->level_ < max_level_ && current->simulation_finished_
+    while (current->level_ < max_level_ && current->search_finished_
            && !current->children_.empty()) {
-      SimulationTreeNode* best_child = nullptr;
+      SearchTreeNode* best_child = nullptr;
       float best_ucb = -sta::INF;
-      for (SimulationTreeNode* child : current->children_) {
+      for (SearchTreeNode* child : current->children_) {
         float ucb;
         if (child->mcts_visits_ == 0) {
           ucb = sta::INF;  // Prioritize unvisited nodes
@@ -311,9 +308,9 @@ bool RepairSimulator::simulateMCTS(RepairSimulator::SimulationTreeNode* node)
     }
     // Phase 2: Expansion - add one child if not fully expanded
     if (current->level_ < max_level_) {
-      if (!current->simulation_started_) {
+      if (!current->search_started_) {
         current->children_pending_ = createChildren(current);
-        current->simulation_started_ = true;
+        current->search_started_ = true;
       }
       if (!current->children_pending_.empty()) {
         auto child = current->children_pending_.front();
@@ -326,13 +323,13 @@ bool RepairSimulator::simulateMCTS(RepairSimulator::SimulationTreeNode* node)
           delete child;
         }
       } else {
-        current->simulation_finished_ = true;
+        current->search_finished_ = true;
       }
     }
     // Phase 3: Evaluation - get slack at current node
     Slack new_path_slack = current->slack_;
     // Phase 4: Backpropagation - update statistics
-    for (SimulationTreeNode* node : path) {
+    for (SearchTreeNode* node : path) {
       node->mcts_visits_++;
       if (node->mcts_visits_ == 1 || fuzzyLess(node->mcts_best_slack_, new_path_slack)) {
         node->mcts_best_slack_ = new_path_slack;
@@ -349,7 +346,7 @@ bool RepairSimulator::simulateMCTS(RepairSimulator::SimulationTreeNode* node)
     if (!fuzzyLess(new_path_slack, setup_slack_margin_)) {
       debugPrint(logger_,
                  RSZ,
-                 "repair_simulator",
+                 "repair_search",
                  2,
                  "MCTS found optimal solution at iteration {}",
                  iter);
@@ -359,16 +356,16 @@ bool RepairSimulator::simulateMCTS(RepairSimulator::SimulationTreeNode* node)
   return true;
 }
 
-// Return the best immediate move of the simulation tree
-std::pair<const Pin*, BaseMove*> RepairSimulator::getBestImmediateMove()
+// Return the best immediate move of the search tree
+std::pair<const Pin*, BaseMove*> RepairSearch::getBestImmediateMove()
 {
   // Recursively search for the best immediate move among root's children
-  debugPrint(logger_, RSZ, "repair_simulator", 4, "Simulated moves:");
-  SimulationTreeNode* best_descendant = nullptr;
-  SimulationTreeNode* best_child = nullptr;
+  debugPrint(logger_, RSZ, "repair_search", 4, "Simulated moves:");
+  SearchTreeNode* best_descendant = nullptr;
+  SearchTreeNode* best_child = nullptr;
   Slack best_slack = -sta::INF;
-  for (SimulationTreeNode* child : root_->children_) {
-    SimulationTreeNode* descendant_of_child = getBestPossibleNodeDFS(child);
+  for (SearchTreeNode* child : root_->children_) {
+    SearchTreeNode* descendant_of_child = getBestPossibleNodeDFS(child);
     if (fuzzyLess(best_slack, descendant_of_child->slack_)) {
       best_descendant = descendant_of_child;
       best_child = child;
@@ -380,7 +377,7 @@ std::pair<const Pin*, BaseMove*> RepairSimulator::getBestImmediateMove()
     result = {best_child->pin_, best_child->move_};
     debugPrint(logger_,
                RSZ,
-               "repair_simulator",
+               "repair_search",
                1,
                "Found the best immediate move: {} for {}. "
                "Potential slack {} -> {} -{}-> {}",
@@ -393,7 +390,7 @@ std::pair<const Pin*, BaseMove*> RepairSimulator::getBestImmediateMove()
   } else {
     debugPrint(logger_,
                RSZ,
-               "repair_simulator",
+               "repair_search",
                1,
                "Couldn't find a good immediate move!");
   }
@@ -401,12 +398,12 @@ std::pair<const Pin*, BaseMove*> RepairSimulator::getBestImmediateMove()
 }
 
 // Best immediate move DFS helper
-RepairSimulator::SimulationTreeNode* RepairSimulator::getBestPossibleNodeDFS(
-    RepairSimulator::SimulationTreeNode* node)
+RepairSearch::SearchTreeNode* RepairSearch::getBestPossibleNodeDFS(
+    RepairSearch::SearchTreeNode* node)
 {
   debugPrint(logger_,
              RSZ,
-             "repair_simulator",
+             "repair_search",
              4,
              std::string(node->level_ * 2, ' ') + "{} for {} with slack {}",
              node->move_->name(),
@@ -415,10 +412,10 @@ RepairSimulator::SimulationTreeNode* RepairSimulator::getBestPossibleNodeDFS(
   if (node->level_ >= max_level_) {
     return node;
   }
-  SimulationTreeNode* best_descendant = nullptr;
+  SearchTreeNode* best_descendant = nullptr;
   Slack best_slack = -sta::INF;
-  for (SimulationTreeNode* child : node->children_) {
-    SimulationTreeNode* descendant = getBestPossibleNodeDFS(child);
+  for (SearchTreeNode* child : node->children_) {
+    SearchTreeNode* descendant = getBestPossibleNodeDFS(child);
     if (fuzzyLess(best_slack, descendant->slack_)) {
       best_descendant = descendant;
       best_slack = descendant->slack_;
@@ -430,11 +427,11 @@ RepairSimulator::SimulationTreeNode* RepairSimulator::getBestPossibleNodeDFS(
   return best_descendant;
 }
 
-bool RepairSimulator::doMove(SimulationTreeNode* node)
+bool RepairSearch::doMove(SearchTreeNode* node)
 {
-  // We have already simulated this node
+  // We have already searched this node
   if (node->eco_) {
-    debugPrint(logger_, RSZ, "repair_simulator", 5, "Redoing {}", node->name());
+    debugPrint(logger_, RSZ, "repair_search", 5, "Redoing {}", node->name());
     addDestroyedPin(node->pin_, node->move_);
     if (((_dbBlock*) resizer_->block_)->_journal) {
       odb::dbDatabase::endEco(resizer_->block_);
@@ -443,8 +440,8 @@ bool RepairSimulator::doMove(SimulationTreeNode* node)
     node->move_->addMove(node->pin_, node->tracked_changes_);
     return true;
   }
-  // This node needs to be simulated from scratch
-  debugPrint(logger_, RSZ, "repair_simulator", 5, "Doing {}", node->name());
+  // This node needs to be explored from scratch
+  debugPrint(logger_, RSZ, "repair_search", 5, "Doing {}", node->name());
   addDestroyedPin(node->pin_, node->move_);
   node->odb_eco_active_ = true;
   // FIXME: Update STA before the move for now.
@@ -473,7 +470,7 @@ bool RepairSimulator::doMove(SimulationTreeNode* node)
     node->tracked_changes_ = node->move_->tracking_stack_.back().second;
   } else {
     debugPrint(
-        logger_, RSZ, "repair_simulator", 5, "Rejected {}", node->name());
+        logger_, RSZ, "repair_search", 5, "Rejected {}", node->name());
     odb::dbDatabase::undoEco(resizer_->block_);  // Undo move ECO
     odb::dbDatabase::undoEco(resizer_->block_);  // Undo pre-move STA update ECO
     node->odb_eco_active_ = false;
@@ -482,9 +479,9 @@ bool RepairSimulator::doMove(SimulationTreeNode* node)
   return accepted;
 }
 
-void RepairSimulator::undoMove(SimulationTreeNode* node)
+void RepairSearch::undoMove(SearchTreeNode* node)
 {
-  debugPrint(logger_, RSZ, "repair_simulator", 5, "Undoing {}", node->name());
+  debugPrint(logger_, RSZ, "repair_search", 5, "Undoing {}", node->name());
   if (node->odb_eco_active_) {
     odb::dbDatabase::undoEco(resizer_->block_);  // Undo post-move STA update ECO
     odb::dbDatabase::undoEco(resizer_->block_);  // Undo move ECO
@@ -497,12 +494,12 @@ void RepairSimulator::undoMove(SimulationTreeNode* node)
   node->move_->removeMove();
 }
 
-void RepairSimulator::commitMove(const Pin* pin, BaseMove* move)
+void RepairSearch::commitMove(const Pin* pin, BaseMove* move)
 {
   // Find the child node that corresponds to the given move
   bool found = false;
   for (auto it = root_->children_.begin(); it != root_->children_.end(); it++) {
-    SimulationTreeNode* node = *it;
+    SearchTreeNode* node = *it;
     if (node->pin_ == pin && node->move_ == move) {
       root_->children_.erase(it);
       delete root_;
@@ -513,7 +510,7 @@ void RepairSimulator::commitMove(const Pin* pin, BaseMove* move)
   }
   ZASSERT(found);
   debugPrint(
-      logger_, RSZ, "repair_simulator", 3, "Committing {}", root_->name());
+      logger_, RSZ, "repair_search", 3, "Committing {}", root_->name());
   // Redo this node's ECO
   doMove(root_);
   // There should always be an active ECO journal originating from RepairSetup
@@ -529,51 +526,51 @@ void RepairSimulator::commitMove(const Pin* pin, BaseMove* move)
 }
 
 // Recursively decrement each node's level
-void RepairSimulator::decrementLevel(SimulationTreeNode* node)
+void RepairSearch::decrementLevel(SearchTreeNode* node)
 {
   node->level_--;
-  for (SimulationTreeNode* child : node->children_) {
+  for (SearchTreeNode* child : node->children_) {
     decrementLevel(child);
   }
 }
 
-std::queue<RepairSimulator::SimulationTreeNode*>
-RepairSimulator::createChildren(RepairSimulator::SimulationTreeNode* parent)
+std::queue<RepairSearch::SearchTreeNode*>
+RepairSearch::createChildren(RepairSearch::SearchTreeNode* parent)
 {
-  std::queue<RepairSimulator::SimulationTreeNode*> children;
+  std::queue<RepairSearch::SearchTreeNode*> children;
   for (const Pin* pin : *pins_) {
     if (isPinDestroyed(pin)) {
       continue;
     }
     for (BaseMove* move : *moves_) {
       auto child
-          = new SimulationTreeNode(resizer_, pin, move, parent->level_ + 1);
+          = new SearchTreeNode(resizer_, pin, move, parent->level_ + 1);
       children.emplace(child);
     }
   }
   return children;
 }
 
-void RepairSimulator::addDestroyedPin(const Pin* pin, BaseMove* move)
+void RepairSearch::addDestroyedPin(const Pin* pin, BaseMove* move)
 {
   if (move == (BaseMove*) resizer_->unbuffer_move_.get()) {
     destroyed_pins_.insert(pin);
   }
 }
 
-void RepairSimulator::removeDestroyedPin(const Pin* pin, BaseMove* move)
+void RepairSearch::removeDestroyedPin(const Pin* pin, BaseMove* move)
 {
   if (move == (BaseMove*) resizer_->unbuffer_move_.get()) {
     destroyed_pins_.erase(pin);
   }
 }
 
-bool RepairSimulator::isPinDestroyed(const Pin* pin)
+bool RepairSearch::isPinDestroyed(const Pin* pin)
 {
   return destroyed_pins_.find(pin) != destroyed_pins_.end();
 }
 
-bool RepairSimulator::hasTimeLimitPassed()
+bool RepairSearch::hasTimeLimitPassed()
 {
   if (time_limit_ < 0) {
     return false;

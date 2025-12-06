@@ -33,7 +33,7 @@
 #include "UnbufferMove.hh"
 #include "VTSwapMove.hh"
 #include "ViolatorCollector.hh"
-#include "RepairSimulator.hh"
+#include "RepairSearch.hh"
 #include "rsz/Resizer.hh"
 #include "sta/Fuzzy.hh"
 #include "sta/Graph.hh"
@@ -78,7 +78,7 @@ void RepairSetup::init()
   initial_design_area_ = resizer_->computeDesignArea();
 
   violator_collector_ = std::make_unique<ViolatorCollector>(resizer_);
-  repair_simulator_ = std::make_unique<RepairSimulator>(resizer_, violator_collector_.get());
+  repair_search_ = std::make_unique<RepairSearch>(resizer_, violator_collector_.get());
 
   // Only create MoveTracker if debug level is enabled
   if (logger_->debugCheck(RSZ, "move_tracker", 1)) {

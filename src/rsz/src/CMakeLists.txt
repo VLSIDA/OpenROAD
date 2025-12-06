@@ -21,7 +21,7 @@ add_library(rsz_lib
     RepairDesign.cc
     RepairHold.cc
     RepairSetup.cc
-    RepairSimulator.cc
+    RepairSearch.cc
     Rebuffer.cc
     SizeDownMove.cc
     SizeUpMove.cc

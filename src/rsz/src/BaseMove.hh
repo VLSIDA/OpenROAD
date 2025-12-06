@@ -261,7 +261,7 @@ class BaseMove : public sta::dbStaState
   static constexpr int buffer_removal_max_fanout_ = 10;
   static constexpr float rebuffer_relaxation_factor_ = 0.03;
 
-  friend class RepairSimulator;
+  friend class RepairSearch;
 };
 
 }  // namespace rsz

@@ -30,8 +30,8 @@ using std::set;
 using std::vector;
 using utl::RSZ;
 
-// Class to simulate doing repair setup move combinations
-class RepairSimulator
+// Class to search for the best repair move combinations
+class RepairSearch
 {
  public:
   enum class SearchMode
@@ -41,7 +41,7 @@ class RepairSimulator
     MCTS
   };
 
-  RepairSimulator(Resizer* resizer, ViolatorCollector* violator_collector)
+  RepairSearch(Resizer* resizer, ViolatorCollector* violator_collector)
       : resizer_(resizer)
   {
     logger_ = resizer_->logger_;
@@ -50,7 +50,7 @@ class RepairSimulator
     violator_collector_ = violator_collector;
   }
 
-  ~RepairSimulator() { clear(); }
+  ~RepairSearch() { clear(); }
 
   void init(const Pin* endpoint,
             const std::vector<const Pin*>& pins,
@@ -60,17 +60,17 @@ class RepairSimulator
             int time_limit,
             float setup_slack_margin);
   void clear();
-  void simulate();
+  void search();
   std::pair<const Pin*, BaseMove*> getBestImmediateMove();
   void commitMove(const Pin* pin, BaseMove* move);
 
   const Pin* getEndpoint() { return endpoint_; }
 
  private:
-  class SimulationTreeNode
+  class SearchTreeNode
   {
    public:
-    SimulationTreeNode(Resizer* resizer,
+    SearchTreeNode(Resizer* resizer,
                        const Pin* pin,
                        BaseMove* move,
                        int level)
@@ -80,7 +80,7 @@ class RepairSimulator
       move_name_ = move ? move->name() : "null";
     }
 
-    ~SimulationTreeNode()
+    ~SearchTreeNode()
     {
       delete eco_;
       for (auto* child : children_) {
@@ -98,9 +98,9 @@ class RepairSimulator
     int level_;
     std::string pin_name_;
     std::string move_name_;
-    bool simulation_started_{false};
-    bool simulation_finished_{false};
-    bool simulation_aborted_{false};
+    bool search_started_{false};
+    bool search_finished_{false};
+    bool search_aborted_{false};
     bool odb_eco_active_{false};
     // Slack of path endpoint
     Slack slack_{0.0};
@@ -112,26 +112,26 @@ class RepairSimulator
     // Track BaseMove::addMove() changes to properly revert them
     std::map<Instance*, int> tracked_changes_;
     // Children of this node
-    std::vector<SimulationTreeNode*> children_;
-    // Children of this node haven't been simulated yet
-    std::queue<SimulationTreeNode*> children_pending_;
+    std::vector<SearchTreeNode*> children_;
+    // Children of this node haven't been searched yet
+    std::queue<SearchTreeNode*> children_pending_;
   };
 
-  bool doMove(SimulationTreeNode* node);
-  void undoMove(SimulationTreeNode* node);
-  bool simulateBFS(SimulationTreeNode* node);
-  bool simulateDFS(SimulationTreeNode* node);
-  bool simulateMCTS(SimulationTreeNode* node);
-  SimulationTreeNode* getBestPossibleNodeDFS(SimulationTreeNode* node);
-  void decrementLevel(SimulationTreeNode* node);
-  std::queue<SimulationTreeNode*> createChildren(SimulationTreeNode* parent);
+  bool doMove(SearchTreeNode* node);
+  void undoMove(SearchTreeNode* node);
+  bool searchBFS(SearchTreeNode* node);
+  bool searchDFS(SearchTreeNode* node);
+  bool searchMCTS(SearchTreeNode* node);
+  SearchTreeNode* getBestPossibleNodeDFS(SearchTreeNode* node);
+  void decrementLevel(SearchTreeNode* node);
+  std::queue<SearchTreeNode*> createChildren(SearchTreeNode* parent);
 
   // Prevents use-after-free error
   void addDestroyedPin(const Pin* pin, BaseMove* move);
   void removeDestroyedPin(const Pin* pin, BaseMove* move);
   bool isPinDestroyed(const Pin* pin);
 
-  // Measure simulation and time progress
+  // Measure time elapsed to stop the search
   bool hasTimeLimitPassed();
 
   const Pin* endpoint_;
@@ -142,7 +142,7 @@ class RepairSimulator
   int time_limit_;
   float setup_slack_margin_;
 
-  SimulationTreeNode* root_{nullptr};
+  SearchTreeNode* root_{nullptr};
   std::unordered_set<const Pin*> destroyed_pins_;
   std::map<const Pin*, std::unordered_set<BaseMove*>> rejected_moves_;
 

@@ -6,7 +6,7 @@
 #include <vector>
 
 #include "ViolatorCollector.hh"
-#include "RepairSimulator.hh"
+#include "RepairSearch.hh"
 #include "boost/functional/hash.hpp"
 #include "db_sta/dbNetwork.hh"
 #include "db_sta/dbSta.hh"
@@ -31,7 +31,7 @@ class RemoveBuffer;
 class BaseMove;
 class ViolatorCollector;
 class MoveTracker;
-class RepairSimulator;
+class RepairSearch;
 
 using odb::Point;
 using utl::Logger;
@@ -212,7 +212,7 @@ class RepairSetup : public sta::dbStaState
   est::EstimateParasitics* estimate_parasitics_;
   std::unique_ptr<ViolatorCollector> violator_collector_;
   std::unique_ptr<MoveTracker> move_tracker_;
-  std::unique_ptr<RepairSimulator> repair_simulator_;
+  std::unique_ptr<RepairSearch> repair_search_;
 
   bool fallback_ = false;
   float min_viol_ = 0.0;
