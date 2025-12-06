@@ -330,7 +330,7 @@ bool RepairSimulator::simulateMCTS(RepairSimulator::SimulationTreeNode* node)
       }
     }
     // Phase 3: Evaluation - get slack at current node
-    Slack new_path_slack = violator_collector_->getCurrentEndpointSlack();
+    Slack new_path_slack = current->slack_;
     // Phase 4: Backpropagation - update statistics
     for (SimulationTreeNode* node : path) {
       node->mcts_visits_++;
