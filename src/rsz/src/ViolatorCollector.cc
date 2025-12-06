@@ -1018,7 +1018,7 @@ set<const Pin*> ViolatorCollector::collectPinsByPathEndpoint(
                               nullptr,                // thrus
                               to,                     // to
                               false,                  // unconstrained
-                              corner_,                // corner
+                              nullptr,                // corner
                               sta::MinMaxAll::all(),  // min_max
                               paths_per_endpoint,     // group_path_count
                               paths_per_endpoint,     // endpoint_path_count
