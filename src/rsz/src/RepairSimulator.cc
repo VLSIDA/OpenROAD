@@ -447,6 +447,13 @@ bool RepairSimulator::doMove(SimulationTreeNode* node)
   debugPrint(logger_, RSZ, "repair_simulator", 5, "Doing {}", node->name());
   addDestroyedPin(node->pin_, node->move_);
   node->odb_eco_active_ = true;
+  // FIXME: Update STA before the move for now.
+  //        We wouldn't do this if global router was dbJournal aware.
+  odb::dbDatabase::beginEco(resizer_->block_);
+  resizer_->estimate_parasitics_->updateParasitics();
+  sta_->findRequireds();
+  odb::dbDatabase::endEco(resizer_->block_);
+  // Run the move
   odb::dbDatabase::beginEco(resizer_->block_);
   bool accepted = node->move_->doMove(node->pin_, setup_slack_margin_);
   odb::dbDatabase::endEco(resizer_->block_);
@@ -455,18 +462,20 @@ bool RepairSimulator::doMove(SimulationTreeNode* node)
     node->eco_ = new dbJournal(resizer_->block_);
     _dbBlock* block = (_dbBlock*) resizer_->block_;
     node->eco_->append(block->_journal_stack.top());
-    // Save STA update ECO
+    // FIXME: Update STA after the move for now.
+    //        We wouldn't do this if global router was dbJournal aware.
     odb::dbDatabase::beginEco(resizer_->block_);
     resizer_->estimate_parasitics_->updateParasitics();
     sta_->findRequireds();
-    node->slack_ = violator_collector_->getCurrentEndpointSlack();
     odb::dbDatabase::endEco(resizer_->block_);
+    node->slack_ = violator_collector_->getCurrentEndpointSlack();
     // Track changes to prevent BaseMove::addMove() from corrupting
     node->tracked_changes_ = node->move_->tracking_stack_.back().second;
   } else {
     debugPrint(
         logger_, RSZ, "repair_simulator", 5, "Rejected {}", node->name());
-    odb::dbDatabase::undoEco(resizer_->block_);
+    odb::dbDatabase::undoEco(resizer_->block_);  // Undo move ECO
+    odb::dbDatabase::undoEco(resizer_->block_);  // Undo pre-move STA update ECO
     node->odb_eco_active_ = false;
     removeDestroyedPin(node->pin_, node->move_);
   }
@@ -477,8 +486,9 @@ void RepairSimulator::undoMove(SimulationTreeNode* node)
 {
   debugPrint(logger_, RSZ, "repair_simulator", 5, "Undoing {}", node->name());
   if (node->odb_eco_active_) {
-    odb::dbDatabase::undoEco(resizer_->block_);  // Undo STA ECO
+    odb::dbDatabase::undoEco(resizer_->block_);  // Undo post-move STA update ECO
     odb::dbDatabase::undoEco(resizer_->block_);  // Undo move ECO
+    odb::dbDatabase::undoEco(resizer_->block_);  // Undo pre-move STA update ECO
     node->odb_eco_active_ = false;
   } else {
     node->eco_->undo();
