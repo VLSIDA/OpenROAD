@@ -10,6 +10,7 @@
 #include "CloneMove.hh"
 #include "sta/ArcDelayCalc.hh"
 #include "sta/Delay.hh"
+#include "sta/Graph.hh"
 #include "sta/Liberty.hh"
 #include "sta/NetworkClass.hh"
 #include "sta/Path.hh"
@@ -35,6 +36,7 @@ using sta::PathExpanded;
 using sta::Pin;
 using sta::Slack;
 using sta::Slew;
+using sta::VertexOutEdgeIterator;
 
 bool SizeUpMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
 {
@@ -136,6 +138,16 @@ bool SizeUpMatchMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
   }
   const LibertyCell* drvr_cell = drvr_port->libertyCell();
   if (drvr_cell == nullptr) {
+    return false;
+  }
+
+  Vertex* prev_drvr_vertex = graph_->pinDrvrVertex(prev_drvr_pin);
+  if (prev_drvr_vertex == nullptr) {
+    return false;
+  }
+  // Skip if the previous driver has multi fanout
+  int prev_drvr_fanout = fanout(prev_drvr_vertex);
+  if (prev_drvr_fanout > 1) {
     return false;
   }
 

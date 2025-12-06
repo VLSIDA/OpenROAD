@@ -16,7 +16,7 @@
 #include <utility>
 #include <vector>
 
-#include "gpl/AbstractGraphics.h"
+#include "AbstractGraphics.h"
 #include "gui/gui.h"
 #include "nesterovBase.h"
 #include "nesterovPlace.h"
@@ -91,9 +91,10 @@ void GraphicsImpl::debugForNesterovPlace(
         region_names.reserve(nbVec_.size());
         for (size_t i = 0; i < nbVec_.size(); ++i) {
           std::string name;
-          if (nbVec_[i] && nbVec_[i]->getPb() && nbVec_[i]->getPb()->group()) {
+          if (nbVec_[i] && nbVec_[i]->getPb()
+              && nbVec_[i]->getPb()->getGroup()) {
             name = fmt::format(
-                "nb[{}] {}", i, nbVec_[i]->getPb()->group()->getName());
+                "nb[{}] {}", i, nbVec_[i]->getPb()->getGroup()->getName());
           } else {
             name = fmt::format("nb[{}]", i);
           }

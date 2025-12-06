@@ -3,6 +3,7 @@
 
 #include "RepairSearch.hh"
 
+#include <cassert>
 #include <cmath>
 #include <queue>
 #include <string>
@@ -433,7 +434,7 @@ bool RepairSearch::doMove(SearchTreeNode* node)
   if (node->eco_) {
     debugPrint(logger_, RSZ, "repair_search", 5, "Redoing {}", node->name());
     addDestroyedPin(node->pin_, node->move_);
-    if (((_dbBlock*) resizer_->block_)->_journal) {
+    if (((_dbBlock*) resizer_->block_)->journal_) {
       odb::dbDatabase::endEco(resizer_->block_);
     }
     node->eco_->redo();
@@ -458,7 +459,7 @@ bool RepairSearch::doMove(SearchTreeNode* node)
     // Save move ECO
     node->eco_ = new dbJournal(resizer_->block_);
     _dbBlock* block = (_dbBlock*) resizer_->block_;
-    node->eco_->append(block->_journal_stack.top());
+    node->eco_->append(block->journal_stack_.top());
     // FIXME: Update STA after the move for now.
     //        We wouldn't do this if global router was dbJournal aware.
     odb::dbDatabase::beginEco(resizer_->block_);
@@ -508,17 +509,17 @@ void RepairSearch::commitMove(const Pin* pin, BaseMove* move)
       break;
     }
   }
-  ZASSERT(found);
+  assert(found);
   debugPrint(
       logger_, RSZ, "repair_search", 3, "Committing {}", root_->name());
   // Redo this node's ECO
   doMove(root_);
   // There should always be an active ECO journal originating from RepairSetup
   _dbBlock* block = (_dbBlock*) resizer_->block_;
-  if (block->_journal) {
-    block->_journal->append(root_->eco_);
+  if (block->journal_) {
+    block->journal_->append(root_->eco_);
   } else {
-    block->_journal_stack.top()->append(root_->eco_);
+    block->journal_stack_.top()->append(root_->eco_);
   }
   delete root_->eco_;
   root_->eco_ = nullptr;
