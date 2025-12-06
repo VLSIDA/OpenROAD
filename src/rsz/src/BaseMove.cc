@@ -954,7 +954,7 @@ void BaseMove::getPrevNextPins(const Pin* drvr_pin,
     Edge* edge = out_edge_iter.next();
     Vertex* fanout_vertex = edge->to(graph_);
     Slack fanout_slack = sta_->vertexSlack(fanout_vertex, resizer_->max_);
-    if (fanout_slack < load_slack) {
+    if (fanout_slack < load_slack || load_vertex == nullptr) {
       load_vertex = fanout_vertex;
       load_slack = fanout_slack;
     }
@@ -978,7 +978,7 @@ void BaseMove::getPrevNextPins(const Pin* drvr_pin,
 
     // Get slack for this input
     Slack from_slack = sta_->vertexSlack(from_vertex, resizer_->max_);
-    if (from_slack < worst_input_slack) {
+    if (from_slack < worst_input_slack || worst_input_vertex == nullptr) {
       worst_input_slack = from_slack;
       worst_input_vertex = from_vertex;
     }
@@ -994,7 +994,7 @@ void BaseMove::getPrevNextPins(const Pin* drvr_pin,
       Edge* edge = prev_edge_iter.next();
       Vertex* from_vertex = edge->from(graph_);
       Slack from_slack = sta_->vertexSlack(from_vertex, resizer_->max_);
-      if (from_slack < prev_drvr_slack) {
+      if (from_slack < prev_drvr_slack || prev_drvr_vertex == nullptr) {
         prev_drvr_slack = from_slack;
         prev_drvr_vertex = from_vertex;
       }
