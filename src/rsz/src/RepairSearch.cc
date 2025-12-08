@@ -155,7 +155,7 @@ bool RepairSearch::searchBFS(SearchTreeNode* node)
     // Process all children
     while (!current->children_pending_.empty()) {
       auto child = current->children_pending_.front();
-      current->children_pending_.pop();
+      current->children_pending_.pop_front();
       if (!doMove(child)) {
         delete child;
         continue;
@@ -229,7 +229,7 @@ bool RepairSearch::searchDFS(SearchTreeNode* node)
   // Process all children
   while (!node->children_pending_.empty()) {
     auto child = node->children_pending_.front();
-    node->children_pending_.pop();
+    node->children_pending_.pop_front();
     if (!doMove(child)) {
       delete child;
       continue;
@@ -315,7 +315,7 @@ bool RepairSearch::searchMCTS(RepairSearch::SearchTreeNode* node)
       }
       if (!current->children_pending_.empty()) {
         auto child = current->children_pending_.front();
-        current->children_pending_.pop();
+        current->children_pending_.pop_front();
         debugPrint(logger_,
                    RSZ,
                    "repair_search",
@@ -549,12 +549,15 @@ void RepairSearch::decrementLevel(SearchTreeNode* node)
   for (SearchTreeNode* child : node->children_) {
     decrementLevel(child);
   }
+  for (SearchTreeNode* child : node->children_pending_) {
+    decrementLevel(child);
+  }
 }
 
-std::queue<RepairSearch::SearchTreeNode*>
+std::deque<RepairSearch::SearchTreeNode*>
 RepairSearch::createChildren(RepairSearch::SearchTreeNode* parent)
 {
-  std::queue<RepairSearch::SearchTreeNode*> children;
+  std::deque<RepairSearch::SearchTreeNode*> children;
   for (const Pin* pin : *pins_) {
     if (isPinDestroyed(pin)) {
       continue;
@@ -562,7 +565,7 @@ RepairSearch::createChildren(RepairSearch::SearchTreeNode* parent)
     for (BaseMove* move : *moves_) {
       auto child
           = new SearchTreeNode(resizer_, pin, move, parent->level_ + 1);
-      children.emplace(child);
+      children.emplace_back(child);
     }
   }
   return children;

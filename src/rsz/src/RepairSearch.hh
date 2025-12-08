@@ -4,6 +4,7 @@
 #pragma once
 
 #include <cmath>
+#include <deque>
 #include <string>
 #include <vector>
 
@@ -115,7 +116,7 @@ class RepairSearch
     // Children of this node
     std::vector<SearchTreeNode*> children_;
     // Children of this node haven't been searched yet
-    std::queue<SearchTreeNode*> children_pending_;
+    std::deque<SearchTreeNode*> children_pending_;
   };
 
   bool doMove(SearchTreeNode* node);
@@ -125,7 +126,7 @@ class RepairSearch
   bool searchMCTS(SearchTreeNode* node);
   SearchTreeNode* getBestPossibleNodeDFS(SearchTreeNode* node);
   void decrementLevel(SearchTreeNode* node);
-  std::queue<SearchTreeNode*> createChildren(SearchTreeNode* parent);
+  std::deque<SearchTreeNode*> createChildren(SearchTreeNode* parent);
 
   // Prevents use-after-free error
   void addDestroyedPin(const Pin* pin, BaseMove* move);
