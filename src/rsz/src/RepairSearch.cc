@@ -24,12 +24,12 @@ using sta::Pin;
 using utl::RSZ;
 
 void RepairSearch::init(const Pin* endpoint,
-                           const std::vector<const Pin*>& pins,
-                           const std::vector<BaseMove*>& moves,
-                           int level,
-                           SearchMode mode,
-                           int time_limit,
-                           float setup_slack_margin)
+                        const std::vector<const Pin*>& pins,
+                        const std::vector<BaseMove*>& moves,
+                        int level,
+                        SearchMode mode,
+                        int time_limit,
+                        float setup_slack_margin)
 {
   endpoint_ = endpoint;
   pins_ = &pins;
@@ -316,6 +316,13 @@ bool RepairSearch::searchMCTS(RepairSearch::SearchTreeNode* node)
       if (!current->children_pending_.empty()) {
         auto child = current->children_pending_.front();
         current->children_pending_.pop();
+        debugPrint(logger_,
+                   RSZ,
+                   "repair_search",
+                   5,
+                   "MCTS expanding {} -> {}",
+                   current->name(),
+                   child->name());
         if (doMove(child)) {
           current->children_.push_back(child);
           path.push_back(child);
@@ -343,7 +350,7 @@ bool RepairSearch::searchMCTS(RepairSearch::SearchTreeNode* node)
     if (hasTimeLimitPassed()) {
       return false;
     }
-    // Early termination if we found a good enough solution
+    // Early termination if we've found a good enough solution
     if (!fuzzyLess(new_path_slack, setup_slack_margin_)) {
       debugPrint(logger_,
                  RSZ,
@@ -361,7 +368,7 @@ bool RepairSearch::searchMCTS(RepairSearch::SearchTreeNode* node)
 std::pair<const Pin*, BaseMove*> RepairSearch::getBestImmediateMove()
 {
   // Recursively search for the best immediate move among root's children
-  debugPrint(logger_, RSZ, "repair_search", 4, "Simulated moves:");
+  debugPrint(logger_, RSZ, "repair_search", 4, "Searched moves:");
   SearchTreeNode* best_descendant = nullptr;
   SearchTreeNode* best_child = nullptr;
   Slack best_slack = -sta::INF;
@@ -432,7 +439,7 @@ bool RepairSearch::doMove(SearchTreeNode* node)
 {
   // We have already searched this node
   if (node->eco_) {
-    debugPrint(logger_, RSZ, "repair_search", 5, "Redoing {}", node->name());
+    debugPrint(logger_, RSZ, "repair_search", 6, "Redoing {}", node->name());
     addDestroyedPin(node->pin_, node->move_);
     if (((_dbBlock*) resizer_->block_)->journal_) {
       odb::dbDatabase::endEco(resizer_->block_);
@@ -444,7 +451,7 @@ bool RepairSearch::doMove(SearchTreeNode* node)
     return true;
   }
   // This node needs to be explored from scratch
-  debugPrint(logger_, RSZ, "repair_search", 5, "Doing {}", node->name());
+  debugPrint(logger_, RSZ, "repair_search", 6, "Doing {}", node->name());
   addDestroyedPin(node->pin_, node->move_);
   node->odb_eco_active_ = true;
   // FIXME: Update STA before the move for now.
@@ -473,7 +480,7 @@ bool RepairSearch::doMove(SearchTreeNode* node)
     node->move_->pending_move_info_.pop_back();
   } else {
     debugPrint(
-        logger_, RSZ, "repair_search", 5, "Rejected {}", node->name());
+        logger_, RSZ, "repair_search", 6, "Rejected {}", node->name());
     odb::dbDatabase::undoEco(resizer_->block_);  // Undo move ECO
     odb::dbDatabase::undoEco(resizer_->block_);  // Undo pre-move STA update ECO
     node->odb_eco_active_ = false;
@@ -484,7 +491,7 @@ bool RepairSearch::doMove(SearchTreeNode* node)
 
 void RepairSearch::undoMove(SearchTreeNode* node)
 {
-  debugPrint(logger_, RSZ, "repair_search", 5, "Undoing {}", node->name());
+  debugPrint(logger_, RSZ, "repair_search", 6, "Undoing {}", node->name());
   if (node->odb_eco_active_) {
     odb::dbDatabase::undoEco(resizer_->block_);  // Undo post-move STA update ECO
     odb::dbDatabase::undoEco(resizer_->block_);  // Undo move ECO

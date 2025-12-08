@@ -91,7 +91,7 @@ class RepairSearch
 
     std::string name()
     {
-      return fmt::format("SimNode({}, {}, L{})", pin_name_, move_name_, level_);
+      return fmt::format("STNode({}, {}, L{})", pin_name_, move_name_, level_);
     }
 
     const Pin* pin_;

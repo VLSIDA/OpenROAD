@@ -162,10 +162,13 @@ bool UnbufferMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
             RSZ,
             "repair_setup",
             2,
-            "buffer {} is not removed because of max cap limit of {} at {}",
+            "buffer {} is not removed because of "
+            "max cap limit of {} at {} ({} -> {})",
             db_network_->name(drvr),
             max_cap,
-            network_->pathName(prev_drvr_pin));
+            network_->pathName(prev_drvr_pin),
+            cap,
+            new_cap);
         return endMove(false);
       }
     }
