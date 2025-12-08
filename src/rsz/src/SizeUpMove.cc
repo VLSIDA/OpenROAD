@@ -40,13 +40,14 @@ using sta::VertexOutEdgeIterator;
 
 bool SizeUpMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
 {
+  startMove(drvr_pin);
   Instance* drvr = network_->instance(drvr_pin);
 
   if (resizer_->dontTouch(drvr)){
-    return false;
+    return endMove(false);
   }
   if (!resizer_->isLogicStdCell(drvr)) {
-    return false;
+    return endMove(false);
   }
 
   Pin* prev_drvr_pin;
@@ -89,8 +90,8 @@ bool SizeUpMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                network_->pathName(drvr_pin),
                drvr_port->libertyCell()->name(),
                upsize->name());
-    addMove(drvr_pin, {{drvr, 1}});
-    return true;
+    countMove(drvr);
+    return endMove(true);
   }
   debugPrint(logger_,
              RSZ,
@@ -100,7 +101,7 @@ bool SizeUpMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
              network_->pathName(drvr_pin),
              drvr_port->libertyCell()->name());
 
-  return false;
+  return endMove(false);
 }
 
 // Compare drive strength with previous stage
@@ -108,13 +109,14 @@ bool SizeUpMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
 // For example, if BUFX16 drives BUFX1, replace BUFX1 with BUFX16
 bool SizeUpMatchMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
 {
+  startMove(drvr_pin);
   Instance* drvr = network_->instance(drvr_pin);
 
   if (resizer_->dontTouch(drvr)) {
-    return false;
+    return endMove(false);
   }
   if (!resizer_->isLogicStdCell(drvr)) {
-    return false;
+    return endMove(false);
   }
 
   Pin* prev_drvr_pin;
@@ -123,41 +125,41 @@ bool SizeUpMatchMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
   getPrevNextPins(drvr_pin, prev_drvr_pin, drvr_input_pin, load_pin);
 
   if (prev_drvr_pin == nullptr) {
-    return false;
+    return endMove(false);
   }
   if (drvr_pin == nullptr) {
-    return false;
+    return endMove(false);
   }
   if (drvr == nullptr) {
-    return false;
+    return endMove(false);
   }
 
   LibertyPort* drvr_port = network_->libertyPort(drvr_pin);
   if (drvr_port == nullptr) {
-    return false;
+    return endMove(false);
   }
   const LibertyCell* drvr_cell = drvr_port->libertyCell();
   if (drvr_cell == nullptr) {
-    return false;
+    return endMove(false);
   }
 
   Vertex* prev_drvr_vertex = graph_->pinDrvrVertex(prev_drvr_pin);
   if (prev_drvr_vertex == nullptr) {
-    return false;
+    return endMove(false);
   }
   // Skip if the previous driver has multi fanout
   int prev_drvr_fanout = fanout(prev_drvr_vertex);
   if (prev_drvr_fanout > 1) {
-    return false;
+    return endMove(false);
   }
 
   LibertyPort* prev_drvr_port = network_->libertyPort(prev_drvr_pin);
   if (prev_drvr_port == nullptr) {
-    return false;
+    return endMove(false);
   }
   const LibertyCell* prev_cell = prev_drvr_port->libertyCell();
   if (prev_cell == nullptr) {
-    return false;
+    return endMove(false);
   }
 
   if ((prev_cell != drvr_cell)
@@ -182,8 +184,8 @@ bool SizeUpMatchMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                  network_->pathName(drvr_pin),
                  drvr_cell->name(),
                  prev_cell->name());
-      addMove(drvr_pin, {{drvr, 1}});
-      return true;
+      countMove(drvr);
+      return endMove(true);
     }
   }
 
@@ -194,7 +196,7 @@ bool SizeUpMatchMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
              "REJECT size_up_match {} {}",
              network_->pathName(drvr_pin),
              drvr_cell->name());
-  return false;
+  return endMove(false);
 }
 
 }  // namespace rsz

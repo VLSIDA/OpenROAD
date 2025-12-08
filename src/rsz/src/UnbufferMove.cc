@@ -58,6 +58,7 @@ using sta::Vertex;
 // 4) it doesn't worsen slack
 bool UnbufferMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
 {
+  startMove(drvr_pin);
   Vertex* drvr_vertex = graph_->pinDrvrVertex(drvr_pin);
   LibertyPort* drvr_port = network_->libertyPort(drvr_pin);
   LibertyCell* drvr_cell = drvr_port ? drvr_port->libertyCell() : nullptr;
@@ -89,7 +90,7 @@ bool UnbufferMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                  "buffer {} is not removed because {}",
                  db_network_->name(drvr),
                  reason);
-      return false;
+      return endMove(false);
     }
 
     // Don't remove buffer if new max fanout violations are created
@@ -114,7 +115,7 @@ bool UnbufferMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                    db_network_->name(drvr),
                    max_fanout,
                    network_->pathName(prev_drvr_pin));
-        return false;
+        return endMove(false);
       }
     } else {
       // No max fanout exists, but don't exceed default fanout limit
@@ -129,7 +130,7 @@ bool UnbufferMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                    db_network_->name(drvr),
                    buffer_removal_max_fanout_,
                    network_->pathName(prev_drvr_pin));
-        return false;
+        return endMove(false);
       }
     }
 
@@ -165,7 +166,7 @@ bool UnbufferMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
             db_network_->name(drvr),
             max_cap,
             network_->pathName(prev_drvr_pin));
-        return false;
+        return endMove(false);
       }
     }
 
@@ -176,7 +177,7 @@ bool UnbufferMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
     params.driver = drvr;
     params.driver_cell = drvr_cell;
     if (!estimatedSlackOK(params)) {
-      return false;
+      return endMove(false);
     }
 
     if (canRemoveBuffer(drvr, /* honorDontTouch */ true)) {
@@ -187,9 +188,7 @@ bool UnbufferMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                  "ACCEPT unbuffer {}",
                  network_->pathName(drvr));
       removeBuffer(drvr);
-      removeMove(drvr);
-      addMove(drvr_pin, {{drvr, 1}});
-      return true;
+      return endMove(true);
     }
     debugPrint(logger_,
                RSZ,
@@ -199,7 +198,7 @@ bool UnbufferMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                network_->pathName(drvr));
   }
 
-  return false;
+  return endMove(false);
 }
 
 bool UnbufferMove::removeBufferIfPossible(Instance* buffer,
@@ -349,7 +348,7 @@ bool UnbufferMove::removeBuffer(Instance* buffer)
     return false;
   }
 
-  addMove(buffer);
+  countMove(buffer);
 
   // Remove the unused buffer
   if (out_db_net == nullptr) {

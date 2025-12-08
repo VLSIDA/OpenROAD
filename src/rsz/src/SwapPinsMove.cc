@@ -56,30 +56,31 @@ using sta::Vertex;
 
 bool SwapPinsMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
 {
+  startMove(drvr_pin);
   Instance* drvr = network_->instance(drvr_pin);
 
   // Skip if this is don't touch
   if (resizer_->dontTouch(drvr)) {
-    return false;
+    return endMove(false);
   }
 
   // Check if we have already dealt with this instance
   // and prevent any further swaps.
   if (hasMoves(drvr) > 0) {
-    return false;
+    return endMove(false);
   }
 
   // Skip if there is no liberty model or this is a single-input cell
   LibertyPort* drvr_port = network_->libertyPort(drvr_pin);
   if (drvr_port == nullptr) {
-    return false;
+    return endMove(false);
   }
   LibertyCell* cell = drvr_port->libertyCell();
   if (cell == nullptr) {
-    return false;
+    return endMove(false);
   }
   if (cell->isBuffer() || cell->isInverter()) {
-    return false;
+    return endMove(false);
   }
 
   const DcalcAnalysisPt* dcalc_ap = resizer_->tgt_slew_dcalc_ap_;
@@ -97,7 +98,7 @@ bool SwapPinsMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
 
   // Skip output to output paths
   if (input_port->direction()->isOutput()) {
-    return false;
+    return endMove(false);
   }
 
   // Find the equivalent pins for a cell (simple implementation for now)
@@ -109,7 +110,7 @@ bool SwapPinsMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
   }
   ports = equiv_pin_map_[input_port];
   if (ports.empty()) {
-    return false;
+    return endMove(false);
   }
 
   // Pass slews at input pins for more accurate delay/slew estimation
@@ -119,7 +120,7 @@ bool SwapPinsMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
   resetInputSlews();
 
   if (sta::LibertyPort::equiv(swap_port, input_port)) {
-    return false;
+    return endMove(false);
   }
 
   debugPrint(logger_,
@@ -142,8 +143,8 @@ bool SwapPinsMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
              input_port->name(),
              swap_port->name());
   swapPins(drvr, input_port, swap_port);
-  addMove(drvr_pin, {{drvr, 1}});
-  return true;
+  countMove(drvr);
+  return endMove(true);
 }
 
 void SwapPinsMove::swapPins(Instance* inst,

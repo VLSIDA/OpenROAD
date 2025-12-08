@@ -73,14 +73,15 @@ Point CloneMove::computeCloneGateLocation(
 
 bool CloneMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
 {
+  startMove(drvr_pin);
   Vertex* drvr_vertex = graph_->pinDrvrVertex(drvr_pin);
   const int fanout = this->fanout(drvr_vertex);
   if (fanout <= split_load_min_fanout_) {
-    return false;
+    return endMove(false);
   }
 
   if (!resizer_->okToBufferNet(drvr_pin)) {
-    return false;
+    return endMove(false);
   }
 
   Instance* drvr_inst = db_network_->instance(drvr_pin);
@@ -91,7 +92,7 @@ bool CloneMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                3,
                "REJECT clone {}",
                network_->pathName(drvr_pin));
-    return false;
+    return endMove(false);
   }
 
   // Divide and conquer.
@@ -171,7 +172,8 @@ bool CloneMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
              clone_cell->name());
   // We add the driver instance to the pending move set, but don't count it as a
   // move.
-  addMove(drvr_pin, {{clone_inst, 1}, {drvr_inst, 0}});
+  countMove(clone_inst);
+  countMove(drvr_inst, 0);
 
   // Hierarchy fix, make out_net in parent.
 
@@ -264,7 +266,7 @@ bool CloneMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
       }
     }
   }
-  return true;
+  return endMove(true);
 }
 
 }  // namespace rsz

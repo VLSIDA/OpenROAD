@@ -31,12 +31,13 @@ using sta::Slew;
 
 bool VTSwapSpeedMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
 {
+  startMove(drvr_pin);
   LibertyCell* drvr_cell;
   LibertyCell* best_cell;
 
   Instance* drvr_inst = network_->instance(drvr_pin);
   if (!isSwappable(drvr_pin, drvr_cell, best_cell)) {
-    return false;
+    return endMove(false);
   }
 
   if (replaceCell(drvr_inst, best_cell)) {
@@ -49,15 +50,15 @@ bool VTSwapSpeedMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                     network_->pathName(drvr_pin),
                     drvr_cell->name(),
                     best_cell->name());
-    addMove(drvr_pin, {{drvr_inst, 1}});
-    return true;
+    countMove(drvr_inst);
+    return endMove(true);
   }
 
   debugMovePrint1("REJECT vt_swap {}: {} -> {} swap failed",
                   network_->pathName(drvr_pin),
                   drvr_cell->name(),
                   best_cell->name());
-  return false;
+  return endMove(false);
 }
 
 // This is a special move used during separate critical cell VT swap routine
@@ -67,7 +68,7 @@ bool VTSwapSpeedMove::doMove(Instance* drvr,
   LibertyCell* best_lib_cell;
   if (resizer_->checkAndMarkVTSwappable(drvr, notSwappable, best_lib_cell)) {
     if (replaceCell(drvr, best_lib_cell)) {
-      addMove(drvr);
+      countMove(drvr);
       debugMovePrint1("ACCEPT vt_swap {}: -> {}",
                       network_->pathName(drvr),
                       best_lib_cell->name());

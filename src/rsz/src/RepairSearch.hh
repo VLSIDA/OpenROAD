@@ -83,6 +83,7 @@ class RepairSearch
     ~SearchTreeNode()
     {
       delete eco_;
+      delete move_info_;
       for (auto* child : children_) {
         delete child;
       }
@@ -109,8 +110,8 @@ class RepairSearch
     Slack mcts_best_slack_{-sta::INF};
     // Isolated ECO journal of this node (doesn't include other nodes' ECOs)
     dbJournal* eco_{nullptr};
-    // Track BaseMove::addMove() changes to properly revert them
-    std::map<Instance*, int> tracked_changes_;
+    // Keep the move info object to handle the quirks of BaseMove
+    MoveInfo* move_info_{nullptr};
     // Children of this node
     std::vector<SearchTreeNode*> children_;
     // Children of this node haven't been searched yet

@@ -57,15 +57,16 @@ using sta::VertexOutEdgeIterator;
 
 bool SplitLoadMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
 {
+  startMove(drvr_pin);
   Vertex* drvr_vertex = graph_->pinDrvrVertex(drvr_pin);
 
   const int fanout = this->fanout(drvr_vertex);
   // Don't split loads on low fanout nets.
   if (fanout <= split_load_min_fanout_) {
-    return false;
+    return endMove(false);
   }
   if (!resizer_->okToBufferNet(drvr_pin)) {
-    return false;
+    return endMove(false);
   }
 
   // Divide and conquer.
@@ -135,7 +136,7 @@ bool SplitLoadMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
              3,
              "split_load make_buffer {}",
              network_->pathName(buffer));
-  addMove(drvr_pin, {{buffer, 1}});
+  countMove(buffer);
 
   // H-fix make the out net in the driver parent
   Net* out_net = db_network_->makeNet(parent);
@@ -239,7 +240,7 @@ bool SplitLoadMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
   // resizer_->parasiticsInvalid(net);
   estimate_parasitics_->parasiticsInvalid(db_network_->dbToSta(db_drvr_net));
   estimate_parasitics_->parasiticsInvalid(out_net);
-  return true;
+  return endMove(true);
 }
 
 }  // namespace rsz

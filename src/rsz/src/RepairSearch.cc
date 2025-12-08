@@ -438,7 +438,9 @@ bool RepairSearch::doMove(SearchTreeNode* node)
       odb::dbDatabase::endEco(resizer_->block_);
     }
     node->eco_->redo();
-    node->move_->addMove(node->pin_, node->tracked_changes_);
+    for (auto &[inst, count] : node->move_info_->changes) {
+      node->move_->countMove(inst, count);
+    }
     return true;
   }
   // This node needs to be explored from scratch
@@ -467,8 +469,8 @@ bool RepairSearch::doMove(SearchTreeNode* node)
     sta_->findRequireds();
     odb::dbDatabase::endEco(resizer_->block_);
     node->slack_ = violator_collector_->getCurrentEndpointSlack();
-    // Track changes to prevent BaseMove::addMove() from corrupting
-    node->tracked_changes_ = node->move_->tracking_stack_.back().second;
+    node->move_info_ = node->move_->pending_move_info_.back();
+    node->move_->pending_move_info_.pop_back();
   } else {
     debugPrint(
         logger_, RSZ, "repair_search", 5, "Rejected {}", node->name());
@@ -492,7 +494,9 @@ void RepairSearch::undoMove(SearchTreeNode* node)
     node->eco_->undo();
   }
   removeDestroyedPin(node->pin_, node->move_);
-  node->move_->removeMove();
+  for (auto &[inst, count] : node->move_info_->changes) {
+    node->move_->uncountMove(inst, count);
+  }
 }
 
 void RepairSearch::commitMove(const Pin* pin, BaseMove* move)
@@ -514,6 +518,10 @@ void RepairSearch::commitMove(const Pin* pin, BaseMove* move)
       logger_, RSZ, "repair_search", 3, "Committing {}", root_->name());
   // Redo this node's ECO
   doMove(root_);
+  root_->move_->pending_move_info_.push_back(root_->move_info_);
+  for (auto &[inst, count] : root_->move_info_->changes) {
+    root_->move_->countMove(inst, count);
+  }
   // There should always be an active ECO journal originating from RepairSetup
   _dbBlock* block = (_dbBlock*) resizer_->block_;
   if (block->journal_) {
@@ -523,6 +531,7 @@ void RepairSearch::commitMove(const Pin* pin, BaseMove* move)
   }
   delete root_->eco_;
   root_->eco_ = nullptr;
+  root_->move_info_ = nullptr;
   decrementLevel(root_);
 }
 

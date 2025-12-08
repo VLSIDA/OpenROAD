@@ -85,6 +85,8 @@ using BufferedNetSeq = std::vector<BufferedNetPtr>;
 using InputSlews = std::array<Slew, RiseFall::index_count>;
 using TgtSlews = std::array<Slew, RiseFall::index_count>;
 
+class BaseMove;
+
 struct SlackEstimatorParams
 {
   SlackEstimatorParams(const float margin, const Corner* corner)
@@ -103,6 +105,18 @@ struct SlackEstimatorParams
   const Corner* corner;
 };
 
+struct MoveInfo
+{
+  MoveInfo(BaseMove* move, const Pin* drvr_pin)
+        : move(move), drvr_pin(drvr_pin)
+  {
+  }
+
+  BaseMove* move;
+  const Pin* drvr_pin;
+  std::vector<std::pair<Instance*, int>> changes;
+};
+
 class BaseMove : public sta::dbStaState
 {
  public:
@@ -118,6 +132,14 @@ class BaseMove : public sta::dbStaState
 
   void init();
 
+  // Start a move
+  void startMove(const Pin* drvr_pin);
+  // End a move
+  bool endMove(bool accepted);
+
+  // Count a new pending optimization
+  void countMove(Instance* inst, int count = 1);
+  void uncountMove(Instance* inst, int count = 1);
   // Accept the pending optimizations
   void commitMoves();
   // Abandon the pending optimizations
@@ -134,12 +156,6 @@ class BaseMove : public sta::dbStaState
   int hasMoves(Instance* inst) const;
   // Total accepted and pending optimizations
   int numMoves() const;
-  // Add a new pending optimization
-  void addMove(Instance* inst, int count = 1);
-  void addMove(const Pin* pin, const std::map<Instance*, int>& pending_changes);
-  void addMove(const Pin* pin, std::initializer_list<std::pair<Instance*, int>> pending_changes);
-  void removeMove(Instance* inst, int count = 1);
-  void removeMove();
 
  protected:
   Resizer* resizer_;
@@ -153,15 +169,16 @@ class BaseMove : public sta::dbStaState
   dpl::Opendp* opendp_ = nullptr;
   const Corner* corner_ = nullptr;
 
-  // Need to track these so we don't optimize the optimzations.
+  // Need to track these so we don't optimize the optimizations.
   // This can result in long run-time.
-  // These are all of the optimized insts of this type .
+  // These are all of the optimized insts of this type.
   // Some may not have been accepted, but this replicates the prior behavior.
-  InstanceSet accepted_inst_set_;
+  std::unordered_multiset<Instance*> accepted_inst_set_;
   // This is just the set of the pending moves.
-  InstanceSet pending_inst_set_;
-  // This is used to handle tracking with nested and isolated ECO journals
-  std::vector<std::pair<const Pin*, std::map<Instance*, int>>> tracking_stack_;
+  std::unordered_multiset<Instance*> pending_inst_set_;
+  // This is used to keep track of the pending moves
+  MoveInfo* active_move_info_ = nullptr;
+  std::vector<MoveInfo*> pending_move_info_;
   int pending_count_ = 0;
   int rejected_count_ = 0;
   int accepted_count_ = 0;

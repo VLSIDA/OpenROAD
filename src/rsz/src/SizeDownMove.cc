@@ -52,13 +52,14 @@ using sta::VertexOutEdgeIterator;
 
 bool SizeDownMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
 {
+  startMove(drvr_pin);
   Vertex* drvr_vertex = graph_->pinDrvrVertex(drvr_pin);
   const Slack drvr_slack = sta_->vertexSlack(drvr_vertex, resizer_->max_);
 
   // Skip nets with large fanout because we will need to buffer them.
   const int fanout = this->fanout(drvr_vertex);
   if (fanout >= size_down_max_fanout_) {
-    return false;
+    return endMove(false);
   }
 
   // Divide and conquer.
@@ -166,7 +167,7 @@ bool SizeDownMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                  new_cell->name(),
                  delayAsString(fanout_slack.second, sta_, 3));
 
-      addMove(drvr_pin, {{load_inst, 1}});
+      countMove(load_inst);
       accept_move = true;
     } else {
       debugPrint(logger_,
@@ -182,7 +183,7 @@ bool SizeDownMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
     }
   }
 
-  return accept_move;
+  return endMove(accept_move);
 }
 
 // This will downsize the gate to the smallest input capacitance that that

@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cassert>
 #include <cstddef>
 #include <memory>
 #include <string>
@@ -86,18 +87,7 @@ BaseMove::BaseMove(Resizer* resizer)
 
   accepted_count_ = 0;
   rejected_count_ = 0;
-  accepted_inst_set_ = InstanceSet(db_network_);
   pending_count_ = 0;
-  pending_inst_set_ = InstanceSet(db_network_);
-}
-
-void BaseMove::commitMoves()
-{
-  accepted_count_ += pending_count_;
-  pending_count_ = 0;
-  accepted_inst_set_.insertSet(&pending_inst_set_);
-  pending_inst_set_.clear();
-  tracking_stack_.clear();
 }
 
 void BaseMove::init()
@@ -107,7 +97,61 @@ void BaseMove::init()
   accepted_count_ = 0;
   pending_inst_set_.clear();
   accepted_inst_set_.clear();
-  tracking_stack_.clear();
+  pending_move_info_.clear();
+}
+
+void BaseMove::startMove(const Pin* drvr_pin)
+{
+  assert(!active_move_info_);
+  active_move_info_ = new MoveInfo(this, drvr_pin);
+}
+
+bool BaseMove::endMove(bool accepted) {
+  assert(active_move_info_);
+  if (accepted) {
+    pending_move_info_.push_back(active_move_info_);
+  } else {
+    delete active_move_info_;
+  }
+  active_move_info_ = nullptr;
+  return accepted;
+}
+
+void BaseMove::countMove(Instance* inst, int count)
+{
+  // Add it as a candidate move, not accepted yet
+  // This count is for the cloned gates where we only count the clone
+  // but we also add the main gate to the pending set.
+  // This count is also used when we add more than 1 buffer during rebuffer.
+  // Default is to add 1 to the pending count.
+  pending_count_ += count;
+  // Add it to all moves, even though it wasn't accepted.
+  // This is the behavior to match the current resizer.
+  //all_inst_set_.insert(inst);
+  // Also add it to the pending moves
+  pending_inst_set_.insert(inst);
+  // Record this in the active move info
+  if (active_move_info_) {
+    active_move_info_->changes.emplace_back(inst, count);
+  }
+}
+
+void BaseMove::uncountMove(Instance* inst, int count)
+{
+  pending_count_ -= count;
+  pending_inst_set_.erase(inst);
+}
+
+void BaseMove::commitMoves()
+{
+  accepted_count_ += pending_count_;
+  pending_count_ = 0;
+  accepted_inst_set_.merge(pending_inst_set_);
+  pending_inst_set_.clear();
+  for (auto info : pending_move_info_) {
+    delete info;
+  }
+  pending_move_info_.clear();
 }
 
 void BaseMove::undoMoves()
@@ -115,7 +159,10 @@ void BaseMove::undoMoves()
   rejected_count_ += pending_count_;
   pending_count_ = 0;
   pending_inst_set_.clear();
-  tracking_stack_.clear();
+  for (auto info : pending_move_info_) {
+    delete info;
+  }
+  pending_move_info_.clear();
 }
 
 int BaseMove::hasMoves(Instance* inst) const
@@ -146,62 +193,6 @@ int BaseMove::numRejectedMoves() const
 int BaseMove::numMoves() const
 {
   return accepted_count_ + pending_count_;
-}
-
-void BaseMove::addMove(Instance* inst, int count)
-{
-  // Add it as a candidate move, not accepted yet
-  // This count is for the cloned gates where we only count the clone
-  // but we also add the main gate to the pending set.
-  // This count is also used when we add more than 1 buffer during rebuffer.
-  // Default is to add 1 to the pending count.
-  pending_count_ += count;
-  // Add it to all moves, even though it wasn't accepted.
-  // This is the behavior to match the current resizer.
-  //all_inst_set_.insert(inst);
-  // Also add it to the pending moves
-  pending_inst_set_.insert(inst);
-}
-
-void BaseMove::addMove(const Pin* pin, const std::map<Instance*, int>& pending_changes)
-{
-  tracking_stack_.emplace_back(pin, pending_changes);
-  for (const auto& [inst, count] : pending_changes) {
-    addMove(inst, count);
-  }
-}
-
-void BaseMove::addMove(const Pin* pin, std::initializer_list<std::pair<Instance*, int>> pending_changes)
-{
-  std::map<Instance*, int> pending_map;
-  pending_map.insert(pending_changes.begin(), pending_changes.end());
-  addMove(pin, pending_map);
-}
-
-void BaseMove::removeMove(Instance* inst, int count)
-{
-  pending_count_ -= count;
-  pending_inst_set_.erase(inst);
-}
-
-void BaseMove::removeMove()
-{
-  const Pin* pin = tracking_stack_.back().first;
-  const auto pending_changes = tracking_stack_.back().second;
-  tracking_stack_.pop_back();
-  for (const auto& [inst, count] : pending_changes) {
-    bool found = false;
-    for (const auto& [tracked_pin, tracked_changes] : tracking_stack_) {
-      if (tracked_pin == pin && tracked_changes.find(inst) != tracked_changes.end()) {
-        found = true;
-        break;
-      }
-    }
-    if (found) {
-      pending_inst_set_.erase(inst);
-    }
-    pending_count_ -= count;
-  }
 }
 
 double BaseMove::area(Cell* cell)

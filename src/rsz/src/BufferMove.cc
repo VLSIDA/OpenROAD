@@ -44,19 +44,20 @@ BufferMove::BufferMove(Resizer* resizer) : BaseMove(resizer)
 
 bool BufferMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
 {
+  startMove(drvr_pin);
   Vertex* drvr_vertex = graph_->pinDrvrVertex(drvr_pin);
   Instance* drvr_inst = network_->instance(drvr_pin);
 
   const int fanout = this->fanout(drvr_vertex);
   if (fanout <= 1) {
-    return false;
+    return endMove(false);
   }
   // Rebuffer blows up on large fanout nets.
   if (fanout >= rebuffer_max_fanout_) {
-    return false;
+    return endMove(false);
   }
   if (!resizer_->okToBufferNet(drvr_pin)) {
-    return false;
+    return endMove(false);
   }
 
   const int rebuffer_count = rebuffer(drvr_pin);
@@ -75,7 +76,7 @@ bool BufferMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                "ACCEPT buffer {} inserted {}",
                network_->pathName(drvr_pin),
                rebuffer_count);
-    addMove(drvr_pin, {{drvr_inst, rebuffer_count}});
+    countMove(drvr_inst, rebuffer_count);
   } else {
     debugPrint(logger_,
                RSZ,
@@ -85,7 +86,7 @@ bool BufferMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                network_->pathName(drvr_pin),
                rebuffer_count);
   }
-  return rebuffer_count > 0;
+  return endMove(rebuffer_count > 0);
 }
 
 void BufferMove::debugCheckMultipleBuffers(Path* path, PathExpanded* expanded)
