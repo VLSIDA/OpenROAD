@@ -262,8 +262,9 @@ bool RepairSearch::searchMCTS(RepairSearch::SearchTreeNode* node)
   // Adaptive iteration count based on search space size
   const int branching_factor = pins_->size() * moves_->size();
   const int base_iterations = branching_factor * max_level_;
-  const int num_iterations = std::min(10000, std::max(100, base_iterations * 2));
-  const float exploration_constant = 1.414;  // sqrt(2)
+  const int num_iterations
+      = std::min(10000, std::max(100, base_iterations * max_level_));
+  const float exploration_constant = std::numbers::sqrt2;
 
   debugPrint(logger_,
              RSZ,
