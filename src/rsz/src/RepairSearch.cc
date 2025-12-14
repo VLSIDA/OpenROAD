@@ -79,7 +79,7 @@ void RepairSearch::search()
       finished = searchMCTS(root_);
       break;
     default:
-      logger_->error(RSZ, 156, "Search mode unknown");
+      logger_->error(RSZ, 156, "Unexpected repair search mode");
       return;
   }
 
@@ -95,28 +95,25 @@ void RepairSearch::search()
                "Finished repair search in {} secs",
                elapsed_secs);
   } else {
-    debugPrint(
-        logger_,
-        RSZ,
-        "repair_search",
-        1,
-        "Finished repair search early after {} secs due to time limit",
-        elapsed_secs);
+    debugPrint(logger_,
+               RSZ,
+               "repair_search",
+               1,
+               "Finished repair search early after {} secs due to time limit",
+               elapsed_secs);
   }
 }
 
 bool RepairSearch::searchBFS(SearchTreeNode* node)
 {
   // Queue stores pairs of (node, path_from_root_to_node)
-  std::queue<std::pair<SearchTreeNode*, std::vector<SearchTreeNode*>>>
-      queue;
+  std::queue<std::pair<SearchTreeNode*, std::vector<SearchTreeNode*>>> queue;
   std::vector<SearchTreeNode*> root_path;
   root_path.push_back(node);
   queue.emplace(node, root_path);
   // Breadth-first search
   while (!queue.empty()) {
-    std::pair<SearchTreeNode*, std::vector<SearchTreeNode*>>
-        current_pair = queue.front();
+    auto current_pair = queue.front();  // (node, path_from_root_to_node)
     queue.pop();
     SearchTreeNode* current = current_pair.first;
     std::vector<SearchTreeNode*> path = current_pair.second;
@@ -124,11 +121,11 @@ bool RepairSearch::searchBFS(SearchTreeNode* node)
     if (current->level_ >= max_level_) {
       continue;
     }
-    // If this node has explored at least some of its all its children, add
-    // them to the queue
-    if (current->search_finished_ || current->search_aborted_) {
+    current->search_aborted_ = false;
+    // If this node has finished exploring all its children, add them the queue
+    if (current->search_finished_) {
       assert(current->search_started_);
-      for (SearchTreeNode* child : current->children_) {
+      for (auto child : current->children_) {
         std::vector<SearchTreeNode*> child_path = path;
         child_path.push_back(child);
         queue.emplace(child, child_path);
@@ -144,7 +141,7 @@ bool RepairSearch::searchBFS(SearchTreeNode* node)
       continue;
     }
     // Apply all moves along the path from root to current (excluding root)
-    for (size_t i = 1; i < path.size(); i++) {
+    for (auto i = 1; i < path.size(); i++) {
       doMove(path[i]);
     }
     // Create all children as pending
@@ -152,7 +149,7 @@ bool RepairSearch::searchBFS(SearchTreeNode* node)
       current->children_pending_ = createChildren(current);
     }
     current->search_started_ = true;
-    // Process all children
+    // Explore all children
     while (!current->children_pending_.empty()) {
       auto child = current->children_pending_.front();
       current->children_pending_.pop_front();
@@ -166,7 +163,7 @@ bool RepairSearch::searchBFS(SearchTreeNode* node)
       child_path.push_back(child);
       queue.emplace(child, child_path);
       undoMove(child);
-      // Early termination if we found a good enough solution
+      // Early termination if we've found a good enough solution
       if (!fuzzyLess(child->slack_, setup_slack_margin_)) {
         debugPrint(logger_,
                    RSZ,
@@ -203,10 +200,9 @@ bool RepairSearch::searchDFS(SearchTreeNode* node)
   if (node->level_ >= max_level_) {
     return true;
   }
-  // If this node has explored at least some of its all its children, run them
-  // first
-  if (node->search_finished_ || node->search_aborted_) {
-    assert(node->search_started_);
+  node->search_aborted_ = false;
+  // If this node has explored at least some of its children, run them first
+  if (node->search_started_) {
     for (SearchTreeNode* child : node->children_) {
       doMove(child);
       bool finished = searchDFS(child);
@@ -290,10 +286,9 @@ bool RepairSearch::searchMCTS(RepairSearch::SearchTreeNode* node)
           ucb = sta::INF;  // Prioritize unvisited nodes
         } else {
           float exploitation = child->mcts_best_slack_;
-          float exploration
-              = exploration_constant
-                * std::sqrt(std::log(current->mcts_visits_)
-                            / child->mcts_visits_);
+          float exploration = exploration_constant
+                              * std::sqrt(std::log(current->mcts_visits_)
+                                          / child->mcts_visits_);
           ucb = exploitation + exploration;
         }
         if (ucb > best_ucb) {
@@ -340,7 +335,8 @@ bool RepairSearch::searchMCTS(RepairSearch::SearchTreeNode* node)
     // Phase 4: Backpropagation - update statistics
     for (SearchTreeNode* node : path) {
       node->mcts_visits_++;
-      if (node->mcts_visits_ == 1 || fuzzyLess(node->mcts_best_slack_, new_path_slack)) {
+      if (node->mcts_visits_ == 1
+          || fuzzyLess(node->mcts_best_slack_, new_path_slack)) {
         node->mcts_best_slack_ = new_path_slack;
       }
     }
@@ -446,7 +442,7 @@ bool RepairSearch::doMove(SearchTreeNode* node)
       odb::dbDatabase::endEco(resizer_->block_);
     }
     node->eco_->redo();
-    for (auto &[inst, count] : node->move_info_->changes) {
+    for (auto& [inst, count] : node->move_info_->changes) {
       node->move_->countMove(inst, count);
     }
     return true;
@@ -480,10 +476,9 @@ bool RepairSearch::doMove(SearchTreeNode* node)
     node->move_info_ = node->move_->pending_move_info_.back();
     node->move_->pending_move_info_.pop_back();
   } else {
-    debugPrint(
-        logger_, RSZ, "repair_search", 6, "Rejected {}", node->name());
+    debugPrint(logger_, RSZ, "repair_search", 6, "Rejected {}", node->name());
     odb::dbDatabase::undoEco(resizer_->block_);  // Undo move ECO
-    odb::dbDatabase::undoEco(resizer_->block_);  // Undo pre-move STA update ECO
+    odb::dbDatabase::undoEco(resizer_->block_);  // Undo pre-move STA update
     node->odb_eco_active_ = false;
     removeDestroyedPin(node->pin_, node->move_);
   }
@@ -494,15 +489,15 @@ void RepairSearch::undoMove(SearchTreeNode* node)
 {
   debugPrint(logger_, RSZ, "repair_search", 6, "Undoing {}", node->name());
   if (node->odb_eco_active_) {
-    odb::dbDatabase::undoEco(resizer_->block_);  // Undo post-move STA update ECO
+    odb::dbDatabase::undoEco(resizer_->block_);  // Undo post-move STA update
     odb::dbDatabase::undoEco(resizer_->block_);  // Undo move ECO
-    odb::dbDatabase::undoEco(resizer_->block_);  // Undo pre-move STA update ECO
+    odb::dbDatabase::undoEco(resizer_->block_);  // Undo pre-move STA update
     node->odb_eco_active_ = false;
   } else {
     node->eco_->undo();
   }
   removeDestroyedPin(node->pin_, node->move_);
-  for (auto &[inst, count] : node->move_info_->changes) {
+  for (auto& [inst, count] : node->move_info_->changes) {
     node->move_->uncountMove(inst, count);
   }
 }
@@ -522,12 +517,11 @@ void RepairSearch::commitMove(const Pin* pin, BaseMove* move)
     }
   }
   assert(found);
-  debugPrint(
-      logger_, RSZ, "repair_search", 3, "Committing {}", root_->name());
+  debugPrint(logger_, RSZ, "repair_search", 3, "Committing {}", root_->name());
   // Redo this node's ECO
   doMove(root_);
   root_->move_->pending_move_info_.push_back(root_->move_info_);
-  for (auto &[inst, count] : root_->move_info_->changes) {
+  for (auto& [inst, count] : root_->move_info_->changes) {
     root_->move_->countMove(inst, count);
   }
   // There should always be an active ECO journal originating from RepairSetup
@@ -555,8 +549,8 @@ void RepairSearch::decrementLevel(SearchTreeNode* node)
   }
 }
 
-std::deque<RepairSearch::SearchTreeNode*>
-RepairSearch::createChildren(RepairSearch::SearchTreeNode* parent)
+std::deque<RepairSearch::SearchTreeNode*> RepairSearch::createChildren(
+    RepairSearch::SearchTreeNode* parent)
 {
   std::deque<RepairSearch::SearchTreeNode*> children;
   for (const Pin* pin : *pins_) {
@@ -564,8 +558,7 @@ RepairSearch::createChildren(RepairSearch::SearchTreeNode* parent)
       continue;
     }
     for (BaseMove* move : *moves_) {
-      auto child
-          = new SearchTreeNode(resizer_, pin, move, parent->level_ + 1);
+      auto child = new SearchTreeNode(resizer_, pin, move, parent->level_ + 1);
       children.emplace_back(child);
     }
   }

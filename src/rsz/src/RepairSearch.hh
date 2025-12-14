@@ -71,10 +71,7 @@ class RepairSearch
   class SearchTreeNode
   {
    public:
-    SearchTreeNode(Resizer* resizer,
-                       const Pin* pin,
-                       BaseMove* move,
-                       int level)
+    SearchTreeNode(Resizer* resizer, const Pin* pin, BaseMove* move, int level)
         : pin_(pin), move_(move), level_(level)
     {
       pin_name_ = pin ? resizer->network_->pathName(pin) : "null";
