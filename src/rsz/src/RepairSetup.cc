@@ -78,7 +78,8 @@ void RepairSetup::init()
   initial_design_area_ = resizer_->computeDesignArea();
 
   violator_collector_ = std::make_unique<ViolatorCollector>(resizer_);
-  repair_search_ = std::make_unique<RepairSearch>(resizer_, violator_collector_.get());
+  repair_search_
+      = std::make_unique<RepairSearch>(resizer_, violator_collector_.get());
 
   // Only create MoveTracker if debug level is enabled
   if (logger_->debugCheck(RSZ, "move_tracker", 1)) {
@@ -301,221 +302,222 @@ bool RepairSetup::repairSetup(const float setup_slack_margin,
     phase_index -= 26;
 
     if (phase_index < 26) {
-    return 'A' + phase_index;
-  }
-
-  // Fallback if we exceed all markers (unlikely)
-  return '?';
-};
-
-std::istringstream iss(phases_str);
-std::string phase_name;
-
-// Track global phase index for unified marker assignment
-int phase_index = 0;
-char marker = getPhaseMarker(phase_index++);
-
-while (iss >> phase_name) {
-  if (phase_name == "WNS_PATH" || phase_name == "WNS") {
-    repairSetup_WNS(
-        setup_slack_margin,
-        max_passes,
-        max_repairs_per_pass,
-        verbose,
-        opto_iteration,
-        initial_tns,
-        prev_tns,
-        false,    // use_cone_collection = false (use path-based collection)
-        marker);  // phase_marker
-
-    if (move_tracker_) {
-      move_tracker_->printMoveSummary("WNS_PATH Phase Summary");
-      move_tracker_->printEndpointSummary("WNS_PATH Phase Endpoint Profiler");
-      move_tracker_->clear();
+      return 'A' + phase_index;
     }
-  } else if (phase_name == "WNS_CONE") {
-    repairSetup_WNS(
-        setup_slack_margin,
-        max_passes,
-        max_repairs_per_pass,
-        verbose,
-        opto_iteration,
-        initial_tns,
-        prev_tns,
-        true,     // use_cone_collection = true (use cone-based collection)
-        marker);  // phase_marker
 
-    if (move_tracker_) {
-      move_tracker_->printMoveSummary("WNS_CONE Phase Summary");
-      move_tracker_->printEndpointSummary("WNS_CONE Phase Endpoint Profiler");
-      move_tracker_->clear();
-    }
-  } else if (phase_name == "TNS") {
-    repairSetup_TNS(setup_slack_margin,
-                    max_passes,
-                    max_repairs_per_pass,
-                    verbose,
-                    opto_iteration,
-                    initial_tns,
-                    prev_tns,
-                    marker);  // phase_marker
+    // Fallback if we exceed all markers (unlikely)
+    return '?';
+  };
 
-    if (move_tracker_) {
-      move_tracker_->printMoveSummary("TNS Phase Summary");
-      move_tracker_->printEndpointSummary("TNS Phase Endpoint Profiler");
-      move_tracker_->clear();
-    }
-  } else if (phase_name == "EP_FI") {
-    repairSetup_EP_FI(setup_slack_margin,
+  std::istringstream iss(phases_str);
+  std::string phase_name;
+
+  // Track global phase index for unified marker assignment
+  int phase_index = 0;
+  char marker = getPhaseMarker(phase_index++);
+
+  while (iss >> phase_name) {
+    if (phase_name == "WNS_PATH" || phase_name == "WNS") {
+      repairSetup_WNS(
+          setup_slack_margin,
+          max_passes,
+          max_repairs_per_pass,
+          verbose,
+          opto_iteration,
+          initial_tns,
+          prev_tns,
+          false,    // use_cone_collection = false (use path-based collection)
+          marker);  // phase_marker
+
+      if (move_tracker_) {
+        move_tracker_->printMoveSummary("WNS_PATH Phase Summary");
+        move_tracker_->printEndpointSummary("WNS_PATH Phase Endpoint Profiler");
+        move_tracker_->clear();
+      }
+    } else if (phase_name == "WNS_CONE") {
+      repairSetup_WNS(
+          setup_slack_margin,
+          max_passes,
+          max_repairs_per_pass,
+          verbose,
+          opto_iteration,
+          initial_tns,
+          prev_tns,
+          true,     // use_cone_collection = true (use cone-based collection)
+          marker);  // phase_marker
+
+      if (move_tracker_) {
+        move_tracker_->printMoveSummary("WNS_CONE Phase Summary");
+        move_tracker_->printEndpointSummary("WNS_CONE Phase Endpoint Profiler");
+        move_tracker_->clear();
+      }
+    } else if (phase_name == "TNS") {
+      repairSetup_TNS(setup_slack_margin,
                       max_passes,
+                      max_repairs_per_pass,
                       verbose,
                       opto_iteration,
+                      initial_tns,
+                      prev_tns,
                       marker);  // phase_marker
 
-    if (move_tracker_) {
-      move_tracker_->printMoveSummary("EP_FI Phase Summary");
-      move_tracker_->printEndpointSummary("EP_FI Phase Endpoint Profiler");
-      move_tracker_->clear();
+      if (move_tracker_) {
+        move_tracker_->printMoveSummary("TNS Phase Summary");
+        move_tracker_->printEndpointSummary("TNS Phase Endpoint Profiler");
+        move_tracker_->clear();
+      }
+    } else if (phase_name == "EP_FI") {
+      repairSetup_EP_FI(setup_slack_margin,
+                        max_passes,
+                        verbose,
+                        opto_iteration,
+                        marker);  // phase_marker
+
+      if (move_tracker_) {
+        move_tracker_->printMoveSummary("EP_FI Phase Summary");
+        move_tracker_->printEndpointSummary("EP_FI Phase Endpoint Profiler");
+        move_tracker_->clear();
+      }
+    } else if (phase_name == "SP_FO") {
+      repairSetup_SP_FO(setup_slack_margin,
+                        max_passes,
+                        verbose,
+                        opto_iteration,
+                        marker);  // phase_marker
+
+      if (move_tracker_) {
+        move_tracker_->printMoveSummary("SP_FO Phase Summary");
+        move_tracker_->printEndpointSummary("SP_FO Phase Startpoint Profiler");
+        move_tracker_->clear();
+      }
+    } else {
+      logger_->error(RSZ,
+                     217,
+                     "Unknown phase name '{}'. Valid phase names are: WNS, "
+                     "TNS, EP_FI, SP_FO",
+                     phase_name);
     }
-  } else if (phase_name == "SP_FO") {
-    repairSetup_SP_FO(setup_slack_margin,
-                      max_passes,
+
+    // Update marker for next phase
+    marker = getPhaseMarker(phase_index++);
+  }
+
+  // VT swap phase (runs after all phases if conditions are met)
+  if (!skip_crit_vt_swap && !skip_vt_swap
+      && resizer_->lib_data_->sorted_vt_categories.size() > 1) {
+    // Swap most critical cells to fastest VT
+    OptoParams params(setup_slack_margin,
                       verbose,
-                      opto_iteration,
-                      marker);  // phase_marker
-
+                      skip_pin_swap,
+                      skip_gate_cloning,
+                      skip_size_down,
+                      skip_buffering,
+                      skip_buffer_removal,
+                      skip_vt_swap);
+    if (swapVTCritCells(params, num_viols)) {
+      estimate_parasitics_->updateParasitics();
+      sta_->findRequireds();
+    }
     if (move_tracker_) {
-      move_tracker_->printMoveSummary("SP_FO Phase Summary");
-      move_tracker_->printEndpointSummary("SP_FO Phase Startpoint Profiler");
+      move_tracker_->printMoveSummary("VT Swap Phase Summary");
       move_tracker_->clear();
     }
-  } else {
-    logger_->error(RSZ,
-                   217,
-                   "Unknown phase name '{}'. Valid phase names are: WNS, "
-                   "TNS, EP_FI, SP_FO",
-                   phase_name);
   }
 
-  // Update marker for next phase
-  marker = getPhaseMarker(phase_index++);
-}
+  // Print final summary row showing end state of all phases
+  // (end=true will also print the footer)
+  printProgress(opto_iteration, true, true, false, ' ');
 
-// VT swap phase (runs after all phases if conditions are met)
-if (!skip_crit_vt_swap && !skip_vt_swap
-    && resizer_->lib_data_->sorted_vt_categories.size() > 1) {
-  // Swap most critical cells to fastest VT
-  OptoParams params(setup_slack_margin,
-                    verbose,
-                    skip_pin_swap,
-                    skip_gate_cloning,
-                    skip_size_down,
-                    skip_buffering,
-                    skip_buffer_removal,
-                    skip_vt_swap);
-  if (swapVTCritCells(params, num_viols)) {
-    estimate_parasitics_->updateParasitics();
-    sta_->findRequireds();
-  }
+  // Print comprehensive optimization reports (only if tracking is enabled)
   if (move_tracker_) {
-    move_tracker_->printMoveSummary("VT Swap Phase Summary");
-    move_tracker_->clear();
+    // Pass all critical pins to MoveTracker for missed opportunities analysis
+    const auto& critical_pins = violator_collector_->getViolatingPins();
+    move_tracker_->trackCriticalPins(critical_pins);
+
+    logger_->info(RSZ, 211, "");
+    logger_->info(RSZ, 212, "=== Optimization Analysis Reports ===");
+    move_tracker_->printSlackDistribution("Pin Slack Distribution");
+    move_tracker_->printTopBinEndpoints(
+        "Most Critical Endpoints After Optimization");
+    move_tracker_->printCriticalEndpointPathHistogram(
+        "Critical Endpoint Path Distribution");
+    move_tracker_->printSuccessReport("Successful Optimizations Report");
+    move_tracker_->printFailureReport("Unsuccessful Optimizations Report");
+    move_tracker_->printMissedOpportunitiesReport(
+        "Missed Opportunities Report");
+    logger_->info(RSZ, 213, "");
   }
-}
 
-// Print final summary row showing end state of all phases
-// (end=true will also print the footer)
-printProgress(opto_iteration, true, true, false, ' ');
+  int buffer_moves_ = resizer_->buffer_move_->numCommittedMoves();
+  int size_up_moves_ = resizer_->size_up_move_->numCommittedMoves();
+  int size_down_moves_ = resizer_->size_down_move_->numCommittedMoves();
+  int swap_pins_moves_ = resizer_->swap_pins_move_->numCommittedMoves();
+  int clone_moves_ = resizer_->clone_move_->numCommittedMoves();
+  int split_load_moves_ = resizer_->split_load_move_->numCommittedMoves();
+  int unbuffer_moves_ = resizer_->unbuffer_move_->numCommittedMoves();
+  int vt_swap_moves_ = resizer_->vt_swap_speed_move_->numCommittedMoves();
+  int size_up_match_moves_ = resizer_->size_up_match_move_->numCommittedMoves();
 
-// Print comprehensive optimization reports (only if tracking is enabled)
-if (move_tracker_) {
-  // Pass all critical pins to MoveTracker for missed opportunities analysis
-  const auto& critical_pins = violator_collector_->getViolatingPins();
-  move_tracker_->trackCriticalPins(critical_pins);
-
-  logger_->info(RSZ, 211, "");
-  logger_->info(RSZ, 212, "=== Optimization Analysis Reports ===");
-  move_tracker_->printSlackDistribution("Pin Slack Distribution");
-  move_tracker_->printTopBinEndpoints(
-      "Most Critical Endpoints After Optimization");
-  move_tracker_->printCriticalEndpointPathHistogram(
-      "Critical Endpoint Path Distribution");
-  move_tracker_->printSuccessReport("Successful Optimizations Report");
-  move_tracker_->printFailureReport("Unsuccessful Optimizations Report");
-  move_tracker_->printMissedOpportunitiesReport("Missed Opportunities Report");
-  logger_->info(RSZ, 213, "");
-}
-
-int buffer_moves_ = resizer_->buffer_move_->numCommittedMoves();
-int size_up_moves_ = resizer_->size_up_move_->numCommittedMoves();
-int size_down_moves_ = resizer_->size_down_move_->numCommittedMoves();
-int swap_pins_moves_ = resizer_->swap_pins_move_->numCommittedMoves();
-int clone_moves_ = resizer_->clone_move_->numCommittedMoves();
-int split_load_moves_ = resizer_->split_load_move_->numCommittedMoves();
-int unbuffer_moves_ = resizer_->unbuffer_move_->numCommittedMoves();
-int vt_swap_moves_ = resizer_->vt_swap_speed_move_->numCommittedMoves();
-int size_up_match_moves_ = resizer_->size_up_match_move_->numCommittedMoves();
-
-if (unbuffer_moves_ > 0) {
-  repaired = true;
-  logger_->info(RSZ, 59, "Removed {} buffers.", unbuffer_moves_);
-}
-if (buffer_moves_ > 0 || split_load_moves_ > 0) {
-  repaired = true;
-  if (split_load_moves_ == 0) {
-    logger_->info(RSZ, 40, "Inserted {} buffers.", buffer_moves_);
-  } else {
+  if (unbuffer_moves_ > 0) {
+    repaired = true;
+    logger_->info(RSZ, 59, "Removed {} buffers.", unbuffer_moves_);
+  }
+  if (buffer_moves_ > 0 || split_load_moves_ > 0) {
+    repaired = true;
+    if (split_load_moves_ == 0) {
+      logger_->info(RSZ, 40, "Inserted {} buffers.", buffer_moves_);
+    } else {
+      logger_->info(RSZ,
+                    45,
+                    "Inserted {} buffers, {} to split loads.",
+                    buffer_moves_ + split_load_moves_,
+                    split_load_moves_);
+    }
+  }
+  logger_->metric("design__instance__count__setup_buffer",
+                  buffer_moves_ + split_load_moves_);
+  if (size_up_moves_ + size_down_moves_ + size_up_match_moves_ + vt_swap_moves_
+      > 0) {
+    repaired = true;
     logger_->info(RSZ,
-                  45,
-                  "Inserted {} buffers, {} to split loads.",
-                  buffer_moves_ + split_load_moves_,
-                  split_load_moves_);
+                  51,
+                  "Resized {} instances: {} up, {} up match, {} down, {} VT",
+                  size_up_moves_ + size_up_match_moves_ + size_down_moves_
+                      + vt_swap_moves_,
+                  size_up_moves_,
+                  size_up_match_moves_,
+                  size_down_moves_,
+                  vt_swap_moves_);
   }
-}
-logger_->metric("design__instance__count__setup_buffer",
-                buffer_moves_ + split_load_moves_);
-if (size_up_moves_ + size_down_moves_ + size_up_match_moves_ + vt_swap_moves_
-    > 0) {
-  repaired = true;
-  logger_->info(
-      RSZ,
-      51,
-      "Resized {} instances: {} up, {} up match, {} down, {} VT",
-      size_up_moves_ + size_up_match_moves_ + size_down_moves_ + vt_swap_moves_,
-      size_up_moves_,
-      size_up_match_moves_,
-      size_down_moves_,
-      vt_swap_moves_);
-}
-if (swap_pins_moves_ > 0) {
-  repaired = true;
-  logger_->info(RSZ, 43, "Swapped pins on {} instances.", swap_pins_moves_);
-}
-if (clone_moves_ > 0) {
-  repaired = true;
-  logger_->info(RSZ, 49, "Cloned {} instances.", clone_moves_);
-}
-const Slack worst_slack = sta_->worstSlack(max_);
-if (fuzzyLess(worst_slack, setup_slack_margin)) {
-  repaired = true;
-  logger_->warn(RSZ, 62, "Unable to repair all setup violations.");
-}
-if (resizer_->overMaxArea()) {
-  logger_->error(RSZ, 25, "max utilization reached.");
-}
+  if (swap_pins_moves_ > 0) {
+    repaired = true;
+    logger_->info(RSZ, 43, "Swapped pins on {} instances.", swap_pins_moves_);
+  }
+  if (clone_moves_ > 0) {
+    repaired = true;
+    logger_->info(RSZ, 49, "Cloned {} instances.", clone_moves_);
+  }
+  const Slack worst_slack = sta_->worstSlack(max_);
+  if (fuzzyLess(worst_slack, setup_slack_margin)) {
+    repaired = true;
+    logger_->warn(RSZ, 62, "Unable to repair all setup violations.");
+  }
+  if (resizer_->overMaxArea()) {
+    logger_->error(RSZ, 25, "max utilization reached.");
+  }
 
-auto end_time = std::chrono::steady_clock::now();
-auto elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(
-                        end_time - start_time)
-                        .count();
-debugPrint(logger_,
-           RSZ,
-           "repair_setup",
-           1,
-           "Total repair_timing time: {:.2f} seconds",
-           elapsed_time / 1000.0);
+  auto end_time = std::chrono::steady_clock::now();
+  auto elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(
+                          end_time - start_time)
+                          .count();
+  debugPrint(logger_,
+             RSZ,
+             "repair_setup",
+             1,
+             "Total repair_timing time: {:.2f} seconds",
+             elapsed_time / 1000.0);
 
-return repaired;
+  return repaired;
 }
 
 // For testing.

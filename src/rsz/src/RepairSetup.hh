@@ -187,21 +187,21 @@ class RepairSetup : public sta::dbStaState
                        ViolatorSortType sort_type
                        = ViolatorSortType::SORT_AND_FILTER_BY_LOAD_DELAY);
   void repairSetup_EP_FI(float setup_slack_margin,
-                                   int max_passes_per_endpoint,
-                                   bool verbose,
-                                   int& opto_iteration,
-                                   char phase_marker = '!');
+                         int max_passes_per_endpoint,
+                         bool verbose,
+                         int& opto_iteration,
+                         char phase_marker = '!');
   void repairSetup_SP_FO(float setup_slack_margin,
-                                      int max_passes_per_startpoint,
-                                      bool verbose,
-                                      int& opto_iteration,
-                                      char phase_marker = '@');
+                         int max_passes_per_startpoint,
+                         bool verbose,
+                         int& opto_iteration,
+                         char phase_marker = '@');
   void repairSetup_Directional(bool use_startpoints,
-                                float setup_slack_margin,
-                                int max_passes_per_point,
-                                bool verbose,
-                                int& opto_iteration,
-                                char phase_marker);
+                               float setup_slack_margin,
+                               int max_passes_per_point,
+                               bool verbose,
+                               int& opto_iteration,
+                               char phase_marker);
   bool shouldSwitchEndpoint(Vertex* current_endpoint, Vertex* worst_endpoint);
 
   void hitDebugCheckpoint();
