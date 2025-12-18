@@ -71,15 +71,20 @@ bool UnbufferMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
     // Don't remove buffers from previous sizing, pin swapping, rebuffering, or
     // cloning because such removal may lead to an inifinte loop or long runtime
     std::string reason;
-    if (resizer_->swap_pins_move_->hasMoves(drvr)) {
+    if (resizer_->swap_pins_move_->hasMoves(drvr)
+        || resizer_->swap_pins_move_->hasPendingMoves(drvr)) {
       reason = "its pins have been swapped";
-    } else if (resizer_->clone_move_->hasMoves(drvr)) {
+    } else if (resizer_->clone_move_->hasMoves(drvr)
+               || resizer_->clone_move_->hasPendingMoves(drvr)) {
       reason = "it has been cloned";
-    } else if (resizer_->split_load_move_->hasMoves(drvr)) {
+    } else if (resizer_->split_load_move_->hasMoves(drvr)
+               || resizer_->split_load_move_->hasPendingMoves(drvr)) {
       reason = "it was from split load buffering";
-    } else if (resizer_->buffer_move_->hasMoves(drvr)) {
+    } else if (resizer_->buffer_move_->hasMoves(drvr)
+               || resizer_->buffer_move_->hasPendingMoves(drvr)) {
       reason = "it was from rebuffering";
-    } else if (resizer_->size_up_move_->hasMoves(drvr)) {
+    } else if (resizer_->size_up_move_->hasMoves(drvr)
+               || resizer_->size_up_move_->hasPendingMoves(drvr)) {
       reason = "it has been resized";
     }
     if (!reason.empty()) {

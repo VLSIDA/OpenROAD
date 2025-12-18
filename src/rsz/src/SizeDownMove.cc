@@ -87,7 +87,7 @@ bool SizeDownMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
       Instance* fanout_inst = network_->instance(fanout_pin);
       // If we already have a move on the fanout gate, don't try to size down
       // again
-      if (!hasMoves(fanout_inst)) {
+      if (!hasMoves(fanout_inst) && !hasPendingMoves(fanout_inst)) {
         debugPrint(logger_,
                    RSZ,
                    "size_down",
