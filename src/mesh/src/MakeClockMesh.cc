@@ -2,12 +2,24 @@
 
 #include <tcl.h>
 
+#include "mesh/ClockMesh.hh"
 #include "ord/OpenRoad.hh"
 #include "utl/decode.h"
 
 extern "C" {
 extern int Mesh_Init(Tcl_Interp* interp);
 }
+
+namespace ord {
+// Define the global mesh object
+static mesh::ClockMesh* mesh_obj = nullptr;
+
+mesh::ClockMesh* getClockMesh()
+{
+  return mesh_obj;
+}
+
+}  // namespace ord
 
 namespace mesh {
 
@@ -23,7 +35,15 @@ void initClockMesh(ord::OpenRoad* openroad)
   Mesh_Init(tcl_interp);
   utl::evalTclInit(tcl_interp, mesh::mesh_tcl_inits);
 
-  // Minimal implementation has no mesh object to initialize.
+  // Create and initialize the mesh object
+  ord::mesh_obj = new ClockMesh();
+  ord::mesh_obj->init(openroad);
+}
+
+void deleteClockMesh()
+{
+  delete ord::mesh_obj;
+  ord::mesh_obj = nullptr;
 }
 
 }  // namespace mesh
