@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
+# Main command - same as CTS structure
 sta::define_cmd_args "mesh" { \
   [-name name] \
 }
@@ -16,6 +17,5 @@ proc mesh { args } {
 
   sta::check_argc_eq0 "mesh" $args
 
-  utl::info "MESH" 100 "mesh start running"
-  mesh::run_cmd $name
+  mesh::run_mesh_cmd $name
 }

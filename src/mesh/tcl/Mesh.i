@@ -1,19 +1,29 @@
 %module mesh
 
 %{
+#include "mesh/ClockMesh.hh"
+#include "ord/OpenRoad.hh"
+
+namespace ord {
+extern mesh::ClockMesh* getClockMesh();
+}
 %}
 
 %include "../../Exception.i"
 
 %inline %{
+
 namespace mesh {
 
-void run_cmd(const char* /*name*/) {}
-
-bool has_clock_mesh()
+// Main command - runs sink finding and test print (same as CTS structure)
+void run_mesh_cmd(const char* name)
 {
-  return false;
+  mesh::ClockMesh* mesh = ord::getClockMesh();
+  if (mesh) {
+    mesh->run(name);
+  }
 }
 
 }  // namespace mesh
+
 %}
