@@ -249,10 +249,14 @@ bool RepairSetup::repairSetup(const float setup_slack_margin,
 
   float initial_tns = sta_->totalNegativeSlack(max_);
   float prev_tns = initial_tns;
+  max_end_repairs_
+      = violator_collector_->getMaxEndpointCount() * repair_tns_end_percent;
+  max_end_repairs_ = std::max(max_end_repairs_, 1);
+  repaired_end_count_ = 0;
   logger_->info(RSZ,
                 99,
                 "Repairing {} out of {} ({:0.2f}%) violating endpoints...",
-                violator_collector_->getMaxEndpointCount(),
+                max_end_repairs_,
                 num_viols,
                 repair_tns_end_percent * 100.0);
 
@@ -317,6 +321,9 @@ bool RepairSetup::repairSetup(const float setup_slack_margin,
   char marker = getPhaseMarker(phase_index++);
 
   while (iss >> phase_name) {
+    if (repaired_end_count_ >= max_end_repairs_) {
+      break;
+    }
     if (phase_name == "WNS_PATH" || phase_name == "WNS") {
       repairSetup_WNS(
           setup_slack_margin,
@@ -1193,6 +1200,16 @@ void RepairSetup::repairSetup_WNS(const float setup_slack_margin,
 
   // Main WNS Phase loop - Round-robin sticky algorithm
   while (true) {
+    if (repaired_end_count_ >= max_end_repairs_) {
+      debugPrint(logger_,
+                 RSZ,
+                 "repair_setup",
+                 1,
+                 "WNS{} Phase: Hit maximum endpoint repairs",
+                 phase_marker);
+      break;
+    }
+
     // Get current worst endpoint
     sta_->worstSlack(max_, worst_slack, worst_endpoint);
 
@@ -1526,6 +1543,7 @@ void RepairSetup::repairSetup_WNS(const float setup_slack_margin,
     const bool wns_improved = fuzzyGreater(new_wns, prev_worst_slack);
     const bool wns_same = fuzzyEqual(new_wns, prev_worst_slack);
     const bool endpoint_improved = fuzzyGreater(end_slack, prev_end_slack);
+    const bool endpoint_repaired = fuzzyGreater(end_slack, setup_slack_margin);
     const bool tns_improved = fuzzyGreater(new_tns, prev_tns_local);
     const bool better
         = wns_improved || (wns_same && (endpoint_improved || tns_improved));
@@ -1560,6 +1578,9 @@ void RepairSetup::repairSetup_WNS(const float setup_slack_margin,
                    successful_passes,
                    total_passes,
                    endpoint_pass_limits[endpoint_pin]);
+      }
+      if (endpoint_repaired) {
+        repaired_end_count_++;
       }
 
       if (move_tracker_) {
@@ -1708,6 +1729,16 @@ void RepairSetup::repairSetup_TNS(const float setup_slack_margin,
   // endpoint
   for (int endpoint_index = 1; endpoint_index < max_endpoint_count;
        endpoint_index++) {
+    if (repaired_end_count_ >= max_end_repairs_) {
+      debugPrint(logger_,
+                 RSZ,
+                 "repair_setup",
+                 1,
+                 "TNS{} Phase: Hit maximum endpoint repairs",
+                 phase_marker);
+      break;
+    }
+
     violator_collector_->setToEndpoint(endpoint_index);
     Vertex* endpoint = violator_collector_->getCurrentEndpoint();
 
@@ -1821,6 +1852,8 @@ void RepairSetup::repairSetup_TNS(const float setup_slack_margin,
       const bool wns_same = fuzzyEqual(global_wns, initial_tns_phase_wns);
       const bool endpoint_improved
           = fuzzyGreater(endpoint_slack, prev_endpoint_slack);
+      const bool endpoint_repaired
+          = fuzzyGreater(endpoint_slack, setup_slack_margin);
       const bool better = wns_improved || (wns_same && endpoint_improved);
 
       if (better) {
@@ -1858,6 +1891,9 @@ void RepairSetup::repairSetup_TNS(const float setup_slack_margin,
                      successful_passes,
                      pass,
                      current_limit);
+        }
+        if (endpoint_repaired) {
+          repaired_end_count_++;
         }
         resizer_->journalEnd();
       } else {
@@ -2031,6 +2067,17 @@ void RepairSetup::repairSetup_Directional(const bool use_startpoints,
 
   // Main loop: process each violating point in order from most critical
   for (int point_index = 0; point_index < max_point_count; point_index++) {
+    if (repaired_end_count_ >= max_end_repairs_) {
+      debugPrint(logger_,
+                 RSZ,
+                 "repair_setup",
+                 1,
+                 "{}{} Phase: Hit maximum endpoint repairs",
+                 phase_name,
+                 phase_marker);
+      break;
+    }
+
     violator_collector_->setToPoint(point_index, use_startpoints);
     Vertex* point = violator_collector_->getCurrentPoint(use_startpoints);
 
@@ -2217,6 +2264,8 @@ void RepairSetup::repairSetup_Directional(const bool use_startpoints,
       const bool wns_same = fuzzyEqual(new_wns, prev_wns);
       const bool point_improved
           = fuzzyGreater(new_point_slack, prev_point_slack);
+      const bool point_repaired
+          = fuzzyGreater(new_point_slack, setup_slack_margin);
       const bool endpoint_tns_improved
           = fuzzyGreater(new_endpoint_tns, prev_endpoint_tns);
       const bool startpoint_tns_improved
@@ -2284,6 +2333,9 @@ void RepairSetup::repairSetup_Directional(const bool use_startpoints,
                  better ? " [ACCEPT]" : " [REJECT]");
 
       if (better) {
+        if (point_repaired) {
+          repaired_end_count_++;
+        }
         // Accept the changes
         if (move_tracker_) {
           move_tracker_->commitMoves();
