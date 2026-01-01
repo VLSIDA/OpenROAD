@@ -29,7 +29,7 @@ swig_lib(
   NAME mesh
   NAMESPACE mesh
   I_FILE ${MESH_TCL_DIR}/Mesh.i
-  SCRIPTS ${MESH_TCL_DIR}/Mesh.tcl
+  SCRIPTS ${MESH_TCL_DIR}/clockmesh.tcl
 )
 
 target_sources(mesh
