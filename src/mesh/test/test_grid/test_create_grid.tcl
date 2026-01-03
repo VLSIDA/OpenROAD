@@ -7,19 +7,19 @@ puts "========================================="
 
 # Load database
 puts "\nLoading database..."
-read_db "/home/wajid/OPenroad/OpenROAD-flow-scripts/flow/results/sky130hd/gcd/base/3_place.odb"
+read_db "/home/wajid/OpenROAD-flow-scripts/flow/results/sky130hd/gcd/base/3_place.odb"
 
 set block [ord::get_db_block]
 puts "✓ Loaded: [$block getName]"
 
 # Load liberty
 puts "\nLoading liberty..."
-read_liberty "/home/wajid/OPenroad/OpenROAD-flow-scripts/flow/platforms/sky130hd/lib/sky130_fd_sc_hd__tt_025C_1v80.lib"
+read_liberty "/home/wajid/OpenROAD-flow-scripts/flow/platforms/sky130hd/lib/sky130_fd_sc_hd__tt_025C_1v80.lib"
 puts "✓ Liberty loaded"
 
 # Load SDC
 puts "\nLoading SDC..."
-read_sdc "/home/wajid/OPenroad/OpenROAD-flow-scripts/flow/results/sky130hd/gcd/base/3_place.sdc"
+read_sdc "/home/wajid/OpenROAD-flow-scripts/flow/results/sky130hd/gcd/base/3_place.sdc"
 puts "✓ SDC loaded"
 
 # Find clock sinks
