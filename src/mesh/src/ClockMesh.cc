@@ -58,7 +58,7 @@ void ClockMesh::run(const char* name)
   logger_->report("ClockMesh running for clock: {}", mesh_name);
 
   findClockSinks();
-  testPrintSinks();
+ // testPrintSinks();
 
   mesh_generated_ = true;
 }
@@ -263,27 +263,27 @@ bool ClockMesh::separateSinks(odb::dbNet* net,
   return !sinks.empty();
 }
 
-// ========== TEST FUNCTION ONLY (comment out later) ==========
+// ========== TEST FUNCTION ==========
 
-void ClockMesh::testPrintSinks()
-{
-  if (!logger_) {
-    return;
-  }
+// void ClockMesh::testPrintSinks()
+// {
+//   if (!logger_) {
+//     return;
+//   }
 
-  logger_->report("TEST: Found {} clock(s)", clockToSinks_.size());
+//   logger_->report("TEST: Found {} clock(s)", clockToSinks_.size());
 
-  for (const auto& [clockName, sinks] : clockToSinks_) {
-    logger_->report("\nTEST: Clock '{}' has {} sinks:", clockName, sinks.size());
+//   for (const auto& [clockName, sinks] : clockToSinks_) {
+//     logger_->report("\nTEST: Clock '{}' has {} sinks:", clockName, sinks.size());
 
-    // Print all sinks with details
-    int count = 0;
-    for (const auto& sink : sinks) {
-      logger_->report("  [{}] {} at ({}, {}) cap={:.3e} macro={}",
-                     ++count, sink.name, sink.x, sink.y, sink.inputCap, sink.isMacro);
-    }
-  }
-}
+//     // Print all sinks with details
+//     int count = 0;
+//     for (const auto& sink : sinks) {
+//       logger_->report("  [{}] {} at ({}, {}) cap={:.3e} macro={}",
+//                      ++count, sink.name, sink.x, sink.y, sink.inputCap, sink.isMacro);
+//     }
+//   }
+// }
 
 // ========== MESH GRID CREATION FUNCTIONS (following PDN pattern) ==========
 
