@@ -1698,6 +1698,7 @@ void RepairSetup::repairSetup_TNS(const float setup_slack_margin,
   Slack initial_tns_phase_wns;
   Vertex* initial_tns_phase_worst;
   sta_->worstSlack(max_, initial_tns_phase_wns, initial_tns_phase_worst);
+  Slack last_tns_phase_wns = initial_tns_phase_wns;
 
   // Collect all violating endpoints once at the start
   violator_collector_->collectViolatingEndpoints();
@@ -1848,8 +1849,8 @@ void RepairSetup::repairSetup_TNS(const float setup_slack_margin,
 
       // Accept if WNS improves OR (WNS same AND endpoint improves)
       // Always compare against initial TNS phase WNS to prevent drift
-      const bool wns_improved = fuzzyGreater(global_wns, initial_tns_phase_wns);
-      const bool wns_same = fuzzyEqual(global_wns, initial_tns_phase_wns);
+      const bool wns_improved = fuzzyGreater(global_wns, last_tns_phase_wns);
+      const bool wns_same = fuzzyEqual(global_wns, last_tns_phase_wns);
       const bool endpoint_improved
           = fuzzyGreater(endpoint_slack, prev_endpoint_slack);
       const bool endpoint_repaired
@@ -1857,7 +1858,8 @@ void RepairSetup::repairSetup_TNS(const float setup_slack_margin,
       const bool better = wns_improved || (wns_same && endpoint_improved);
 
       if (better) {
-        if (endpoint_slack > setup_slack_margin) {
+        last_tns_phase_wns = global_wns;
+        if (fuzzyGreaterEqual(endpoint_slack, setup_slack_margin)) {
           debugPrint(logger_,
                      RSZ,
                      "repair_setup",
