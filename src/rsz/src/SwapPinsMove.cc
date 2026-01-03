@@ -66,7 +66,7 @@ bool SwapPinsMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
 
   // Check if we have already dealt with this instance
   // and prevent any further swaps.
-  if (hasMoves(drvr) || hasPendingMoves(drvr)) {
+  if (hasMoves(drvr)) {
     debugPrint(logger_,
                RSZ,
                "opt_moves",
