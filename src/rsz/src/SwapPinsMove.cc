@@ -67,19 +67,45 @@ bool SwapPinsMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
   // Check if we have already dealt with this instance
   // and prevent any further swaps.
   if (hasMoves(drvr) || hasPendingMoves(drvr)) {
+    debugPrint(logger_,
+               RSZ,
+               "opt_moves",
+               3,
+               "REJECT SwapPinsMove {}: Already swapped {}",
+               network_->pathName(drvr_pin),
+               network_->pathName(drvr));
     return endMove(false);
   }
 
   // Skip if there is no liberty model or this is a single-input cell
   LibertyPort* drvr_port = network_->libertyPort(drvr_pin);
   if (drvr_port == nullptr) {
+    debugPrint(logger_,
+               RSZ,
+               "opt_moves",
+               3,
+               "REJECT SwapPinsMove {}: No Liberty port found",
+               network_->pathName(drvr_pin));
     return endMove(false);
   }
   LibertyCell* cell = drvr_port->libertyCell();
   if (cell == nullptr) {
+    debugPrint(logger_,
+               RSZ,
+               "opt_moves",
+               3,
+               "REJECT SwapPinsMove {}: No Liberty cell found",
+               network_->pathName(drvr_pin));
     return endMove(false);
   }
   if (cell->isBuffer() || cell->isInverter()) {
+    debugPrint(logger_,
+               RSZ,
+               "opt_moves",
+               3,
+               "REJECT SwapPinsMove {}: Cell {} is single output",
+               network_->pathName(drvr_pin),
+               cell->name());
     return endMove(false);
   }
 
@@ -98,6 +124,12 @@ bool SwapPinsMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
 
   // Skip output to output paths
   if (input_port->direction()->isOutput()) {
+    debugPrint(logger_,
+               RSZ,
+               "opt_moves",
+               3,
+               "REJECT SwapPinsMove {}: Output-to-output path",
+               network_->pathName(drvr_pin));
     return endMove(false);
   }
 
@@ -110,6 +142,12 @@ bool SwapPinsMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
   }
   ports = equiv_pin_map_[input_port];
   if (ports.empty()) {
+    debugPrint(logger_,
+               RSZ,
+               "opt_moves",
+               3,
+               "REJECT SwapPinsMove {}: No equivalent pins found",
+               network_->pathName(drvr_pin));
     return endMove(false);
   }
 
@@ -120,25 +158,22 @@ bool SwapPinsMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
   resetInputSlews();
 
   if (sta::LibertyPort::equiv(swap_port, input_port)) {
+    debugPrint(logger_,
+               RSZ,
+               "opt_moves",
+               3,
+               "REJECT SwapPinsMove {}: Selected swap pin is actually the same "
+               "input pin",
+               network_->pathName(drvr_pin));
     return endMove(false);
   }
 
   debugPrint(logger_,
              RSZ,
-             "repair_setup",
-             3,
-             "swap pins {} ({}) {} {}",
-             network_->name(drvr),
-             cell->name(),
-             input_port->name(),
-             swap_port->name());
-
-  debugPrint(logger_,
-             RSZ,
              "opt_moves",
              1,
-             "ACCEPT swap_pins {} ({}) {}<->{}",
-             network_->name(drvr),
+             "ACCEPT SwapPinsMove {}: ({}) {}<->{}",
+             network_->name(drvr_pin),
              cell->name(),
              input_port->name(),
              swap_port->name());

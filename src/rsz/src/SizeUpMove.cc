@@ -43,10 +43,24 @@ bool SizeUpMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
   startMove(drvr_pin);
   Instance* drvr = network_->instance(drvr_pin);
 
-  if (resizer_->dontTouch(drvr)){
+  if (resizer_->dontTouch(drvr)) {
+    debugPrint(logger_,
+               RSZ,
+               "opt_moves",
+               3,
+               "REJECT SizeUpMove {}: {} is \"don't touch\"",
+               network_->pathName(drvr_pin),
+               network_->pathName(drvr));
     return endMove(false);
   }
   if (!resizer_->isLogicStdCell(drvr)) {
+    debugPrint(logger_,
+               RSZ,
+               "opt_moves",
+               3,
+               "REJECT SizeUpMove {}: {} isn't logic std cell",
+               network_->pathName(drvr_pin),
+               network_->pathName(drvr));
     return endMove(false);
   }
 
@@ -78,15 +92,7 @@ bool SizeUpMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                RSZ,
                "opt_moves",
                1,
-               "ACCEPT size_up {} {} -> {}",
-               network_->pathName(drvr_pin),
-               drvr_port->libertyCell()->name(),
-               upsize->name());
-    debugPrint(logger_,
-               RSZ,
-               "repair_setup",
-               3,
-               "size_up {} {} -> {}",
+               "ACCEPT SizeUpMove {}: {} -> {}",
                network_->pathName(drvr_pin),
                drvr_port->libertyCell()->name(),
                upsize->name());
@@ -97,10 +103,9 @@ bool SizeUpMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
              RSZ,
              "opt_moves",
              3,
-             "REJECT size_up {} {}",
+             "REJECT SizeUpMove {}: Couldn't upsize {}",
              network_->pathName(drvr_pin),
              drvr_port->libertyCell()->name());
-
   return endMove(false);
 }
 

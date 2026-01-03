@@ -77,10 +77,24 @@ bool CloneMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
   Vertex* drvr_vertex = graph_->pinDrvrVertex(drvr_pin);
   const int fanout = this->fanout(drvr_vertex);
   if (fanout <= split_load_min_fanout_) {
+    debugPrint(logger_,
+               RSZ,
+               "opt_moves",
+               3,
+               "REJECT CloneMove {}: Fanout {} <= {} min fanout",
+               network_->pathName(drvr_pin),
+               fanout,
+               split_load_min_fanout_);
     return endMove(false);
   }
 
   if (!resizer_->okToBufferNet(drvr_pin)) {
+    debugPrint(logger_,
+               RSZ,
+               "opt_moves",
+               3,
+               "REJECT CloneMove {}: Not OK to buffer net",
+               network_->pathName(drvr_pin));
     return endMove(false);
   }
 
@@ -90,7 +104,7 @@ bool CloneMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                RSZ,
                "opt_moves",
                3,
-               "REJECT clone {}",
+               "REJECT CloneMove {}: Not single output combinational",
                network_->pathName(drvr_pin));
     return endMove(false);
   }
@@ -156,16 +170,7 @@ bool CloneMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
              RSZ,
              "opt_moves",
              1,
-             "ACCEPT clone {} ({}) -> {} ({})",
-             network_->pathName(drvr_pin),
-             original_cell->name(),
-             network_->pathName(clone_inst),
-             clone_cell->name());
-  debugPrint(logger_,
-             RSZ,
-             "repair_setup",
-             3,
-             "clone {} ({}) -> {} ({})",
+             "ACCEPT CloneMove {}: ({}) -> {} ({})",
              network_->pathName(drvr_pin),
              original_cell->name(),
              network_->pathName(clone_inst),

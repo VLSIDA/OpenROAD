@@ -90,10 +90,10 @@ bool UnbufferMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
     if (!reason.empty()) {
       debugPrint(logger_,
                  RSZ,
-                 "repair_setup",
-                 4,
-                 "buffer {} is not removed because {}",
-                 db_network_->name(drvr),
+                 "opt_moves",
+                 3,
+                 "REJECT UnbufferMove {}: Buffer is not removed because {}",
+                 network_->pathName(drvr_pin),
                  reason);
       return endMove(false);
     }
@@ -113,11 +113,12 @@ bool UnbufferMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
       if (new_fanout > max_fanout) {
         debugPrint(logger_,
                    RSZ,
-                   "repair_setup",
-                   2,
-                   "buffer {} is not removed because of max fanout limit "
-                   "of {} at {}",
-                   db_network_->name(drvr),
+                   "opt_moves",
+                   3,
+                   "REJECT UnbufferMove {}: "
+                   "New fanout {} >= {} max fanout limit at {}",
+                   network_->pathName(drvr_pin),
+                   new_fanout,
                    max_fanout,
                    network_->pathName(prev_drvr_pin));
         return endMove(false);
@@ -127,12 +128,12 @@ bool UnbufferMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
       if (new_fanout > buffer_removal_max_fanout_) {
         debugPrint(logger_,
                    RSZ,
-                   "repair_setup",
-                   2,
-                   "buffer {} is not removed because of default fanout "
-                   "limit of {} at "
-                   "{}",
-                   db_network_->name(drvr),
+                   "opt_moves",
+                   3,
+                   "REJECT UnbufferMove {}: "
+                   "New fanout {} >= {} default fanout limit at {}",
+                   network_->pathName(drvr_pin),
+                   new_fanout,
                    buffer_removal_max_fanout_,
                    network_->pathName(prev_drvr_pin));
         return endMove(false);
@@ -162,18 +163,17 @@ bool UnbufferMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
       float new_cap = cap + drvr_cap
                       - resizer_->portCapacitance(buffer_input_port, corner);
       if (new_cap > max_cap) {
-        debugPrint(
-            logger_,
-            RSZ,
-            "repair_setup",
-            2,
-            "buffer {} is not removed because of "
-            "max cap limit of {} at {} ({} -> {})",
-            db_network_->name(drvr),
-            max_cap,
-            network_->pathName(prev_drvr_pin),
-            cap,
-            new_cap);
+        debugPrint(logger_,
+                   RSZ,
+                   "opt_moves",
+                   3,
+                   "REJECT UnbufferMove {}: "
+                   "Max cap limit of {} at {} ({} -> {})",
+                   network_->pathName(drvr_pin),
+                   max_cap,
+                   network_->pathName(prev_drvr_pin),
+                   cap,
+                   new_cap);
         return endMove(false);
       }
     }
@@ -185,6 +185,12 @@ bool UnbufferMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
     params.driver = drvr;
     params.driver_cell = drvr_cell;
     if (!estimatedSlackOK(params)) {
+      debugPrint(logger_,
+                 RSZ,
+                 "opt_moves",
+                 3,
+                 "REJECT UnbufferMove {}: Estimated slack not OK",
+                 network_->pathName(drvr_pin));
       return endMove(false);
     }
 
@@ -193,8 +199,8 @@ bool UnbufferMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                  RSZ,
                  "opt_moves",
                  1,
-                 "ACCEPT unbuffer {}",
-                 network_->pathName(drvr));
+                 "ACCEPT UnbufferMove {}",
+                 network_->pathName(drvr_pin));
       removeBuffer(drvr);
       return endMove(true);
     }
@@ -202,8 +208,8 @@ bool UnbufferMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                RSZ,
                "opt_moves",
                3,
-               "REJECT unbuffer {}",
-               network_->pathName(drvr));
+               "REJECT UnbufferMove {}: Can't remove buffer",
+               network_->pathName(drvr_pin));
   }
 
   return endMove(false);

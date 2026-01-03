@@ -63,9 +63,23 @@ bool SplitLoadMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
   const int fanout = this->fanout(drvr_vertex);
   // Don't split loads on low fanout nets.
   if (fanout <= split_load_min_fanout_) {
+    debugPrint(logger_,
+               RSZ,
+               "opt_moves",
+               3,
+               "REJECT SplitLoadMove {}: Fanout {} <= {} min fanout",
+               network_->pathName(drvr_pin),
+               fanout,
+               split_load_min_fanout_);
     return endMove(false);
   }
   if (!resizer_->okToBufferNet(drvr_pin)) {
+    debugPrint(logger_,
+               RSZ,
+               "opt_moves",
+               3,
+               "REJECT SplitLoadMove {}: Not OK to buffer net",
+               network_->pathName(drvr_pin));
     return endMove(false);
   }
 
@@ -126,16 +140,10 @@ bool SplitLoadMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
   Instance* buffer = makeBuffer(buffer_cell, "split", parent, drvr_loc);
   debugPrint(logger_,
              RSZ,
-             "split_load",
+             "opt_moves",
              1,
-             "ACCEPT make_buffer {}",
-             network_->pathName(buffer));
-  debugPrint(logger_,
-             RSZ,
-             "repair_setup",
-             3,
-             "split_load make_buffer {}",
-             network_->pathName(buffer));
+             "ACCEPT SplitLoadMove {}",
+             network_->pathName(drvr_pin));
   countMove(buffer);
 
   // H-fix make the out net in the driver parent

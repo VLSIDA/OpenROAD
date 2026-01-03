@@ -50,13 +50,34 @@ bool BufferMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
 
   const int fanout = this->fanout(drvr_vertex);
   if (fanout <= 1) {
+    debugPrint(logger_,
+               RSZ,
+               "opt_moves",
+               3,
+               "REJECT BufferMove {}: Fanout {} <= 1 min fanout",
+               network_->pathName(drvr_pin),
+               fanout);
     return endMove(false);
   }
   // Rebuffer blows up on large fanout nets.
   if (fanout >= rebuffer_max_fanout_) {
+    debugPrint(logger_,
+               RSZ,
+               "opt_moves",
+               3,
+               "REJECT BufferMove {}: Fanout {} >= {} max fanout limit",
+               network_->pathName(drvr_pin),
+               fanout,
+               rebuffer_max_fanout_);
     return endMove(false);
   }
   if (!resizer_->okToBufferNet(drvr_pin)) {
+    debugPrint(logger_,
+               RSZ,
+               "opt_moves",
+               3,
+               "REJECT BufferMove {}: Not OK to buffer net",
+               network_->pathName(drvr_pin));
     return endMove(false);
   }
 
@@ -64,16 +85,9 @@ bool BufferMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
   if (rebuffer_count > 0) {
     debugPrint(logger_,
                RSZ,
-               "repair_setup",
-               3,
-               "rebuffer {} inserted {}",
-               network_->pathName(drvr_pin),
-               rebuffer_count);
-    debugPrint(logger_,
-               RSZ,
                "opt_moves",
                1,
-               "ACCEPT buffer {} inserted {}",
+               "ACCEPT BufferMove {}: Inserted {} buffers",
                network_->pathName(drvr_pin),
                rebuffer_count);
     countMove(drvr_inst, rebuffer_count);
@@ -82,7 +96,7 @@ bool BufferMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                RSZ,
                "opt_moves",
                3,
-               "REJECT buffer {} inserted {}",
+               "REJECT BufferMove {}: Inserted {} buffers",
                network_->pathName(drvr_pin),
                rebuffer_count);
   }

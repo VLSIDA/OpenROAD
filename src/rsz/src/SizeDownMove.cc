@@ -59,6 +59,14 @@ bool SizeDownMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
   // Skip nets with large fanout because we will need to buffer them.
   const int fanout = this->fanout(drvr_vertex);
   if (fanout >= size_down_max_fanout_) {
+    debugPrint(logger_,
+               RSZ,
+               "opt_moves",
+               3,
+               "REJECT SizeDownMove {}: Fanout {} >= {} max fanout",
+               network_->pathName(drvr_pin),
+               fanout,
+               size_down_max_fanout_);
     return endMove(false);
   }
 
@@ -91,14 +99,20 @@ bool SizeDownMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
         debugPrint(logger_,
                    RSZ,
                    "size_down",
-                   3,
-                   " unsorted {} slack: {} drvr slack: {}",
-                   network_->pathName(fanout_vertex->pin()),
-                   delayAsString(fanout_slack, sta_, 3),
-                   delayAsString(drvr_slack, sta_, 3))
-            // If we already have a move on the load, don't try to size down
-            fanout_slacks.emplace_back(fanout_vertex, fanout_slack);
+                   4,
+                   " {} is not downsized because it has other moves",
+                   network_->pathName(fanout_inst));
+        continue;
       }
+      debugPrint(logger_,
+                 RSZ,
+                 "size_down",
+                 3,
+                 " unsorted {} slack: {} drvr slack: {}",
+                 network_->pathName(fanout_vertex->pin()),
+                 delayAsString(fanout_slack, sta_, 3),
+                 delayAsString(drvr_slack, sta_, 3));
+      fanout_slacks.emplace_back(fanout_vertex, fanout_slack);
     }
   }
 
@@ -124,7 +138,7 @@ bool SizeDownMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                delayAsString(drvr_slack, sta_, 3))
   }
 
-  bool accept_move = false;
+  int num_down_sizes = 0;
 
   for (auto& fanout_slack : fanout_slacks) {
     Vertex* load_vertex = fanout_slack.first;
@@ -150,31 +164,20 @@ bool SizeDownMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                  RSZ,
                  "opt_moves",
                  1,
-                 "ACCEPT size_down {} -> {} ({} -> {}) slack={}",
+                 "ACCEPT SizeDownMove {} -> {}: ({} -> {}) slack={}",
                  network_->pathName(drvr_pin),
                  network_->pathName(load_pin),
                  load_cell->name(),
                  new_cell->name(),
                  delayAsString(fanout_slack.second, sta_, 3));
-      debugPrint(logger_,
-                 RSZ,
-                 "repair_setup",
-                 3,
-                 "size_down {} -> {} ({} -> {}) slack={}",
-                 network_->pathName(drvr_pin),
-                 network_->pathName(load_pin),
-                 load_cell->name(),
-                 new_cell->name(),
-                 delayAsString(fanout_slack.second, sta_, 3));
-
       countMove(load_inst);
-      accept_move = true;
+      num_down_sizes++;
     } else {
       debugPrint(logger_,
                  RSZ,
                  "opt_moves",
                  3,
-                 "REJECT size_down {} -> {} ({} -> {}) slack={}",
+                 "REJECT SizeDownMove {} -> {}: ({} -> {}) slack={}",
                  network_->pathName(drvr_pin),
                  network_->pathName(load_pin),
                  load_cell->name(),
@@ -183,7 +186,23 @@ bool SizeDownMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
     }
   }
 
-  return endMove(accept_move);
+  if (num_down_sizes > 0) {
+    debugPrint(logger_,
+               RSZ,
+               "opt_moves",
+               1,
+               "ACCEPT SizeDownMove {}: Downsized {} gates",
+               network_->pathName(drvr_pin),
+               num_down_sizes);
+  } else {
+    debugPrint(logger_,
+               RSZ,
+               "opt_moves",
+               3,
+               "REJECT SizeDownMove {}",
+               network_->pathName(drvr_pin));
+  }
+  return endMove(num_down_sizes > 0);
 }
 
 // This will downsize the gate to the smallest input capacitance that that
