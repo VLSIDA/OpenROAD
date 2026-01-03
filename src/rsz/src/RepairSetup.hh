@@ -235,8 +235,7 @@ class RepairSetup : public sta::dbStaState
   int overall_no_progress_count_ = 0;
 
   // Used to early-exit some unit tests
-  int max_end_repairs_ = 0;
-  int repaired_end_count_ = 0;
+  int max_end_repairs_ = -1;
 
   const MinMax* min_ = MinMax::min();
   const MinMax* max_ = MinMax::max();
