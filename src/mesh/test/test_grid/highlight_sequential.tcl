@@ -1,13 +1,10 @@
-# Highlight Sequential Elements and Clock Pins in GUI
-# Load this after opening the design in GUI
-
+# Highlight sequential elements and clock nets in GUI
 puts "========================================="
 puts "Highlighting Sequential Elements & Clock Pins"
 puts "========================================="
 
 set block [ord::get_db_block]
 
-# Find all sequential instances (DFF, DFFE, latch, etc.)
 set seq_inst_count 0
 
 foreach inst [$block getInsts] {
@@ -18,9 +15,7 @@ foreach inst [$block getInsts] {
 
     set master_name [$master getName]
 
-    # Match common sequential cell patterns
     if {[regexp -nocase {dff|dffe|dfxtp|edfxtp|latch|sdff|dfr} $master_name]} {
-        # Highlight the sequential instance
         set inst_name [$inst getName]
         gui::highlight_inst $inst_name 1
         incr seq_inst_count
@@ -29,7 +24,6 @@ foreach inst [$block getInsts] {
 
 puts "Found $seq_inst_count sequential elements"
 
-# Find and highlight clock net
 set clk_name "clk"
 puts "\nFinding clock net: $clk_name"
 
@@ -39,7 +33,6 @@ if {$clk_net != "NULL"} {
     gui::highlight_net $clk_name 3
     puts "Clock net highlighted"
 
-    # Show clock net connectivity
     set iterms [$clk_net getITerms]
     puts "Clock net connects to [llength $iterms] instance pins"
 } else {

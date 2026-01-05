@@ -25,7 +25,7 @@ class OpenRoad;
 
 namespace mesh {
 
-// Data structure to hold clock sink information
+// Clock sink information
 struct ClockSink {
   std::string name;
   int x;
@@ -41,25 +41,25 @@ struct ClockSink {
       insertionDelay(insDelay), iterm(term), isMacro(macro) {}
 };
 
-// Data structure to hold mesh wire information (similar to PDN Shape)
+// Mesh wire representation
 struct MeshWire {
   odb::dbTechLayer* layer;
   odb::dbNet* net;
   odb::Rect rect;
   bool is_horizontal;
-  odb::dbSBox* db_shape;  // Database shape created
+  odb::dbSBox* db_shape;
 
   MeshWire(odb::dbTechLayer* l, odb::dbNet* n, const odb::Rect& r, bool horiz)
     : layer(l), net(n), rect(r), is_horizontal(horiz), db_shape(nullptr) {}
 };
 
-// Data structure to hold via information (similar to PDN Via)
+// Mesh via representation
 struct MeshVia {
   odb::dbTechLayer* lower_layer;
   odb::dbTechLayer* upper_layer;
   odb::dbNet* net;
-  odb::Rect area;  // Intersection area
-  odb::dbSBox* db_via;  // Database via created
+  odb::Rect area;
+  odb::dbSBox* db_via;
 
   MeshVia(odb::dbTechLayer* lower, odb::dbTechLayer* upper,
           odb::dbNet* n, const odb::Rect& a)
@@ -75,7 +75,6 @@ class ClockMesh
   void run(const char* name);
   bool meshGenerated() const { return mesh_generated_; }
 
-  // Main mesh grid creation functions
   void createMeshGrid(const std::string& clock_name,
                       odb::dbTechLayer* h_layer,
                       odb::dbTechLayer* v_layer,
@@ -86,8 +85,18 @@ class ClockMesh
   void findClockSinks();
   void testPrintSinks();
 
- private:
+  void connectClockRootToMesh(const std::string& clock_name,
+                             odb::dbNet* mesh_net,
+                             const std::vector<MeshWire>& h_wires,
+                             const std::vector<MeshWire>& v_wires);
 
+  void connectSinksToMesh(const std::string& clock_name,
+                         odb::dbNet* mesh_net,
+                         const std::vector<MeshWire>& h_wires,
+                         const std::vector<MeshWire>& v_wires);
+
+ private:
+  // Sink finding helpers
   void findClockRoots(sta::Clock* clk, std::set<odb::dbNet*>& clockNets);
   bool isSink(odb::dbITerm* iterm);
   float getInputPinCap(odb::dbITerm* iterm);
@@ -96,12 +105,10 @@ class ClockMesh
                                odb::dbInst* inst,
                                odb::dbMTerm* mterm);
   void computeITermPosition(odb::dbITerm* term, int& x, int& y) const;
-
-  // Helper for CTS-style sink finding
   bool separateSinks(odb::dbNet* net,
                      std::vector<ClockSink>& sinks);
 
-  // Mesh grid creation helpers (following PDN pattern)
+  // Mesh grid creation helpers
   odb::Rect calculateBoundingBox(const std::vector<ClockSink>& sinks);
   void createHorizontalWires(odb::dbNet* net,
                              odb::dbTechLayer* layer,
@@ -122,26 +129,49 @@ class ClockMesh
   void writeViasToDb(const std::vector<MeshVia>& vias);
   odb::dbNet* getOrCreateClockNet(const std::string& clock_name);
 
-  // Member variables
+  // Root and sink connection helpers
+  odb::Point getClockRootLocation(odb::dbBTerm* bterm);
+  odb::dbTechLayer* getRootPinLayer(odb::dbBTerm* bterm);
+  odb::Point findNearestGridWire(const odb::Point& loc,
+                                const std::vector<MeshWire>& h_wires,
+                                const std::vector<MeshWire>& v_wires,
+                                odb::dbTechLayer** out_grid_layer);
+  void createRootToGridConnection(odb::dbBTerm* root,
+                                 const odb::Point& root_loc,
+                                 const odb::Point& grid_point,
+                                 odb::dbTechLayer* root_layer,
+                                 odb::dbTechLayer* grid_layer,
+                                 odb::dbNet* mesh_net);
+  void createViaStackAtPoint(const odb::Point& location,
+                            odb::dbTechLayer* from_layer,
+                            odb::dbTechLayer* to_layer,
+                            odb::dbNet* net);
+  void createSinkStubWire(odb::dbITerm* sink_iterm,
+                         const odb::Point& sink_loc,
+                         const odb::Point& grid_point,
+                         odb::dbTechLayer* sink_layer,
+                         odb::dbTechLayer* grid_layer,
+                         odb::dbNet* mesh_net);
+  odb::dbTechLayer* getSinkPinLayer(odb::dbITerm* iterm);
+
   ord::OpenRoad* openroad_ = nullptr;
   bool mesh_generated_ = false;
 
-  // Database pointers
   odb::dbDatabase* db_ = nullptr;
   odb::dbBlock* block_ = nullptr;
   sta::dbSta* sta_ = nullptr;
   sta::dbNetwork* network_ = nullptr;
   utl::Logger* logger_ = nullptr;
 
-  // Storage for found sinks
   std::map<std::string, std::vector<ClockSink>> clockToSinks_;
   std::set<odb::dbNet*> staClockNets_;
   std::set<odb::dbNet*> visitedClockNets_;
 
-  // Storage for mesh grid elements
   std::vector<MeshWire> mesh_wires_;
   std::vector<MeshVia> mesh_vias_;
-  odb::Rect mesh_bbox_;  // Bounding box for position-aware load calculation
+  std::vector<MeshVia> connection_vias_;
+  odb::Rect mesh_bbox_;
+  int mesh_wire_width_;
 };
 
 void initClockMesh(ord::OpenRoad* openroad);
