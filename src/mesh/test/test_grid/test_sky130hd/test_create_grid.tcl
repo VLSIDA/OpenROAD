@@ -1,6 +1,6 @@
-# Test script for clock mesh grid creation
+# Test script for clock mesh grid creation - Sky130HD
 puts "========================================="
-puts "Clock Mesh Grid Creation Test"
+puts "Clock Mesh Grid Creation Test (Sky130HD)"
 puts "========================================="
 
 puts "\nLoading database..."
@@ -32,7 +32,7 @@ puts "Width: 0.48 um, Pitch: 5.0 um"
 
 create_clock_mesh \
     -clock $clk_name \
-    -h_layer met2 \
+    -h_layer met4 \
     -v_layer met4 \
     -wire_width 0.1 \
     -pitch 2.0

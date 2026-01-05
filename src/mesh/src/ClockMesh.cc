@@ -452,6 +452,11 @@ void ClockMesh::createViasAtIntersections(const std::vector<MeshWire>& h_wires,
         odb::dbTechLayer* lower_layer = nullptr;
         odb::dbTechLayer* upper_layer = nullptr;
 
+        // Skip via creation if both wires are on the same layer
+        if (h_wire.layer == v_wire.layer) {
+          continue;
+        }
+
         if (h_wire.layer->getRoutingLevel() < v_wire.layer->getRoutingLevel()) {
           lower_layer = h_wire.layer;
           upper_layer = v_wire.layer;
