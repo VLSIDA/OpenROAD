@@ -1,6 +1,4 @@
-# Inspect Design Contents
-# This script examines what's in your database
-
+# Inspect design instances and nets
 puts "========================================="
 puts "Design Inspection"
 puts "========================================="
@@ -15,7 +13,6 @@ if {$block == "NULL"} {
 puts "Block name: [$block getName]"
 puts ""
 
-# Count instances by type
 set inst_count 0
 set master_types {}
 
@@ -43,14 +40,12 @@ puts "Total instances: $inst_count"
 puts "Unique master cell types: [llength $master_types]"
 puts ""
 
-# Show all unique master types
 puts "All master cell types found:"
 puts "-------------------------------------------"
 foreach master [lsort $master_types] {
     puts "  - $master"
 }
 
-# Look for nets
 puts "\n========================================="
 puts "Examining Nets"
 puts "========================================="
@@ -68,7 +63,6 @@ foreach net [lrange $nets 0 29] {
     incr count
 }
 
-# Look specifically for clock-like nets
 puts "\nNets containing 'clk', 'clock', or 'CLK':"
 puts "-------------------------------------------"
 set clk_net_count 0
@@ -78,7 +72,6 @@ foreach net $nets {
         puts "  - $net_name"
         incr clk_net_count
 
-        # Show connections for the first clock net
         if {$clk_net_count == 1} {
             set iterms [$net getITerms]
             puts "    -> Connects to [llength $iterms] pins"
