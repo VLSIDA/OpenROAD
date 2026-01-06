@@ -93,6 +93,7 @@ void ClockMesh::findClockSinks()
 
   for (auto clk : *sdc->clocks()) {
     std::string clkName = clk->name();
+    logger_->report("Found clock in SDC: {}", clkName);
     std::set<odb::dbNet*> clkNets;
     findClockRoots(clk, clkNets);
     for (odb::dbNet* net : clkNets) {
@@ -101,9 +102,16 @@ void ClockMesh::findClockSinks()
         std::vector<ClockSink> sinks;
         if (separateSinks(net, sinks)) {
           clockToSinks_[clkName].insert(clockToSinks_[clkName].end(), sinks.begin(), sinks.end());
+          logger_->report("Stored {} sinks for clock '{}'", sinks.size(), clkName);
         }
       }
     }
+  }
+
+  // Log summary of found clocks
+  logger_->report("Total clocks with sinks: {}", clockToSinks_.size());
+  for (const auto& [clk_name, sinks] : clockToSinks_) {
+    logger_->report("  Clock '{}': {} sinks", clk_name, sinks.size());
   }
 }
 
@@ -435,11 +443,8 @@ void ClockMesh::createViasAtIntersections(const std::vector<MeshWire>& h_wires,
   logger_->report("Creating vias at intersections: {} h_wires x {} v_wires",
                  h_wires.size(), v_wires.size());
 
-  // Find all intersections between horizontal and vertical wires
-  // (similar to PDN Grid::getIntersections using R-tree spatial queries)
   for (const auto& h_wire : h_wires) {
     for (const auto& v_wire : v_wires) {
-      // Check if rectangles intersect
       odb::Rect intersection = h_wire.rect;
       if (intersection.intersects(v_wire.rect)) {
         // Calculate intersection area
@@ -475,23 +480,19 @@ void ClockMesh::createViasAtIntersections(const std::vector<MeshWire>& h_wires,
   logger_->report("Created {} vias at wire intersections", via_count);
 }
 
-// Step 5: Get or create clock net
+
 odb::dbNet* ClockMesh::getOrCreateClockNet(const std::string& clock_name)
 {
   if (!block_) {
     logger_->error(MESH, 104, "No block available for net creation");
     return nullptr;
   }
-
-  // First, try to find the original clock net by searching all nets
-  // Look for nets connected to the clock sinks we found
   if (clockToSinks_.find(clock_name) != clockToSinks_.end()) {
     const auto& sinks = clockToSinks_[clock_name];
     if (!sinks.empty() && sinks[0].iterm) {
       odb::dbNet* clock_net = sinks[0].iterm->getNet();
       if (clock_net) {
         logger_->report("Using existing clock net: {}", clock_net->getName());
-        // Make sure it's marked as special and clock type
         if (!clock_net->isSpecial()) {
           clock_net->setSpecial();
         }
@@ -502,44 +503,34 @@ odb::dbNet* ClockMesh::getOrCreateClockNet(const std::string& clock_name)
       }
     }
   }
-
-  // If we couldn't find the original clock net, search by common clock net names
-  std::vector<std::string> possible_names = {
-    clock_name,
-    "clk",
-    "core_clock",
-    clock_name + "_mesh"
-  };
-
-  for (const auto& name : possible_names) {
-    odb::dbNet* net = block_->findNet(name.c_str());
-    if (net) {
-      logger_->report("Found clock net by name: {}", net->getName());
-      if (!net->isSpecial()) {
-        net->setSpecial();
+  logger_->warn(MESH, 117, "Could not get clock net from sinks for '{}'. Checking other available clocks...", clock_name);
+  for (const auto& [clk_name, sinks] : clockToSinks_) {
+    if (!sinks.empty() && sinks[0].iterm) {
+      odb::dbNet* clock_net = sinks[0].iterm->getNet();
+      if (clock_net) {
+        logger_->report("Found clock net '{}' from clock '{}' sinks", lock_net->getName(), clk_name);
+        logger_->warn(MESH, 118,"Using clock '{}' instead of '{}'. " "You may want to use -clock {} in your command.", clk_name, clock_name, clk_name);
+        if (!clock_net->isSpecial()) {
+          clock_net->setSpecial();
+        }
+        if (clock_net->getSigType() != odb::dbSigType::CLOCK) {
+          clock_net->setSigType(odb::dbSigType::CLOCK);
+        }
+        return clock_net;
       }
-      if (net->getSigType() != odb::dbSigType::CLOCK) {
-        net->setSigType(odb::dbSigType::CLOCK);
-      }
-      return net;
     }
   }
-
-  // Last resort: create new net for clock mesh
-  std::string mesh_net_name = clock_name + "_mesh";
-  odb::dbNet* net = odb::dbNet::create(block_, mesh_net_name.c_str());
-  if (!net) {
-    logger_->error(MESH, 105, "Failed to create clock mesh net: {}", mesh_net_name);
-    return nullptr;
+  logger_->error(MESH, 105,"Could not find clock net for '{}'. " "None of the clocks in the design have valid nets connected to their sinks.", clock_name);
+  if (clockToSinks_.empty()) {
+    logger_->report("No clocks with sinks found. Did you run 'run_mesh' first?");
+  } else {
+    logger_->report("Clocks with sinks found (but no valid nets):");
+    for (const auto& [clk, sinks] : clockToSinks_) {
+      logger_->report("  - {} ({} sinks)", clk, sinks.size());
+    }
+    logger_->report("Check that synthesis created clock nets and connected sinks properly.");
   }
-
-  // Set net type to CLOCK
-  net->setSpecial();
-  net->setSigType(odb::dbSigType::CLOCK);
-
-  logger_->report("Created new clock mesh net: {}", mesh_net_name);
-  logger_->warn(MESH, 106, "Could not find original clock net - created separate mesh net. Mesh will not be connected to clock source.");
-  return net;
+  return nullptr;
 }
 
 // Step 6: Write wires to database
@@ -618,10 +609,10 @@ void ClockMesh::writeViasToDb(const std::vector<MeshVia>& vias)
     // Check if layers are non-consecutive
     if (upper_level - lower_level > 1) {
       // Create via stack through intermediate layers
-      logger_->report("Creating via stack from {} (level {}) to {} (level {}) at ({}, {})",
-                     via.lower_layer->getName(), lower_level,
-                     via.upper_layer->getName(), upper_level,
-                     via_x, via_y);
+     // logger_->report("Creating via stack from {} (level {}) to {} (level {}) at ({}, {})",
+       //              via.lower_layer->getName(), lower_level,
+        //             via.upper_layer->getName(), upper_level,
+        //             via_x, via_y);
 
       for (int level = lower_level; level < upper_level; level++) {
         odb::dbTechLayer* lower = tech->findRoutingLayer(level);
@@ -719,7 +710,7 @@ void ClockMesh::writeViasToDb(const std::vector<MeshVia>& vias)
   logger_->report("Wrote {} vias to database", written_count);
 }
 
-// Main orchestration function (following PDN buildGrids pattern)
+// Main function 
 void ClockMesh::createMeshGrid(const std::string& clock_name,
                                odb::dbTechLayer* h_layer,
                                odb::dbTechLayer* v_layer,
@@ -740,7 +731,7 @@ void ClockMesh::createMeshGrid(const std::string& clock_name,
   logger_->report("Wire width: {}, Pitch: {}", wire_width, pitch);
   logger_->report("======================================");
 
-  // Step 1: Get clock sinks
+  // Get clock sinks
   if (clockToSinks_.find(clock_name) == clockToSinks_.end()) {
     logger_->error(MESH, 114, "No sinks found for clock: {}", clock_name);
     logger_->report("Available clocks:");
@@ -753,14 +744,12 @@ void ClockMesh::createMeshGrid(const std::string& clock_name,
   const std::vector<ClockSink>& sinks = clockToSinks_[clock_name];
   logger_->report("Found {} sinks for clock {}", sinks.size(), clock_name);
 
-  // Step 2: Calculate bounding box from sinks (keep grid within core area)
+  //Bounding box
   odb::Rect bbox = calculateBoundingBox(sinks);
   if (bbox.area() == 0) {
     logger_->error(MESH, 115, "Invalid bounding box calculated");
     return;
   }
-
-  // Store bbox for position-aware load calculation
   mesh_bbox_ = bbox;
 
   // Store wire width for connection routing
@@ -768,10 +757,10 @@ void ClockMesh::createMeshGrid(const std::string& clock_name,
   logger_->report("Stored wire width: {} DBU (half-width: {} DBU)",
                  mesh_wire_width_, mesh_wire_width_ / 2);
 
-  // Step 3: Get or create clock mesh net
+  // Step 6: Get existing clock net from synthesis
   odb::dbNet* mesh_net = getOrCreateClockNet(clock_name);
   if (!mesh_net) {
-    logger_->error(MESH, 116, "Failed to create clock mesh net");
+    logger_->error(MESH, 116, "Failed to find clock net for '{}'. Cannot create mesh without existing clock net.", clock_name);
     return;
   }
 
@@ -915,19 +904,15 @@ odb::Point ClockMesh::findNearestGridWire(const odb::Point& loc,
     }
   }
 
-  // Choose closest grid wire and clamp grid_point to wire extent
+  // Choose closest grid wire 
   odb::Point grid_point;
   if (out_grid_layer) {
     if (nearest_h_layer && nearest_v_layer) {
       if (min_dist_h < min_dist_v) {
-        // Horizontal wire is closer - route to it
         *out_grid_layer = nearest_h_layer;
-
-        // Find the actual horizontal wire to get its extent
         for (const auto& wire : h_wires) {
           int wire_y = (wire.rect.yMin() + wire.rect.yMax()) / 2;
           if (wire_y == best_y) {
-            // Clamp x coordinate to wire extent
             int clamped_x = std::max(wire.rect.xMin(), std::min(wire.rect.xMax(), loc.x()));
             grid_point = odb::Point(clamped_x, best_y);
             logger_->report("Nearest grid: horizontal wire at y={}, x extent [{}, {}], clamped x={} (using {})",
@@ -936,14 +921,10 @@ odb::Point ClockMesh::findNearestGridWire(const odb::Point& loc,
           }
         }
       } else {
-        // Vertical wire is closer - route to it
         *out_grid_layer = nearest_v_layer;
-
-        // Find the actual vertical wire to get its extent
         for (const auto& wire : v_wires) {
           int wire_x = (wire.rect.xMin() + wire.rect.xMax()) / 2;
           if (wire_x == best_x) {
-            // Clamp y coordinate to wire extent
             int clamped_y = std::max(wire.rect.yMin(), std::min(wire.rect.yMax(), loc.y()));
             grid_point = odb::Point(best_x, clamped_y);
             logger_->report("Nearest grid: vertical wire at x={}, y extent [{}, {}], clamped y={} (using {})",
