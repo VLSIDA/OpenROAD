@@ -331,7 +331,7 @@ odb::Rect ClockMesh::calculateBoundingBox(const std::vector<ClockSink>& sinks)
                    core_area.xMin(), core_area.yMin(),
                    core_area.xMax(), core_area.yMax());
 
-    // Use core area as the boundary (this is the actual placement area)
+    // Use core area as the bounding boxx
     bbox.set_xlo(std::min(bbox.xMin(), core_area.xMin()));
     bbox.set_ylo(std::min(bbox.yMin(), core_area.yMin()));
     bbox.set_xhi(std::max(bbox.xMax(), core_area.xMax()));
@@ -746,6 +746,18 @@ void ClockMesh::createMeshGrid(const std::string& clock_name,
     logger_->warn(utl::MESH, 300, "Buffer insertion not yet implemented");
   }
 
+  // Create guides for write_guides output
+  logger_->report("======================================");
+  logger_->report("Creating guides for verification...");
+  for (const auto& wire : h_wires) {
+    odb::dbGuide::create(mesh_net, wire.layer, wire.layer, wire.rect, false);
+  }
+  for (const auto& wire : v_wires) {
+    odb::dbGuide::create(mesh_net, wire.layer, wire.layer, wire.rect, false);
+  }
+  logger_->report("Created {} guides for mesh net '{}'",
+                  mesh_net->getGuides().size(), mesh_net->getName());
+
   mesh_generated_ = true;
 }
 
@@ -993,8 +1005,19 @@ void ClockMesh::connectClockRootToMesh(const std::string& clock_name,
   }
   logger_->report("Root location: ({},{}), Grid point: ({},{})",root_loc.x(), root_loc.y(), grid_point.x(), grid_point.y());
   logger_->report("Grid layer: {}", grid_layer->getName());
-  createViaStackAtPoint(root_loc, root_layer, grid_layer, mesh_net);
-  createRootToGridConnection(clk_root, root_loc, grid_point, grid_layer, grid_layer, mesh_net);
+  odb::dbTechLayer* stub_layer = nullptr;
+  if (grid_point.x() != root_loc.x()) {
+    stub_layer = v_wires[0].layer;
+    logger_->report("Creating horizontal stub on V-layer: {}", stub_layer->getName());
+  } else {
+    stub_layer = h_wires[0].layer;
+    logger_->report("Creating vertical stub on H-layer: {}", stub_layer->getName());
+  }
+  createViaStackAtPoint(root_loc, root_layer, stub_layer, mesh_net);
+  createRootToGridConnection(clk_root, root_loc, grid_point, stub_layer, stub_layer, mesh_net);
+  if (stub_layer->getRoutingLevel() != grid_layer->getRoutingLevel()) {
+    createViaStackAtPoint(grid_point, stub_layer, grid_layer, mesh_net);
+  }
   logger_->report("======================================");
   logger_->report("Clock root connection completed!");
   logger_->report("Root layer: {} (level {}), Grid layer: {} (level {})",
