@@ -14,6 +14,7 @@ target_include_directories(mesh_lib
   PRIVATE
     ${CMAKE_SOURCE_DIR}/include
     ${CMAKE_SOURCE_DIR}/src/odb/include
+    ${Boost_INCLUDE_DIRS}
 )
 
 target_link_libraries(mesh_lib
@@ -23,6 +24,7 @@ target_link_libraries(mesh_lib
     odb
     dbSta_lib
     OpenSTA
+    cts_lib
 )
 
 swig_lib(
