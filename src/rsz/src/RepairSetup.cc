@@ -27,13 +27,13 @@
 #include "sta/NetworkClass.hh"
 #include "sta/SearchClass.hh"
 // This includes SizeUpMatchMove
+#include "RepairSearch.hh"
 #include "SizeUpMove.hh"
 #include "SplitLoadMove.hh"
 #include "SwapPinsMove.hh"
 #include "UnbufferMove.hh"
 #include "VTSwapMove.hh"
 #include "ViolatorCollector.hh"
-#include "RepairSearch.hh"
 #include "rsz/Resizer.hh"
 #include "sta/Fuzzy.hh"
 #include "sta/Graph.hh"
@@ -282,8 +282,8 @@ bool RepairSetup::repairSetup(const float setup_slack_margin,
     phases_str = phases;
     logger_->info(RSZ, 216, "Using custom phase sequence: {}", phases);
   } else {
-    // phases_str = "WNS WNS_CONE WNS TNS WNS";
-    phases_str = "SP_FO EP_FI";
+    // phases_str = "WNS_PATH WNS_CONE TNS WNS_PATH";
+    phases_str = "LEGACY LAST_GASP";
   }
 
   // Parse and execute phase sequence

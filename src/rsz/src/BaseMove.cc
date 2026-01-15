@@ -97,6 +97,9 @@ void BaseMove::init()
   accepted_count_ = 0;
   pending_inst_set_.clear();
   accepted_inst_set_.clear();
+  for (auto info : pending_move_info_) {
+    delete info;
+  }
   pending_move_info_.clear();
 }
 
@@ -106,7 +109,8 @@ void BaseMove::startMove(const Pin* drvr_pin)
   active_move_info_ = new MoveInfo(this, drvr_pin);
 }
 
-bool BaseMove::endMove(bool accepted) {
+bool BaseMove::endMove(bool accepted)
+{
   assert(active_move_info_);
   if (accepted) {
     pending_move_info_.push_back(active_move_info_);
@@ -125,10 +129,6 @@ void BaseMove::countMove(Instance* inst, int count)
   // This count is also used when we add more than 1 buffer during rebuffer.
   // Default is to add 1 to the pending count.
   pending_count_ += count;
-  // Add it to all moves, even though it wasn't accepted.
-  // This is the behavior to match the current resizer.
-  //all_inst_set_.insert(inst);
-  // Also add it to the pending moves
   pending_inst_set_.insert(inst);
   // Record this in the active move info
   if (active_move_info_) {

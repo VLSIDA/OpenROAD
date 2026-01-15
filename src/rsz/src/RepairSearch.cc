@@ -5,6 +5,7 @@
 
 #include <cassert>
 #include <cmath>
+#include <numbers>
 #include <queue>
 #include <string>
 #include <utility>
@@ -378,7 +379,7 @@ std::pair<const Pin*, BaseMove*> RepairSearch::getBestImmediateMove()
     }
   }
   std::pair<const Pin*, BaseMove*> result = {nullptr, nullptr};
-  if (best_child != nullptr && fuzzyLess(root_->slack_, best_slack)) {
+  if (best_child && fuzzyLess(root_->slack_, best_slack)) {
     result = {best_child->pin_, best_child->move_};
     debugPrint(logger_,
                RSZ,
