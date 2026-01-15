@@ -1,0 +1,780 @@
+violation type: Metal Spacing
+	srcs: net:clk net:clknet_leaf_23_core_clock_tree
+	bbox = (6.3950, 3.8160) - (6.4810, 4.0250) on Layer met1
+violation type: Metal Spacing
+	srcs: net:clk net:clknet_leaf_23_core_clock_tree
+	bbox = (7.7750, 3.8160) - (7.8610, 4.0250) on Layer met1
+violation type: Metal Spacing
+	srcs: net:clk net:clknet_leaf_22_core_clock_tree
+	bbox = (21.9950, 3.8160) - (22.1210, 3.9050) on Layer met1
+violation type: Metal Spacing
+	srcs: net:clk net:clknet_leaf_22_core_clock_tree
+	bbox = (31.1950, 3.8160) - (31.3210, 3.9050) on Layer met1
+violation type: Metal Spacing
+	srcs: net:clk net:net159
+	bbox = (15.3400, 12.1400) - (15.4800, 12.1700) on Layer met1
+violation type: Metal Spacing
+	srcs: net:clk net:net159
+	bbox = (15.3400, 12.1400) - (15.6100, 12.1700) on Layer met1
+violation type: Metal Spacing
+	srcs: net:clk net:net198
+	bbox = (7.2750, 14.7250) - (7.4010, 14.9550) on Layer met1
+violation type: Metal Spacing
+	srcs: net:clk net:clknet_1_0__leaf_core_clock_tree
+	bbox = (10.9550, 17.6830) - (11.0810, 17.8850) on Layer met1
+violation type: Metal Spacing
+	srcs: net:clk net:clknet_leaf_1_core_clock_tree
+	bbox = (2.7150, 20.1360) - (2.8010, 20.3450) on Layer met1
+violation type: Metal Spacing
+	srcs: net:clk net:clknet_leaf_1_core_clock_tree
+	bbox = (2.7150, 20.1600) - (2.8010, 20.3000) on Layer met1
+violation type: Metal Spacing
+	srcs: net:clknet_leaf_1_core_clock_tree
+	bbox = (2.3850, 23.4050) - (2.6750, 23.5000) on Layer met1
+violation type: Metal Spacing
+	srcs: net:clknet_leaf_22_core_clock_tree
+	bbox = (21.8200, 3.6400) - (21.9950, 3.6750) on Layer met1
+violation type: Metal Spacing
+	srcs: net:clknet_leaf_22_core_clock_tree
+	bbox = (30.9800, 3.6400) - (31.1950, 3.6750) on Layer met1
+violation type: Metal Spacing
+	srcs: net:ctrl.state.out\[1\]
+	bbox = (11.2100, 22.6800) - (11.4150, 22.7650) on Layer met1
+violation type: Metal Spacing
+	srcs: net:net198
+	bbox = (27.2400, 33.2200) - (27.4400, 33.3300) on Layer met2
+violation type: Metal Spacing
+	srcs: net:clk net:req_msg[2]
+	bbox = (1.2150, 22.8850) - (1.5300, 23.1400) on Layer met3
+violation type: Metal Spacing
+	srcs: net:clk net:req_msg[2]
+	bbox = (1.1900, 22.8800) - (1.5300, 23.1400) on Layer met3
+violation type: Metal Spacing
+	srcs: net:clk net:reset
+	bbox = (1.3300, 31.3110) - (1.5300, 31.4700) on Layer met3
+violation type: Metal Spacing
+	srcs: net:clk net:reset
+	bbox = (1.3300, 31.3060) - (1.5300, 31.4700) on Layer met3
+violation type: Metal Spacing
+	srcs: net:clk net:clknet_1_0__leaf_core_clock_tree
+	bbox = (4.9750, 36.5150) - (5.1010, 36.7160) on Layer met1
+violation type: Metal Spacing
+	srcs: net:clk net:clknet_1_0__leaf_core_clock_tree
+	bbox = (24.2950, 36.5150) - (24.4210, 36.7160) on Layer met1
+violation type: Metal Spacing
+	srcs: net:clk net:clknet_1_0__leaf_core_clock_tree
+	bbox = (24.2950, 36.5150) - (24.4210, 36.6200) on Layer met1
+violation type: Metal Spacing
+	srcs: net:clk net:clknet_leaf_4_core_clock_tree
+	bbox = (17.8550, 52.8350) - (17.9810, 53.0360) on Layer met1
+violation type: Metal Spacing
+	srcs: net:clk net:clknet_leaf_5_core_clock_tree
+	bbox = (9.6150, 58.2160) - (9.7010, 58.4250) on Layer met1
+violation type: Metal Spacing
+	srcs: net:clk net:clknet_leaf_6_core_clock_tree
+	bbox = (21.0750, 58.2750) - (21.2010, 58.4760) on Layer met1
+violation type: Metal Spacing
+	srcs: net:clk net:clknet_1_0__leaf_core_clock_tree
+	bbox = (13.7550, 69.1200) - (13.8410, 69.2600) on Layer met1
+violation type: Metal Spacing
+	srcs: net:clk net:clknet_1_0__leaf_core_clock_tree
+	bbox = (13.7550, 69.0960) - (13.8410, 69.3050) on Layer met1
+violation type: Metal Spacing
+	srcs: net:net140
+	bbox = (7.9050, 52.9850) - (8.1950, 53.0800) on Layer met1
+violation type: Metal Spacing
+	srcs: net:clknet_leaf_4_core_clock_tree
+	bbox = (17.5650, 53.0650) - (17.7400, 53.1400) on Layer met1
+violation type: Metal Spacing
+	srcs: net:clknet_leaf_4_core_clock_tree
+	bbox = (17.5500, 53.0650) - (17.5650, 53.1400) on Layer met1
+violation type: Metal Spacing
+	srcs: net:net19
+	bbox = (7.6600, 58.2400) - (7.7800, 58.4250) on Layer met1
+violation type: Metal Spacing
+	srcs: net:net138
+	bbox = (20.3250, 52.9850) - (20.6150, 53.0800) on Layer met1
+violation type: Metal Spacing
+	srcs: net:dpath.a_lt_b$in0\[11\]
+	bbox = (22.3800, 63.6800) - (22.4750, 63.8650) on Layer met1
+violation type: Metal Spacing
+	srcs: net:_118_ net:clk
+	bbox = (31.1200, 62.5350) - (31.2400, 62.9050) on Layer met2
+violation type: Metal Spacing
+	srcs: net:clk net:resp_msg[9]
+	bbox = (1.2150, 42.4800) - (1.5700, 42.5550) on Layer met3
+violation type: Metal Spacing
+	srcs: net:clk net:resp_msg[9]
+	bbox = (1.2300, 42.4800) - (1.5700, 42.5550) on Layer met3
+violation type: Metal Spacing
+	srcs: net:clk net:resp_msg[9]
+	bbox = (1.1900, 42.4800) - (1.5700, 42.5600) on Layer met3
+violation type: Metal Spacing
+	srcs: net:clk net:resp_msg[9]
+	bbox = (1.2300, 42.4800) - (1.5700, 42.5600) on Layer met3
+violation type: Metal Spacing
+	srcs: net:clk net:resp_msg[10]
+	bbox = (1.3300, 53.0710) - (1.5300, 53.2300) on Layer met3
+violation type: Metal Spacing
+	srcs: net:clk net:resp_msg[10]
+	bbox = (1.3300, 53.0660) - (1.5300, 53.2300) on Layer met3
+violation type: Metal Spacing
+	srcs: net:resp_msg[8]
+	bbox = (0.3100, 44.1800) - (0.8550, 44.3750) on Layer met3
+violation type: Metal Spacing
+	srcs: net:resp_msg[8]
+	bbox = (0.5250, 44.1800) - (0.8550, 44.3750) on Layer met3
+violation type: Metal Spacing
+	srcs: net:clk net:net13
+	bbox = (49.1350, 3.8160) - (49.2610, 4.0350) on Layer met1
+violation type: Metal Spacing
+	srcs: net:clk net:net13
+	bbox = (49.1350, 3.8400) - (49.2610, 3.9800) on Layer met1
+violation type: Metal Spacing
+	srcs: net:clk net:clknet_leaf_18_core_clock_tree
+	bbox = (61.0950, 12.4150) - (61.2210, 12.5030) on Layer met1
+violation type: Metal Spacing
+	srcs: net:clk net:clknet_leaf_17_core_clock_tree
+	bbox = (62.4750, 12.4150) - (62.6010, 12.5030) on Layer met1
+violation type: Metal Spacing
+	srcs: net:_027_ net:clk
+	bbox = (66.1550, 12.2950) - (66.2810, 12.5030) on Layer met1
+violation type: Metal Spacing
+	srcs: net:clk net:clknet_leaf_15_core_clock_tree
+	bbox = (57.8750, 20.1950) - (58.0010, 20.3960) on Layer met1
+violation type: Metal Spacing
+	srcs: net:clk net:clknet_leaf_16_core_clock_tree
+	bbox = (67.5350, 25.5760) - (67.6610, 25.6650) on Layer met1
+violation type: Metal Spacing
+	srcs: net:clk net:clknet_leaf_17_core_clock_tree
+	bbox = (68.9550, 25.6000) - (69.0410, 25.7400) on Layer met1
+violation type: Metal Spacing
+	srcs: net:clk net:clknet_leaf_17_core_clock_tree
+	bbox = (68.9550, 25.5760) - (69.0410, 25.7850) on Layer met1
+violation type: Metal Spacing
+	srcs: net:clknet_leaf_19_core_clock_tree
+	bbox = (54.4400, 12.6450) - (54.6550, 12.6800) on Layer met1
+violation type: Metal Spacing
+	srcs: net:net166
+	bbox = (58.0450, 22.4000) - (58.3350, 22.4950) on Layer met1
+violation type: Metal Spacing
+	srcs: net:clknet_leaf_17_core_clock_tree
+	bbox = (62.3000, 12.6450) - (62.4750, 12.6800) on Layer met1
+violation type: Metal Spacing
+	srcs: net:clknet_leaf_17_core_clock_tree
+	bbox = (71.8450, 20.0200) - (72.1350, 20.1150) on Layer met1
+violation type: Metal Spacing
+	srcs: net:clknet_leaf_16_core_clock_tree
+	bbox = (67.3600, 25.4000) - (67.5350, 25.4350) on Layer met1
+violation type: Metal Spacing
+	srcs: net:clknet_leaf_16_core_clock_tree
+	bbox = (72.3050, 28.8450) - (72.5950, 28.9400) on Layer met1
+violation type: Metal Spacing
+	srcs: net:net141
+	bbox = (60.8800, 7.1300) - (61.0800, 7.2400) on Layer met2
+violation type: Metal Spacing
+	srcs: net:clk net:clknet_leaf_9_core_clock_tree
+	bbox = (42.6950, 39.6150) - (42.8210, 39.7030) on Layer met1
+violation type: Metal Spacing
+	srcs: net:clk net:net197
+	bbox = (61.0950, 41.8960) - (61.2210, 42.0750) on Layer met1
+violation type: Metal Spacing
+	srcs: net:clk net:clknet_leaf_13_core_clock_tree
+	bbox = (62.4750, 41.8960) - (62.6010, 41.9850) on Layer met1
+violation type: Metal Spacing
+	srcs: net:_083_ net:clk
+	bbox = (44.9950, 47.3360) - (45.1210, 47.4350) on Layer met1
+violation type: Metal Spacing
+	srcs: net:clk net:clknet_leaf_13_core_clock_tree
+	bbox = (62.4750, 52.8350) - (62.6010, 53.0360) on Layer met1
+violation type: Metal Spacing
+	srcs: net:clk net:dpath.a_lt_b$in1\[13\]
+	bbox = (52.3550, 55.7650) - (52.4810, 55.9950) on Layer met1
+violation type: Metal Spacing
+	srcs: net:clk net:net197
+	bbox = (62.4750, 55.7650) - (62.6010, 55.9950) on Layer met1
+violation type: Metal Spacing
+	srcs: net:clk net:clknet_leaf_8_core_clock_tree
+	bbox = (37.6350, 63.6560) - (37.7610, 63.8650) on Layer met1
+violation type: Metal Spacing
+	srcs: net:_116_ net:clk
+	bbox = (37.6550, 69.1200) - (37.7610, 69.2600) on Layer met1
+violation type: Metal Spacing
+	srcs: net:_116_ net:clk
+	bbox = (37.6550, 69.0960) - (37.7610, 69.3050) on Layer met1
+violation type: Metal Spacing
+	srcs: net:_067_
+	bbox = (36.4250, 52.9850) - (36.7150, 53.0800) on Layer met1
+violation type: Metal Spacing
+	srcs: net:net159
+	bbox = (64.0100, 72.3800) - (64.1200, 72.4750) on Layer met1
+violation type: Metal Spacing
+	srcs: net:net159
+	bbox = (63.9050, 72.3800) - (64.1200, 72.4750) on Layer met1
+violation type: Metal Spacing
+	srcs: net:net197
+	bbox = (60.8050, 41.7200) - (61.0200, 41.8450) on Layer met1
+violation type: Metal Spacing
+	srcs: net:dpath.a_lt_b$in0\[7\]
+	bbox = (50.4400, 41.9200) - (50.5350, 42.1050) on Layer met1
+violation type: Metal Spacing
+	srcs: net:clknet_leaf_13_core_clock_tree
+	bbox = (62.2600, 41.7200) - (62.4750, 41.7550) on Layer met1
+violation type: Metal Spacing
+	srcs: net:clknet_leaf_13_core_clock_tree
+	bbox = (71.8450, 47.2200) - (72.1350, 47.3150) on Layer met1
+violation type: Metal Spacing
+	srcs: net:clknet_leaf_12_core_clock_tree
+	bbox = (63.5650, 52.9850) - (63.8550, 53.0800) on Layer met1
+violation type: Metal Spacing
+	srcs: net:clk net:clknet_leaf_8_core_clock_tree
+	bbox = (36.1800, 52.5350) - (36.2400, 52.9050) on Layer met2
+violation type: Metal Spacing
+	srcs: net:clk net:net142
+	bbox = (36.1800, 67.5350) - (36.2400, 67.9050) on Layer met2
+violation type: Metal Spacing
+	srcs: net:net142
+	bbox = (35.1200, 66.9700) - (35.3200, 67.0800) on Layer met2
+violation type: Short
+	srcs: net:ctrl$b_reg_en\[0\] net:dpath.b_mux$out\[2\]
+	bbox = (2.9200, 12.6800) - (3.0600, 12.8200) on Layer met1
+violation type: Short
+	srcs: net:net12 net:net198
+	bbox = (8.6700, 18.1200) - (8.6850, 18.2600) on Layer met1
+violation type: Short
+	srcs: net:net12 net:net198
+	bbox = (8.6700, 18.1200) - (8.8100, 18.2600) on Layer met1
+violation type: Short
+	srcs: net:clk net:resp_msg[1]
+	bbox = (24.5400, 2.6700) - (24.6800, 2.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:req_msg[19]
+	bbox = (27.7600, 2.6700) - (27.9000, 2.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:resp_msg[2]
+	bbox = (29.6000, 2.6700) - (29.7400, 2.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:clknet_leaf_23_core_clock_tree
+	bbox = (9.8200, 7.6700) - (9.9600, 7.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:net141
+	bbox = (10.7400, 7.6700) - (10.8800, 7.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:net159
+	bbox = (10.2800, 7.6700) - (10.4200, 7.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:net141
+	bbox = (27.3000, 7.6700) - (27.4400, 7.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:net44
+	bbox = (17.6400, 7.6700) - (17.7800, 7.7700) on Layer met2
+violation type: Short
+	srcs: net:_130_ net:clk
+	bbox = (13.0400, 7.6700) - (13.1800, 7.7700) on Layer met2
+violation type: Short
+	srcs: net:_132_ net:clk
+	bbox = (22.7000, 7.6700) - (22.8400, 7.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:clknet_leaf_22_core_clock_tree
+	bbox = (25.0000, 7.6700) - (25.1400, 7.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:net44
+	bbox = (17.6400, 12.6700) - (17.7800, 12.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:net123
+	bbox = (20.8600, 12.6700) - (21.0000, 12.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:net141
+	bbox = (25.4600, 12.6700) - (25.6000, 12.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:ctrl$b_reg_en\[0\]
+	bbox = (7.0600, 22.6700) - (7.2000, 22.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:ctrl$b_reg_en\[0\]
+	bbox = (25.9200, 27.6700) - (26.0600, 27.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:clknet_leaf_21_core_clock_tree
+	bbox = (32.8200, 27.6700) - (32.9600, 27.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:req_val
+	bbox = (3.3800, 27.6700) - (3.5200, 27.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:clknet_leaf_2_core_clock_tree
+	bbox = (22.7000, 27.6700) - (22.8400, 27.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:net33
+	bbox = (7.9800, 27.6700) - (8.1200, 27.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:net198
+	bbox = (10.7400, 27.6700) - (10.8800, 27.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:net198
+	bbox = (7.0600, 32.6700) - (7.2000, 32.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:ctrl$b_reg_en\[0\]
+	bbox = (25.9200, 32.6700) - (26.0600, 32.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:net198
+	bbox = (26.8400, 32.6700) - (26.9800, 32.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:net143
+	bbox = (30.9000, 32.6700) - (31.0400, 32.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:net143
+	bbox = (30.9800, 32.6700) - (31.0400, 32.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:clknet_leaf_2_core_clock_tree
+	bbox = (22.7000, 32.6700) - (22.8400, 32.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:net33
+	bbox = (7.9800, 32.6700) - (8.1200, 32.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:reset
+	bbox = (1.3300, 31.4700) - (1.4300, 31.9400) on Layer met3
+violation type: Short
+	srcs: net:clk net:reset
+	bbox = (1.3300, 31.6400) - (1.4300, 31.9400) on Layer met3
+violation type: Short
+	srcs: net:clk net:reset
+	bbox = (1.3300, 31.4700) - (1.4300, 31.7700) on Layer met3
+violation type: Short
+	srcs: net:clk net:reset
+	bbox = (1.3300, 31.6400) - (1.4300, 31.7700) on Layer met3
+violation type: Short
+	srcs: net:clk net:req_rdy
+	bbox = (1.3300, 32.8300) - (1.4300, 33.3000) on Layer met3
+violation type: Short
+	srcs: net:clk net:req_val
+	bbox = (1.3300, 30.2800) - (1.4300, 30.4100) on Layer met3
+violation type: Short
+	srcs: net:clk net:req_val
+	bbox = (1.3300, 30.1100) - (1.4300, 30.4100) on Layer met3
+violation type: Short
+	srcs: net:clk net:req_val
+	bbox = (1.3300, 30.1100) - (1.4300, 30.5800) on Layer met3
+violation type: Short
+	srcs: net:clk net:req_val
+	bbox = (1.3300, 30.2800) - (1.4300, 30.5800) on Layer met3
+violation type: Short
+	srcs: net:clk net:req_msg[1]
+	bbox = (1.3300, 19.2300) - (1.4300, 19.5300) on Layer met3
+violation type: Short
+	srcs: net:clk net:req_msg[1]
+	bbox = (1.3300, 19.4000) - (1.4300, 19.5300) on Layer met3
+violation type: Short
+	srcs: net:clk net:req_msg[2]
+	bbox = (1.3300, 23.1400) - (1.4300, 23.6100) on Layer met3
+violation type: Short
+	srcs: net:clk net:req_msg[2]
+	bbox = (1.3300, 23.3100) - (1.4300, 23.6100) on Layer met3
+violation type: Short
+	srcs: net:clk net:req_rdy
+	bbox = (1.3300, 32.8300) - (1.4300, 33.1300) on Layer met3
+violation type: Short
+	srcs: net:clk net:req_msg[1]
+	bbox = (1.3300, 19.2300) - (1.4300, 19.7000) on Layer met3
+violation type: Short
+	srcs: net:clk net:req_msg[1]
+	bbox = (1.3300, 19.4000) - (1.4300, 19.5450) on Layer met3
+violation type: Short
+	srcs: net:clk net:req_msg[1]
+	bbox = (1.3300, 19.4000) - (1.4300, 19.7000) on Layer met3
+violation type: Short
+	srcs: net:clk net:req_msg[2]
+	bbox = (1.3300, 23.1400) - (1.5300, 23.4180) on Layer met3
+violation type: Short
+	srcs: net:clk net:req_msg[2]
+	bbox = (1.3300, 23.3100) - (1.5300, 23.4180) on Layer met3
+violation type: Short
+	srcs: net:clk net:req_msg[2]
+	bbox = (1.3300, 23.1400) - (1.5300, 23.4130) on Layer met3
+violation type: Short
+	srcs: net:clk net:req_msg[2]
+	bbox = (1.3300, 23.3100) - (1.5300, 23.4130) on Layer met3
+violation type: Short
+	srcs: net:clk net:req_rdy
+	bbox = (1.2150, 32.8300) - (1.5300, 32.8850) on Layer met3
+violation type: Short
+	srcs: net:clk net:req_rdy
+	bbox = (1.1900, 32.8300) - (1.5300, 32.8800) on Layer met3
+violation type: Short
+	srcs: net:net18 net:net140
+	bbox = (8.4400, 52.4600) - (8.5800, 52.6000) on Layer met1
+violation type: Short
+	srcs: net:clk net:clknet_1_0__leaf_core_clock_tree
+	bbox = (26.3800, 37.5350) - (26.5200, 37.9050) on Layer met2
+violation type: Short
+	srcs: net:clk net:clknet_1_0__leaf_core_clock_tree
+	bbox = (26.3800, 37.6700) - (26.5200, 37.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:net140
+	bbox = (9.8200, 42.6700) - (9.9600, 42.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:net147
+	bbox = (8.4400, 42.6700) - (8.5800, 42.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:clknet_leaf_4_core_clock_tree
+	bbox = (13.0400, 42.6700) - (13.1800, 42.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:net152
+	bbox = (23.1600, 42.6700) - (23.3000, 42.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:clknet_leaf_3_core_clock_tree
+	bbox = (33.7400, 42.6700) - (33.8800, 42.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:clknet_leaf_5_core_clock_tree
+	bbox = (11.2400, 57.5350) - (11.3400, 57.9050) on Layer met2
+violation type: Short
+	srcs: net:clk net:net19
+	bbox = (5.6800, 57.6700) - (5.8200, 57.7700) on Layer met2
+violation type: Short
+	srcs: net:_112_ net:clk
+	bbox = (11.6600, 57.6700) - (11.8000, 57.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:clknet_leaf_5_core_clock_tree
+	bbox = (11.2000, 57.6700) - (11.3400, 57.7700) on Layer met2
+violation type: Short
+	srcs: net:_113_ net:clk
+	bbox = (10.2800, 57.6700) - (10.4200, 57.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:clknet_leaf_3_core_clock_tree
+	bbox = (22.2400, 57.6700) - (22.3800, 57.7700) on Layer met2
+violation type: Short
+	srcs: net:_065_ net:clk
+	bbox = (20.4000, 57.6700) - (20.5400, 57.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:net146
+	bbox = (3.8400, 62.6700) - (3.9800, 62.7700) on Layer met2
+violation type: Short
+	srcs: net:_007_ net:clk
+	bbox = (28.6800, 62.6700) - (28.8200, 62.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:net182
+	bbox = (25.9200, 62.6700) - (26.0600, 62.7700) on Layer met2
+violation type: Short
+	srcs: net:_066_ net:clk
+	bbox = (24.0800, 62.6700) - (24.2200, 62.7700) on Layer met2
+violation type: Short
+	srcs: net:_118_ net:clk
+	bbox = (30.9800, 62.6700) - (31.1200, 62.7700) on Layer met2
+violation type: Short
+	srcs: net:_065_ net:clk
+	bbox = (20.4000, 62.6700) - (20.5400, 62.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:net181
+	bbox = (16.7200, 62.6700) - (16.8600, 62.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:dpath.a_lt_b$in1\[10\]
+	bbox = (19.4800, 62.6700) - (19.6200, 62.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:net128
+	bbox = (33.2800, 67.6700) - (33.4200, 67.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:dpath.a_lt_b$in0\[11\]
+	bbox = (22.2400, 72.6700) - (22.3800, 72.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:resp_msg[10]
+	bbox = (1.3300, 53.2300) - (1.4300, 53.7000) on Layer met3
+violation type: Short
+	srcs: net:clk net:resp_val
+	bbox = (1.3300, 34.0200) - (1.4300, 34.4900) on Layer met3
+violation type: Short
+	srcs: net:clk net:req_msg[9]
+	bbox = (1.3300, 45.0700) - (1.4300, 45.3700) on Layer met3
+violation type: Short
+	srcs: net:clk net:req_msg[9]
+	bbox = (1.3300, 45.0700) - (1.4300, 45.5400) on Layer met3
+violation type: Short
+	srcs: net:clk net:resp_msg[8]
+	bbox = (1.3300, 43.7100) - (1.4300, 44.0100) on Layer met3
+violation type: Short
+	srcs: net:clk net:resp_msg[8]
+	bbox = (1.3300, 43.7100) - (1.4300, 44.1800) on Layer met3
+violation type: Short
+	srcs: net:clk net:resp_msg[9]
+	bbox = (1.3300, 42.3500) - (1.4300, 42.6500) on Layer met3
+violation type: Short
+	srcs: net:clk net:resp_msg[9]
+	bbox = (1.3300, 42.3500) - (1.4300, 42.4800) on Layer met3
+violation type: Short
+	srcs: net:clk net:resp_msg[10]
+	bbox = (1.3300, 53.2300) - (1.4300, 53.5300) on Layer met3
+violation type: Short
+	srcs: net:clk net:resp_msg[10]
+	bbox = (1.3300, 53.4000) - (1.4300, 53.7000) on Layer met3
+violation type: Short
+	srcs: net:clk net:resp_msg[10]
+	bbox = (1.3300, 53.4000) - (1.4300, 53.5300) on Layer met3
+violation type: Short
+	srcs: net:clk net:resp_msg[9]
+	bbox = (1.3300, 42.1800) - (1.4300, 42.4800) on Layer met3
+violation type: Short
+	srcs: net:clk net:resp_msg[9]
+	bbox = (1.3300, 42.1800) - (1.4300, 42.6500) on Layer met3
+violation type: Short
+	srcs: net:clk net:resp_val
+	bbox = (1.3300, 34.1900) - (1.4300, 34.3200) on Layer met3
+violation type: Short
+	srcs: net:clk net:resp_val
+	bbox = (1.3300, 34.1900) - (1.4300, 34.4900) on Layer met3
+violation type: Short
+	srcs: net:clk net:resp_val
+	bbox = (1.3300, 34.0200) - (1.4300, 34.3200) on Layer met3
+violation type: Short
+	srcs: net:clk net:resp_rdy
+	bbox = (1.3300, 35.5500) - (1.4300, 35.8500) on Layer met3
+violation type: Short
+	srcs: net:clk net:resp_rdy
+	bbox = (1.3300, 35.5500) - (1.4300, 36.0200) on Layer met3
+violation type: Short
+	srcs: net:clk net:resp_rdy
+	bbox = (1.3300, 35.7200) - (1.4300, 35.8650) on Layer met3
+violation type: Short
+	srcs: net:clk net:resp_rdy
+	bbox = (1.3300, 35.7200) - (1.4300, 36.0200) on Layer met3
+violation type: Short
+	srcs: net:clk net:req_msg[24]
+	bbox = (1.3300, 36.7400) - (1.4300, 37.0400) on Layer met3
+violation type: Short
+	srcs: net:clk net:req_msg[24]
+	bbox = (1.3300, 36.7400) - (1.4300, 37.2100) on Layer met3
+violation type: Short
+	srcs: net:clk net:req_msg[24]
+	bbox = (1.3300, 36.9100) - (1.4300, 37.2100) on Layer met3
+violation type: Short
+	srcs: net:clk net:req_msg[24]
+	bbox = (1.3300, 36.9100) - (1.4300, 37.0400) on Layer met3
+violation type: Short
+	srcs: net:clk net:req_msg[25]
+	bbox = (1.3300, 39.6300) - (1.4300, 39.9300) on Layer met3
+violation type: Short
+	srcs: net:clk net:resp_rdy
+	bbox = (1.3300, 35.7200) - (1.4300, 35.8500) on Layer met3
+violation type: Short
+	srcs: net:clk net:req_msg[26]
+	bbox = (1.3300, 50.5100) - (1.4300, 50.9800) on Layer met3
+violation type: Short
+	srcs: net:clk net:req_msg[26]
+	bbox = (1.3300, 50.5100) - (1.4300, 50.8100) on Layer met3
+violation type: Short
+	srcs: net:req_msg[10] net:clk
+	bbox = (1.3300, 60.0300) - (1.4300, 60.3300) on Layer met3
+violation type: Short
+	srcs: net:req_msg[10] net:clk
+	bbox = (1.3300, 60.0300) - (1.4300, 60.5000) on Layer met3
+violation type: Short
+	srcs: net:req_msg[10] net:clk
+	bbox = (1.3300, 60.2000) - (1.4300, 60.5000) on Layer met3
+violation type: Short
+	srcs: net:req_msg[10] net:clk
+	bbox = (1.3300, 60.2000) - (1.4300, 60.3300) on Layer met3
+violation type: Short
+	srcs: net:clk net:core_clock_tree
+	bbox = (1.3300, 70.9100) - (1.4300, 71.2100) on Layer met3
+violation type: Short
+	srcs: net:clk net:core_clock_tree
+	bbox = (1.3300, 70.9100) - (1.4300, 71.3800) on Layer met3
+violation type: Short
+	srcs: net:clk net:core_clock_tree
+	bbox = (1.3300, 71.0800) - (1.4300, 71.3800) on Layer met3
+violation type: Short
+	srcs: net:clk net:core_clock_tree
+	bbox = (1.3300, 71.0800) - (1.4300, 71.2100) on Layer met3
+violation type: Short
+	srcs: net:clk net:req_msg[25]
+	bbox = (1.3300, 39.6300) - (1.7460, 39.7380) on Layer met3
+violation type: Short
+	srcs: net:clk net:req_msg[25]
+	bbox = (1.3300, 39.6300) - (1.7710, 39.7330) on Layer met3
+violation type: Short
+	srcs: net:clk net:resp_msg[9]
+	bbox = (1.2150, 42.5550) - (1.5300, 42.6500) on Layer met3
+violation type: Short
+	srcs: net:clk net:resp_msg[9]
+	bbox = (1.2300, 42.5550) - (1.5300, 42.6500) on Layer met3
+violation type: Short
+	srcs: net:clk net:resp_msg[9]
+	bbox = (1.1900, 42.5600) - (1.5300, 42.6500) on Layer met3
+violation type: Short
+	srcs: net:clk net:resp_msg[9]
+	bbox = (1.2300, 42.5600) - (1.5300, 42.6500) on Layer met3
+violation type: Short
+	srcs: net:clk net:req_msg[9]
+	bbox = (1.3300, 45.0700) - (1.5300, 45.1780) on Layer met3
+violation type: Short
+	srcs: net:clk net:req_msg[9]
+	bbox = (1.3300, 45.0700) - (1.5300, 45.1730) on Layer met3
+violation type: Short
+	srcs: net:clk net:req_msg[26]
+	bbox = (1.3300, 50.5100) - (1.5300, 50.6180) on Layer met3
+violation type: Short
+	srcs: net:clk net:req_msg[26]
+	bbox = (1.3300, 50.5100) - (1.5300, 50.6130) on Layer met3
+violation type: Short
+	srcs: net:_105_ net:_108_
+	bbox = (42.4800, 28.6150) - (42.6200, 28.8450) on Layer met1
+violation type: Short
+	srcs: net:_105_ net:_108_
+	bbox = (42.4800, 28.6800) - (42.6200, 28.8200) on Layer met1
+violation type: Short
+	srcs: net:clk net:resp_msg[6]
+	bbox = (58.1200, 2.6700) - (58.2200, 2.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:resp_msg[6]
+	bbox = (58.0800, 2.6700) - (58.2200, 2.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:req_msg[4]
+	bbox = (44.4650, 2.6700) - (44.6050, 2.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:net141
+	bbox = (61.3400, 7.5350) - (61.4800, 7.9050) on Layer met2
+violation type: Short
+	srcs: net:clk net:net14
+	bbox = (65.0200, 7.6700) - (65.1600, 7.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:resp_msg[6]
+	bbox = (58.5800, 7.6700) - (58.7200, 7.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:net141
+	bbox = (61.3400, 7.6700) - (61.4800, 7.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:net47
+	bbox = (53.0600, 7.6700) - (53.2000, 7.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:clknet_leaf_19_core_clock_tree
+	bbox = (49.3800, 7.6700) - (49.5200, 7.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:net141
+	bbox = (44.4650, 7.6700) - (44.6050, 7.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:clknet_leaf_22_core_clock_tree
+	bbox = (40.1800, 7.6700) - (40.3200, 7.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:clknet_leaf_19_core_clock_tree
+	bbox = (48.4600, 12.6700) - (48.6000, 12.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:net135
+	bbox = (50.0700, 12.6700) - (50.2100, 12.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:clknet_leaf_15_core_clock_tree
+	bbox = (63.6400, 27.6700) - (63.7800, 27.7700) on Layer met2
+violation type: Short
+	srcs: net:_105_ net:clk
+	bbox = (37.4200, 27.6700) - (37.5600, 27.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:net140
+	bbox = (63.1800, 32.6700) - (63.2650, 32.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:net140
+	bbox = (63.1250, 32.6700) - (63.2650, 32.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:clknet_leaf_15_core_clock_tree
+	bbox = (59.5000, 32.6700) - (59.6400, 32.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:clknet_leaf_21_core_clock_tree
+	bbox = (34.6600, 32.6700) - (34.8000, 32.7700) on Layer met2
+violation type: Short
+	srcs: net:_140_ net:clk
+	bbox = (51.6800, 32.6700) - (51.8200, 32.7700) on Layer met2
+violation type: Short
+	srcs: net:_115_
+	bbox = (35.1200, 67.7600) - (35.2600, 68.2400) on Layer met1
+violation type: Short
+	srcs: net:_115_ net:VSS
+	bbox = (35.1200, 67.7600) - (35.2600, 68.2400) on Layer met1
+violation type: Short
+	srcs: net:_081_ net:dpath.a_lt_b$in0\[7\]
+	bbox = (57.2000, 42.6000) - (57.3400, 42.7400) on Layer met1
+violation type: Short
+	srcs: net:_046_ net:clk
+	bbox = (40.1800, 42.6700) - (40.3200, 42.7700) on Layer met2
+violation type: Short
+	srcs: net:_048_ net:clk
+	bbox = (38.3400, 42.6700) - (38.4800, 42.7700) on Layer met2
+violation type: Short
+	srcs: net:_058_ net:clk
+	bbox = (44.3200, 42.6700) - (44.4600, 42.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:net164
+	bbox = (44.7800, 42.6700) - (44.9200, 42.7700) on Layer met2
+violation type: Short
+	srcs: net:_081_ net:clk
+	bbox = (56.7400, 42.6700) - (56.8800, 42.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:dpath.b_mux$out\[15\]
+	bbox = (68.7000, 42.6700) - (68.8400, 42.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:clknet_leaf_13_core_clock_tree
+	bbox = (65.0200, 42.6700) - (65.1600, 42.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:net178
+	bbox = (54.9000, 47.6700) - (55.0400, 47.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:clknet_leaf_8_core_clock_tree
+	bbox = (36.0400, 52.6700) - (36.1800, 52.7700) on Layer met2
+violation type: Short
+	srcs: net:_075_ net:clk
+	bbox = (48.0000, 57.6700) - (48.1400, 57.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:dpath.a_lt_b$in1\[14\]
+	bbox = (67.7800, 57.6700) - (67.8650, 57.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:dpath.a_lt_b$in1\[14\]
+	bbox = (67.7250, 57.6700) - (67.8650, 57.7700) on Layer met2
+violation type: Short
+	srcs: net:_073_ net:clk
+	bbox = (43.8600, 57.6700) - (44.0000, 57.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:dpath.a_lt_b$in1\[13\]
+	bbox = (55.8200, 57.6700) - (55.9600, 57.7700) on Layer met2
+violation type: Short
+	srcs: net:_072_ net:clk
+	bbox = (35.1200, 57.6700) - (35.2600, 57.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:clknet_leaf_8_core_clock_tree
+	bbox = (37.4200, 57.6700) - (37.5600, 57.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:clknet_leaf_10_core_clock_tree
+	bbox = (49.3800, 62.6700) - (49.5200, 62.7700) on Layer met2
+violation type: Short
+	srcs: net:_075_ net:clk
+	bbox = (45.2400, 62.6700) - (45.3800, 62.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:dpath.a_lt_b$in0\[14\]
+	bbox = (64.1000, 62.6700) - (64.2400, 62.7700) on Layer met2
+violation type: Short
+	srcs: net:_073_ net:clk
+	bbox = (43.8600, 62.6700) - (44.0000, 62.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:net144
+	bbox = (53.0600, 62.6700) - (53.2000, 62.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:ctrl$b_reg_en\[0\]
+	bbox = (60.8800, 62.6700) - (61.0200, 62.7700) on Layer met2
+violation type: Short
+	srcs: net:_100_ net:clk
+	bbox = (58.5800, 62.6700) - (58.7200, 62.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:dpath.a_lt_b$in1\[13\]
+	bbox = (59.9600, 62.6700) - (60.1000, 62.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:clknet_leaf_8_core_clock_tree
+	bbox = (37.4200, 62.6700) - (37.5600, 62.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:net142
+	bbox = (36.0400, 67.6700) - (36.1800, 67.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:net197
+	bbox = (44.7800, 72.6700) - (44.9200, 72.7700) on Layer met2
+violation type: Short
+	srcs: net:_121_ net:clk
+	bbox = (65.0200, 72.6700) - (65.1600, 72.7700) on Layer met2
+violation type: Short
+	srcs: net:req_msg[13] net:clk
+	bbox = (51.6800, 72.6700) - (51.8200, 72.7700) on Layer met2
+violation type: Short
+	srcs: net:_077_ net:clk
+	bbox = (58.5800, 72.6700) - (58.7200, 72.7700) on Layer met2
+violation type: Short
+	srcs: net:clk net:req_msg[28]
+	bbox = (34.6600, 72.6700) - (34.8000, 72.7700) on Layer met2
