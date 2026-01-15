@@ -83,14 +83,6 @@ bool SplitLoadMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
     return endMove(false);
   }
 
-  // Divide and conquer.
-  debugPrint(logger_,
-             RSZ,
-             "repair_setup",
-             3,
-             "split loads {}",
-             network_->pathName(drvr_pin));
-
   // Sort fanouts of the drvr on the critical path by slack margin
   // wrt the critical path slack.
   const Slack drvr_slack = sta_->vertexSlack(drvr_vertex, resizer_->max_);
