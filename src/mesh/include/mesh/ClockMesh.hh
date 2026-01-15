@@ -66,10 +66,23 @@ struct MeshVia {
     : lower_layer(lower), upper_layer(upper), net(n), area(a), db_via(nullptr) {}
 };
 
+// Grid intersection representation
+struct GridIntersection {
+  int x;
+  int y;
+  odb::dbTechLayer* layer;
+  bool has_buffer = false;
+  odb::dbInst* buffer_inst = nullptr;
+
+  GridIntersection(int px, int py, odb::dbTechLayer* l)
+    : x(px), y(py), layer(l) {}
+};
+
 class ClockMesh
 {
  public:
   ClockMesh();
+  ~ClockMesh() = default;
 
   void init(ord::OpenRoad* openroad);
   void run(const char* name);
@@ -80,20 +93,22 @@ class ClockMesh
                       odb::dbTechLayer* v_layer,
                       int wire_width,
                       int pitch,
-                      const std::vector<std::string>& buffer_list = {});
+                      const std::vector<std::string>& buffer_list = {},
+                      odb::dbTechLayer* tree_layer = nullptr);
 
   void findClockSinks();
   void testPrintSinks();
 
-  void connectClockRootToMesh(const std::string& clock_name,
-                             odb::dbNet* mesh_net,
-                             const std::vector<MeshWire>& h_wires,
-                             const std::vector<MeshWire>& v_wires);
+  // Connect sinks to mesh
+  void connectSinks(const std::string& clock_name);
 
-  void connectSinksToMesh(const std::string& clock_name,
-                         odb::dbNet* mesh_net,
-                         const std::vector<MeshWire>& h_wires,
-                         const std::vector<MeshWire>& v_wires);
+  // Connect buffers to their intersections
+  void connectBuffersToIntersections(const std::string& clock_name);
+
+  // Get the tree net name for CTS integration
+  std::string getTreeNetName(const std::string& clock_name) const {
+    return clock_name + "_tree";
+  }
 
  private:
   // Sink finding helpers
@@ -107,6 +122,12 @@ class ClockMesh
   void computeITermPosition(odb::dbITerm* term, int& x, int& y) const;
   bool separateSinks(odb::dbNet* net,
                      std::vector<ClockSink>& sinks);
+
+  // Sink connection helpers (internal)
+  void connectSinksToMesh(const std::string& clock_name,
+                         odb::dbNet* mesh_net,
+                         const std::vector<MeshWire>& h_wires,
+                         const std::vector<MeshWire>& v_wires);
 
   // Mesh grid creation helpers
   odb::Rect calculateBoundingBox(const std::vector<ClockSink>& sinks);
@@ -129,19 +150,11 @@ class ClockMesh
   void writeViasToDb(const std::vector<MeshVia>& vias);
   odb::dbNet* getOrCreateClockNet(const std::string& clock_name);
 
-  // Root and sink connection helpers
-  odb::Point getClockRootLocation(odb::dbBTerm* bterm);
-  odb::dbTechLayer* getRootPinLayer(odb::dbBTerm* bterm);
+  // Sink connection helpers
   odb::Point findNearestGridWire(const odb::Point& loc,
                                 const std::vector<MeshWire>& h_wires,
                                 const std::vector<MeshWire>& v_wires,
                                 odb::dbTechLayer** out_grid_layer);
-  void createRootToGridConnection(odb::dbBTerm* root,
-                                 const odb::Point& root_loc,
-                                 const odb::Point& grid_point,
-                                 odb::dbTechLayer* root_layer,
-                                 odb::dbTechLayer* grid_layer,
-                                 odb::dbNet* mesh_net);
   void createViaStackAtPoint(const odb::Point& location,
                             odb::dbTechLayer* from_layer,
                             odb::dbTechLayer* to_layer,
@@ -153,6 +166,26 @@ class ClockMesh
                          odb::dbTechLayer* grid_layer,
                          odb::dbNet* mesh_net);
   odb::dbTechLayer* getSinkPinLayer(odb::dbITerm* iterm);
+
+  // Grid intersection helpers
+  GridIntersection* findNearestGridIntersection(int x, int y);
+  odb::dbTechLayer* selectBufferLayer(odb::dbTechLayer* h_layer,
+                                      odb::dbTechLayer* v_layer);
+
+  // Buffer placement and connection
+  void placeBuffersAtIntersections(const std::string& buffer_master,
+                                   odb::dbNet* mesh_net);
+  void connectBuffersToNets(odb::dbNet* mesh_net, const std::string& clock_name);
+  void createBufferStubWire(const GridIntersection& inter,
+                            odb::dbNet* mesh_net,
+                            odb::dbSWire* swire,
+                            odb::dbTechLayer* li1_layer);
+  odb::dbITerm* getBufferOutputPin(odb::dbInst* buffer);
+  odb::dbITerm* getBufferInputPin(odb::dbInst* buffer);
+
+  // CTS integration 
+  void buildCtsTreeToBuffers(const std::string& clock_name);
+  void createCtsTreeWires(const std::string& clock_name);
 
   ord::OpenRoad* openroad_ = nullptr;
   bool mesh_generated_ = false;
@@ -171,7 +204,14 @@ class ClockMesh
   std::vector<MeshVia> mesh_vias_;
   std::vector<MeshVia> connection_vias_;
   odb::Rect mesh_bbox_;
-  int mesh_wire_width_;
+  int mesh_wire_width_ = 0;
+  int mesh_pitch_ = 0;
+  odb::dbTechLayer* mesh_h_layer_ = nullptr;
+  odb::dbTechLayer* mesh_v_layer_ = nullptr;
+  odb::dbTechLayer* tree_layer_ = nullptr;
+
+  // Grid intersections for buffer placement
+  std::vector<GridIntersection> grid_intersections_;
 };
 
 void initClockMesh(ord::OpenRoad* openroad);
