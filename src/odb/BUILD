@@ -58,12 +58,17 @@ cc_library(
             "include/odb/*.hpp",
         ],
         exclude = ["include/odb/MakeOdb.h"],
-    ) + ["src/swig/common/swig_common.h"],
+    ) + [
+        "src/swig/common/swig_common.h",
+        "src/db/dbBlock.h",
+        "src/db/dbJournal.h",
+    ],
     features = [
         "-use_header_modules",
     ],
     includes = [
         "include",
+        "src/db",
     ],
     deps = [
         "//src/odb/src/def",
