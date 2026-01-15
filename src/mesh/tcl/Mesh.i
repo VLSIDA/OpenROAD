@@ -31,7 +31,8 @@ void create_mesh_grid_cmd(const char* clock_name,
                           const char* v_layer_name,
                           int wire_width,
                           int pitch,
-                          Tcl_Obj* buffer_list_obj)
+                          Tcl_Obj* buffer_list_obj,
+                          const char* tree_layer_name = nullptr)
 {
   mesh::ClockMesh* mesh_obj = ord::getClockMesh();
   if (!mesh_obj) {
@@ -71,6 +72,17 @@ void create_mesh_grid_cmd(const char* clock_name,
     }
   }
 
+  // Find tree layer (optional)
+  odb::dbTechLayer* tree_layer = nullptr;
+  if (tree_layer_name && tree_layer_name[0] != '\0') {
+    tree_layer = tech->findLayer(tree_layer_name);
+    if (!tree_layer) {
+      openroad->getLogger()->error(utl::MESH, 202,
+                                  "Tree layer '{}' not found", tree_layer_name);
+      return;
+    }
+  }
+
   // Convert TCL list to C++ vector<string>
   std::vector<std::string> buffer_list;
   if (buffer_list_obj) {
@@ -87,8 +99,28 @@ void create_mesh_grid_cmd(const char* clock_name,
     }
   }
 
-  // Call the main mesh grid creation function with buffer list
-  mesh_obj->createMeshGrid(clock_name, h_layer, v_layer, wire_width, pitch, buffer_list);
+  // Call the main mesh grid creation function with buffer list and tree layer
+  mesh_obj->createMeshGrid(clock_name, h_layer, v_layer, wire_width, pitch, buffer_list, tree_layer);
+}
+
+// Connect sinks to mesh - call AFTER detailed_placement to legalize buffers
+void connect_sinks_cmd(const char* clock_name)
+{
+  mesh::ClockMesh* mesh_obj = ord::getClockMesh();
+  if (!mesh_obj) {
+    return;
+  }
+  mesh_obj->connectSinks(clock_name);
+}
+
+// Connect buffers to their associated intersections - call AFTER connect_sinks_cmd
+void connect_buffers_cmd(const char* clock_name)
+{
+  mesh::ClockMesh* mesh_obj = ord::getClockMesh();
+  if (!mesh_obj) {
+    return;
+  }
+  mesh_obj->connectBuffersToIntersections(clock_name);
 }
 
 }  // namespace mesh
