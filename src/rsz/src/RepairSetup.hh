@@ -5,8 +5,8 @@
 #include <unordered_set>
 #include <vector>
 
-#include "ViolatorCollector.hh"
 #include "RepairSearch.hh"
+#include "ViolatorCollector.hh"
 #include "boost/functional/hash.hpp"
 #include "db_sta/dbNetwork.hh"
 #include "db_sta/dbSta.hh"
@@ -154,7 +154,6 @@ class RepairSetup : public sta::dbStaState
                          float& fix_rate_threshold,
                          int endpt_index,
                          int num_endpts);
-  void repairSetupLastGasp(const OptoParams& params);
   bool swapVTCritCells(const OptoParams& params, int& num_viols);
   void traverseFaninCone(Vertex* endpoint,
                          std::unordered_map<Instance*, float>& crit_insts,
@@ -163,7 +162,15 @@ class RepairSetup : public sta::dbStaState
                          const OptoParams& params);
   Slack getInstanceSlack(Instance* inst);
 
-  // Two-phase repair setup
+  // Different repair setup methods
+  void repairSetup_Legacy(float setup_slack_margin,
+                          int max_passes_per_endpoint,
+                          int max_repairs_per_pass,
+                          bool verbose,
+                          int& opto_iteration,
+                          float initial_tns,
+                          float& prev_tns,
+                          char phase_marker = 'L');
   void repairSetup_WNS(float setup_slack_margin,
                        int max_passes_per_endpoint,
                        int max_repairs_per_pass,
@@ -175,7 +182,7 @@ class RepairSetup : public sta::dbStaState
                        = false,  // true for WNS_CONE, false for WNS
                        char phase_marker = '1',  // Character for progress table
                        ViolatorSortType sort_type
-                       = ViolatorSortType::SORT_AND_FILTER_BY_LOAD_DELAY);
+                       = ViolatorSortType::SORT_BY_LOAD_DELAY);
   void repairSetup_TNS(float setup_slack_margin,
                        int max_passes_per_endpoint,
                        int max_repairs_per_pass,
@@ -185,7 +192,7 @@ class RepairSetup : public sta::dbStaState
                        float& prev_tns,
                        char phase_marker = '*',  // Character for progress table
                        ViolatorSortType sort_type
-                       = ViolatorSortType::SORT_AND_FILTER_BY_LOAD_DELAY);
+                       = ViolatorSortType::SORT_BY_LOAD_DELAY);
   void repairSetup_EP_FI(float setup_slack_margin,
                          int max_passes_per_endpoint,
                          bool verbose,
@@ -202,7 +209,12 @@ class RepairSetup : public sta::dbStaState
                                bool verbose,
                                int& opto_iteration,
                                char phase_marker);
-  bool shouldSwitchEndpoint(Vertex* current_endpoint, Vertex* worst_endpoint);
+  void repairSetup_LastGasp(const OptoParams& params,
+                            int& num_viols,
+                            const int max_iterations,
+                            char phase_marker = 'G');
+  void repairSetup_LastGaspNew(const OptoParams& params,
+                               char phase_marker = 'G');
 
   void hitDebugCheckpoint();
 
