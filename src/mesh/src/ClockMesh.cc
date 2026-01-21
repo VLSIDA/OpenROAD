@@ -260,23 +260,23 @@ bool ClockMesh::separateSinks(odb::dbNet* net, std::vector<ClockSink>& sinks)
   return !sinks.empty();
 }
 
-void ClockMesh::testPrintSinks()
-{
-  if (!logger_) {
-    return;
-  }
+// void ClockMesh::testPrintSinks()
+// {
+//   if (!logger_) {
+//     return;
+//   }
 
-  logger_->report("TEST: Found {} clock(s)", clockToSinks_.size());
+//   logger_->report("TEST: Found {} clock(s)", clockToSinks_.size());
 
-  for (const auto& [clockName, sinks] : clockToSinks_) {
-    logger_->report("\nTEST: Clock '{}' has {} sinks:", clockName, sinks.size());
-    int count = 0;
-    for (const auto& sink : sinks) {
-      logger_->report("  [{}] {} at ({}, {}) cap={:.3e} macro={}",
-                     ++count, sink.name, sink.x, sink.y, sink.inputCap, sink.isMacro);
-    }
-  }
-}
+//   for (const auto& [clockName, sinks] : clockToSinks_) {
+//     logger_->report("\nTEST: Clock '{}' has {} sinks:", clockName, sinks.size());
+//     int count = 0;
+//     for (const auto& sink : sinks) {
+//       logger_->report("  [{}] {} at ({}, {}) cap={:.3e} macro={}",
+//                      ++count, sink.name, sink.x, sink.y, sink.inputCap, sink.isMacro);
+//     }
+//   }
+// }
 
 // Mesh Grid Creation Methods
 odb::Rect ClockMesh::calculateBoundingBox(const std::vector<ClockSink>& sinks)
@@ -304,12 +304,8 @@ odb::Rect ClockMesh::calculateBoundingBox(const std::vector<ClockSink>& sinks)
     odb::Rect die_area = block_->getDieArea();
     odb::Rect core_area = block_->getCoreArea();
 
-    logger_->report("Die area: ({}, {}) to ({}, {})",
-                   die_area.xMin(), die_area.yMin(),
-                   die_area.xMax(), die_area.yMax());
-    logger_->report("Core area: ({}, {}) to ({}, {})",
-                   core_area.xMin(), core_area.yMin(),
-                   core_area.xMax(), core_area.yMax());
+    logger_->report("Die area: ({}, {}) to ({}, {})", die_area.xMin(), die_area.yMin(), die_area.xMax(), die_area.yMax());
+    logger_->report("Core area: ({}, {}) to ({}, {})", core_area.xMin(), core_area.yMin(), core_area.xMax(), core_area.yMax());
 
     bbox.set_xlo(std::min(bbox.xMin(), core_area.xMin()));
     bbox.set_ylo(std::min(bbox.yMin(), core_area.yMin()));
@@ -317,23 +313,25 @@ odb::Rect ClockMesh::calculateBoundingBox(const std::vector<ClockSink>& sinks)
     bbox.set_yhi(std::max(bbox.yMax(), core_area.yMax()));
   }
 
-  logger_->report("Bounding box calculated: ({}, {}) to ({}, {})",
-                 bbox.xMin(), bbox.yMin(), bbox.xMax(), bbox.yMax());
+  logger_->report("Bounding box calculated: ({}, {}) to ({}, {})",  bbox.xMin(), bbox.yMin(), bbox.xMax(), bbox.yMax());
 
   return bbox;
 }
 
-void ClockMesh::createHorizontalWires(odb::dbNet* net, odb::dbTechLayer* layer, const odb::Rect& bbox, int wire_width, int pitch, std::vector<MeshWire>& wires)
+void ClockMesh::createHorizontalWires(odb::dbNet* net, odb::dbTechLayer* layer, const odb::Rect& bbox, int pitch, std::vector<MeshWire>& wires)
 {
   if (!net || !layer) {
     logger_->error(MESH, 101, "Invalid net or layer for horizontal wires");
     return;
   }
+  // Get wire width from layer (tech file)
+  const int wire_width = layer->getWidth();
   const int half_width = wire_width / 2;
   const int x_start = bbox.xMin();
   const int x_end = bbox.xMax();
   int wire_count = 0;
-  logger_->report("Creating horizontal wires on layer {} from Y={} to Y={}, pitch={}", layer->getName(), bbox.yMin(), bbox.yMax(), pitch);
+  logger_->report("Creating horizontal wires on layer {} (width={}) from Y={} to Y={}, pitch={}",
+                 layer->getName(), wire_width, bbox.yMin(), bbox.yMax(), pitch);
   for (int y_pos = bbox.yMin(); y_pos <= bbox.yMax(); y_pos += pitch) {
     const int y_min = y_pos - half_width;
     const int y_max = y_pos + half_width;
@@ -344,17 +342,20 @@ void ClockMesh::createHorizontalWires(odb::dbNet* net, odb::dbTechLayer* layer, 
   logger_->report("Created {} horizontal wires on layer {}", wire_count, layer->getName());
 }
 
-void ClockMesh::createVerticalWires(odb::dbNet* net, odb::dbTechLayer* layer, const odb::Rect& bbox, int wire_width, int pitch, std::vector<MeshWire>& wires)
+void ClockMesh::createVerticalWires(odb::dbNet* net, odb::dbTechLayer* layer, const odb::Rect& bbox, int pitch, std::vector<MeshWire>& wires)
 {
   if (!net || !layer) {
     logger_->error(MESH, 102, "Invalid net or layer for vertical wires");
     return;
   }
+  // Get wire width from layer (tech file)
+  const int wire_width = layer->getWidth();
   const int half_width = wire_width / 2;
   const int y_start = bbox.yMin();
   const int y_end = bbox.yMax();
   int wire_count = 0;
-  logger_->report("Creating vertical wires on layer {} from X={} to X={}, pitch={}", layer->getName(), bbox.xMin(), bbox.xMax(), pitch);
+  logger_->report("Creating vertical wires on layer {} (width={}) from X={} to X={}, pitch={}",
+                 layer->getName(), wire_width, bbox.xMin(), bbox.xMax(), pitch);
   for (int x_pos = bbox.xMin(); x_pos <= bbox.xMax(); x_pos += pitch) {
     const int x_min = x_pos - half_width;
     const int x_max = x_pos + half_width;
@@ -543,7 +544,7 @@ void ClockMesh::writeViasToDb(const std::vector<MeshVia>& vias)
 
 
 // Main Mesh Grid Creation
-void ClockMesh::createMeshGrid(const std::string& clock_name, odb::dbTechLayer* h_layer, odb::dbTechLayer* v_layer, int wire_width, int pitch, const std::vector<std::string>& buffer_list, odb::dbTechLayer* tree_layer)
+void ClockMesh::createMeshGrid(const std::string& clock_name, odb::dbTechLayer* h_layer, odb::dbTechLayer* v_layer, int pitch, const std::vector<std::string>& buffer_list, odb::dbTechLayer* tree_layer)
 {
   if (!logger_ || !block_) {
     logger_->error(MESH, 113, "ClockMesh not properly initialized");
@@ -552,30 +553,53 @@ void ClockMesh::createMeshGrid(const std::string& clock_name, odb::dbTechLayer* 
 
   logger_->report("======================================");
   logger_->report("Creating clock mesh grid for clock: {}", clock_name);
-  logger_->report("Horizontal layer: {}, Vertical layer: {}", h_layer ? h_layer->getName() : "NULL", v_layer ? v_layer->getName() : "NULL");
-  logger_->report("Wire width: {}, Pitch: {}", wire_width, pitch);
-
-  // if (!tree_layer) {
-  //   odb::dbTech* tech = db_->getTech();
-  //   int h_level = h_layer->getRoutingLevel();
-  //   tree_layer = tech->findRoutingLayer(h_level + 1);
-  //   if (!tree_layer) {
-  //     tree_layer = h_layer;
-  //   }
-  // }
-  // logger_->report("CTS tree layer: {}", tree_layer ? tree_layer->getName() : "NULL");
+  logger_->report("Horizontal layer: {} (width={}), Vertical layer: {} (width={})",
+                 h_layer ? h_layer->getName() : "NULL", h_layer ? h_layer->getWidth() : 0,
+                 v_layer ? v_layer->getName() : "NULL", v_layer ? v_layer->getWidth() : 0);
+  logger_->report("Pitch: {}", pitch);
 
   // Store layers
   mesh_h_layer_ = h_layer;
   mesh_v_layer_ = v_layer;
-  // tree_layer_ = tree_layer;
+
+  // Compute BTERM layer = one above the higher mesh layer
+  odb::dbTech* tech = db_->getTech();
+  int h_level = h_layer ? h_layer->getRoutingLevel() : 0;
+  int v_level = v_layer ? v_layer->getRoutingLevel() : 0;
+  int bterm_level = std::max(h_level, v_level) + 1;
+
+  odb::dbTechLayer* bterm_layer = tech->findRoutingLayer(bterm_level);
+  if (!bterm_layer) {
+    logger_->error(MESH, 210, "No routing layer at level {} for BTERMs", bterm_level);
+    return;
+  }
+  bterm_layer_ = bterm_layer;  
+  // Get track grid for BTERM layer to align mesh
+  odb::dbTrackGrid* track_grid = block_->findTrackGrid(bterm_layer);
+  int track_pitch_x = 0, track_pitch_y = 0;
+  int track_offset_x = 0, track_offset_y = 0;
+  if (track_grid) {
+    std::vector<int> x_tracks, y_tracks;
+    track_grid->getGridX(x_tracks);
+    track_grid->getGridY(y_tracks);
+    if (x_tracks.size() >= 2) {
+      track_pitch_x = x_tracks[1] - x_tracks[0];
+      track_offset_x = x_tracks[0];
+    }
+    if (y_tracks.size() >= 2) {
+      track_pitch_y = y_tracks[1] - y_tracks[0];
+      track_offset_y = y_tracks[0];
+    }
+    logger_->report("BTERM layer track grid: pitch X={}, Y={}, offset X={}, Y={}", track_pitch_x, track_pitch_y, track_offset_x, track_offset_y);
+  } else {
+    logger_->warn(MESH, 211, "No track grid found for BTERM layer {}", bterm_layer->getName());
+  }
 
   // Get clock sinks
   if (clockToSinks_.find(clock_name) == clockToSinks_.end()) {
     logger_->error(MESH, 114, "No sinks found for clock: {}", clock_name);
     return;
   }
-
   const std::vector<ClockSink>& sinks = clockToSinks_[clock_name];
   logger_->report("Found {} sinks for clock {}", sinks.size(), clock_name);
 
@@ -585,9 +609,31 @@ void ClockMesh::createMeshGrid(const std::string& clock_name, odb::dbTechLayer* 
     logger_->error(MESH, 115, "Invalid bounding box calculated");
     return;
   }
-  mesh_bbox_ = bbox;
-  mesh_wire_width_ = wire_width;
-  mesh_pitch_ = pitch;
+  // Align mesh pitch to BTERM layer track pitch
+  int aligned_pitch = pitch;
+  if (track_pitch_x > 0 && track_pitch_y > 0) {
+    int track_pitch = std::max(track_pitch_x, track_pitch_y);
+    aligned_pitch = ((pitch + track_pitch / 2) / track_pitch) * track_pitch;
+    if (aligned_pitch < track_pitch) {
+      aligned_pitch = track_pitch; 
+    }
+    logger_->report("Aligned mesh pitch: {} -> {} (multiple of track pitch {})", pitch, aligned_pitch, track_pitch);
+  }
+  int aligned_x_start = bbox.xMin();
+  int aligned_y_start = bbox.yMin();
+  if (track_pitch_x > 0) {
+    int idx = (bbox.xMin() - track_offset_x + track_pitch_x / 2) / track_pitch_x;
+    aligned_x_start = track_offset_x + idx * track_pitch_x;
+  }
+  if (track_pitch_y > 0) {
+    int idx = (bbox.yMin() - track_offset_y + track_pitch_y / 2) / track_pitch_y;
+    aligned_y_start = track_offset_y + idx * track_pitch_y;
+  }
+  logger_->report("Aligned mesh start: X {} -> {}, Y {} -> {}", bbox.xMin(), aligned_x_start, bbox.yMin(), aligned_y_start);
+  odb::Rect aligned_bbox(aligned_x_start, aligned_y_start, bbox.xMax(), bbox.yMax());
+
+  mesh_bbox_ = aligned_bbox;
+  mesh_pitch_ = aligned_pitch;
 
   // Get existing clock net
   odb::dbNet* mesh_net = getOrCreateClockNet(clock_name);
@@ -596,16 +642,16 @@ void ClockMesh::createMeshGrid(const std::string& clock_name, odb::dbTechLayer* 
     return;
   }
 
-  // Create horizontal wires
+  // Create horizontal wires (using aligned bbox and pitch, width from layer)
   std::vector<MeshWire> h_wires;
   if (h_layer) {
-    createHorizontalWires(mesh_net, h_layer, bbox, wire_width, pitch, h_wires);
+    createHorizontalWires(mesh_net, h_layer, aligned_bbox, aligned_pitch, h_wires);
   }
 
-  // Create vertical wires
+  // Create vertical wires (using aligned bbox and pitch, width from layer)
   std::vector<MeshWire> v_wires;
   if (v_layer) {
-    createVerticalWires(mesh_net, v_layer, bbox, wire_width, pitch, v_wires);
+    createVerticalWires(mesh_net, v_layer, aligned_bbox, aligned_pitch, v_wires);
   }
 
   // Create vias at intersections
@@ -629,7 +675,6 @@ void ClockMesh::createMeshGrid(const std::string& clock_name, odb::dbTechLayer* 
   if (!h_wires.empty() && !v_wires.empty()) {
     grid_intersections_.clear();
     logger_->report("Computing grid intersections...");
-
     for (const MeshWire& h_wire : h_wires) {
       int h_y = (h_wire.rect.yMin() + h_wire.rect.yMax()) / 2;
       for (const MeshWire& v_wire : v_wires) {
@@ -671,99 +716,6 @@ void ClockMesh::createMeshGrid(const std::string& clock_name, odb::dbTechLayer* 
 }
 
 
-
-void ClockMesh::createBufferStubWire(const GridIntersection& inter,odb::dbNet* mesh_net, odb::dbSWire* swire, odb::dbTechLayer* li1_layer)
-{
-  if (!inter.buffer_inst || !inter.has_buffer) {
-    return;
-  }
-  odb::dbITerm* output_pin = getBufferOutputPin(inter.buffer_inst);
-  if (!output_pin) {
-    return;
-  }
-
-  int out_x, out_y;
-  computeITermPosition(output_pin, out_x, out_y);
-  int target_x = inter.x;
-  int target_y = inter.y;
-  odb::dbTech* tech = db_->getTech();
-  int h_level = mesh_h_layer_ ? mesh_h_layer_->getRoutingLevel() : 0;
-  int v_level = mesh_v_layer_ ? mesh_v_layer_->getRoutingLevel() : 0;
-  int stub_level = std::max(h_level, v_level) + 1;
-  odb::dbTechLayer* stub_layer = tech->findRoutingLayer(stub_level);
-
-  if (!stub_layer) {
-    stub_layer = (h_level > v_level) ? mesh_h_layer_ : mesh_v_layer_;
-    stub_level = std::max(h_level, v_level);
-  }
-
-  int half_width = mesh_wire_width_ / 2;
-  odb::Point out_point(out_x, out_y);
-  odb::Point target_point(target_x, target_y);
-  createViaStackAtPoint(out_point, li1_layer, stub_layer, mesh_net);
-  if (out_x != target_x) {
-    odb::dbSBox::create(swire, stub_layer, std::min(out_x, target_x), out_y - half_width, std::max(out_x, target_x), out_y + half_width, odb::dbWireShapeType::STRIPE);
-  }
-  if (out_y != target_y) {
-    odb::dbSBox::create(swire, stub_layer, target_x - half_width, std::min(out_y, target_y), target_x + half_width, std::max(out_y, target_y), odb::dbWireShapeType::STRIPE);
-  }
-
-  // Connect down to both horizontal and vertical grid layers
-  if (mesh_h_layer_) {
-    createViaStackAtPoint(target_point, mesh_h_layer_, stub_layer, mesh_net);
-  }
-  if (mesh_v_layer_ && mesh_v_layer_ != mesh_h_layer_) {
-    createViaStackAtPoint(target_point, mesh_v_layer_, stub_layer, mesh_net);
-  }
-}
-
-// Connect all buffers to their associated intersections 
-void ClockMesh::connectBuffersToIntersections(const std::string& clock_name)
-{
-  logger_->report("======================================");
-  logger_->report("Connecting buffers to their grid intersections...");
-
-  if (!mesh_generated_) {
-    logger_->error(MESH, 504, "Mesh not generated. Call create_clock_mesh first.");
-    return;
-  }
-
-  odb::dbNet* mesh_net = getOrCreateClockNet(clock_name);
-  if (!mesh_net) {
-    logger_->error(MESH, 505, "Could not find mesh net for clock '{}'", clock_name);
-    return;
-  }
-
-  odb::dbSWire* swire = nullptr;
-  auto swires = mesh_net->getSWires();
-  if (!swires.empty()) {
-    swire = *swires.begin();
-  } else {
-    swire = odb::dbSWire::create(mesh_net, odb::dbWireType::ROUTED);
-  }
-  odb::dbTech* tech = db_->getTech();
-  odb::dbTechLayer* li1_layer = tech->findLayer("li1");
-  if (!li1_layer) {
-    li1_layer = tech->findRoutingLayer(1);
-  }
-
-  int connected = 0;
-  for (const GridIntersection& inter : grid_intersections_) {
-    if (inter.buffer_inst && inter.has_buffer) {
-      createBufferStubWire(inter, mesh_net, swire, li1_layer);
-      connected++;
-    }
-  }
-  if (!connection_vias_.empty()) {
-    logger_->report("Writing {} buffer connection vias...", connection_vias_.size());
-    writeViasToDb(connection_vias_);
-    connection_vias_.clear();
-  }
-
-  logger_->report("Connected {} buffers to their intersections", connected);
-}
-
-
 void ClockMesh::connectSinks(const std::string& clock_name)
 {
   logger_->report("======================================");
@@ -787,7 +739,6 @@ void ClockMesh::connectSinks(const std::string& clock_name)
     swire = odb::dbSWire::create(mesh_net, odb::dbWireType::ROUTED);
   }
 
-  int half_width = mesh_wire_width_ / 2;
   odb::dbTech* tech = db_->getTech();
   odb::dbTechLayer* li1_layer = tech->findLayer("li1");
   if (!li1_layer) {
@@ -825,6 +776,8 @@ void ClockMesh::connectSinks(const std::string& clock_name)
     if (!grid_layer) {
       continue;
     }
+    // Get wire width from grid layer
+    const int half_width = grid_layer->getWidth() / 2;
     sink.iterm->disconnect();
     sink.iterm->connect(mesh_net);
     createViaStackAtPoint(sink_point, li1_layer, grid_layer, mesh_net);
@@ -976,7 +929,8 @@ void ClockMesh::createSinkStubWire(odb::dbITerm* sink_iterm, const odb::Point& s
     return;
   }
 
-  int half_width = mesh_wire_width_ / 2;
+  // Get wire width from sink layer
+  const int half_width = sink_layer->getWidth() / 2;
   int x1 = sink_loc.x();
   int y1 = sink_loc.y();
   int x2 = grid_point.x();
@@ -1121,7 +1075,7 @@ void ClockMesh::placeBuffersAtIntersections(const std::string& buffer_master, od
 void ClockMesh::connectBuffersToNets(odb::dbNet* mesh_net, const std::string& clock_name)
 {
   logger_->report("======================================");
-  logger_->report("Connecting buffers to mesh and tree nets...");
+  logger_->report("Connecting buffer inputs to tree net...");
   std::string tree_net_name = getTreeNetName(clock_name);
   odb::dbNet* tree_net = block_->findNet(tree_net_name.c_str());
   if (!tree_net) {
@@ -1142,11 +1096,8 @@ void ClockMesh::connectBuffersToNets(odb::dbNet* mesh_net, const std::string& cl
     if (!intersection.buffer_inst || !intersection.has_buffer) {
       continue;
     }
-    // Connect output to mesh net
-    odb::dbITerm* output_pin = getBufferOutputPin(intersection.buffer_inst);
-    if (output_pin) {
-      output_pin->connect(mesh_net);
-    }
+    //Buffer outputs are NOT connected here. They will be connected later by either: - setupProxyBTerms() for router-based flow 
+    
     // Connect input to tree net (for CTS to drive)
     odb::dbITerm* input_pin = getBufferInputPin(intersection.buffer_inst);
     if (input_pin && tree_net) {
@@ -1154,9 +1105,147 @@ void ClockMesh::connectBuffersToNets(odb::dbNet* mesh_net, const std::string& cl
     }
     connected_count++;
   }
-  logger_->report("Connected {} buffers (outputs->mesh, inputs->tree)", connected_count);
+  logger_->report("Connected {} buffer inputs to tree net", connected_count);
+  logger_->report("Buffer outputs will be connected by connect_buffers_to_mesh or setup_proxy_bterms");
 }
 
+
+void ClockMesh::setupProxyBTerms(const std::string& clock_name, odb::dbTechLayer* proxy_layer)
+{
+  logger_->report("======================================");
+  logger_->report("Setting up proxy BTERMs for router-based buffer connections...");
+
+  if (!mesh_generated_) {
+    logger_->error(MESH, 600, "Mesh not generated. Call create_clock_mesh first.");
+    return;
+  }
+
+  if (!proxy_layer) {
+    logger_->error(MESH, 601, "Proxy layer not specified");
+    return;
+  }
+
+  proxy_layer_ = proxy_layer;
+  logger_->report("Proxy BTERM layer: {}", proxy_layer_->getName());
+
+  if (bterm_layer_ && proxy_layer != bterm_layer_) {
+    logger_->warn(MESH, 603, "Proxy layer {} differs from auto-computed BTERM layer {}, Mesh intersections may not be on {} routing grid.",proxy_layer->getName(), bterm_layer_->getName(), proxy_layer->getName());
+  } else if (bterm_layer_) {
+    logger_->report("Mesh is aligned to {} routing tracks - intersections are on-grid",proxy_layer->getName());
+  }
+
+  odb::dbNet* mesh_net = getOrCreateClockNet(clock_name);
+  if (!mesh_net) {
+    logger_->error(MESH, 602, "Could not find mesh net for clock '{}'", clock_name);
+    return;
+  }
+  createProxyBTermsWithSeparateNets(mesh_net, proxy_layer_);
+  logger_->report("======================================");
+  logger_->report("Proxy BTERMs created on separate nets.");
+  logger_->report("Router will route buffer outputs to their BTERMs.");
+  logger_->report("After routing, run connect_proxy_bterms_to_mesh to short them to the mesh.");
+}
+
+void ClockMesh::createProxyBTermsWithSeparateNets(odb::dbNet* mesh_net, odb::dbTechLayer* proxy_layer)
+{
+  if (!mesh_net || !proxy_layer) {
+    return;
+  }
+  int min_width = proxy_layer->getWidth();
+  int half_width = min_width / 2;
+  int created_count = 0;
+  for (GridIntersection& inter : grid_intersections_) {
+    if (!inter.has_buffer || !inter.buffer_inst) {
+      continue;
+    }
+    // Create a SEPARATE net for buffers 
+    std::string net_name = "buf_net_" + std::to_string(inter.x) + "_" + std::to_string(inter.y);
+    odb::dbNet* buf_net = odb::dbNet::create(block_, net_name.c_str());
+    if (!buf_net) {
+      logger_->warn(MESH, 607, "Failed to create net '{}'", net_name);
+      continue;
+    }
+    buf_net->setSigType(odb::dbSigType::CLOCK);
+    // Connect buffer OUTPUT to this separate net
+    odb::dbITerm* output_pin = getBufferOutputPin(inter.buffer_inst);
+    if (output_pin) {
+      output_pin->disconnect();
+      output_pin->connect(buf_net);
+    }
+
+    // Create proxy BTERM at intersection (on routing grid)
+    std::string bterm_name = "proxy_" + std::to_string(inter.x) + "_" + std::to_string(inter.y);
+    odb::dbBTerm* bterm = odb::dbBTerm::create(buf_net, bterm_name.c_str());
+    if (!bterm) {
+      continue;
+    }
+    bterm->setIoType(odb::dbIoType::INPUT);  
+    bterm->setSigType(odb::dbSigType::CLOCK);
+
+    // Create physical pin at intersection (mesh is aligned to routing grid)
+    odb::dbBPin* bpin = odb::dbBPin::create(bterm);
+    if (bpin) {
+      odb::dbBox::create(bpin, proxy_layer, inter.x - half_width, inter.y - half_width, inter.x + half_width, inter.y + half_width);
+      bpin->setPlacementStatus(odb::dbPlacementStatus::PLACED);
+    }
+    // inter.snapped_x = inter.x;
+    // inter.snapped_y = inter.y;
+
+    inter.proxy_bterm = bterm;
+    created_count++;
+
+    if (created_count <= 3) {
+      logger_->report("  Buffer '{}' -> BTERM at ({}, {})", inter.buffer_inst->getName(), inter.x, inter.y);
+    }
+  }
+  logger_->report("Created {} buffer nets with proxy BTERMs at mesh intersections", created_count);
+}
+
+void ClockMesh::connectProxyBTermsToMesh(const std::string& clock_name)
+{
+  logger_->report("======================================");
+  logger_->report("Connecting proxy BTERMs to mesh (post-routing)...");
+
+  if (!proxy_layer_) {
+    logger_->error(MESH, 620, "Proxy layer not set. Call setup_proxy_bterms first.");
+    return;
+  }
+
+  odb::dbNet* mesh_net = getOrCreateClockNet(clock_name);
+  if (!mesh_net) {
+    logger_->error(MESH, 621, "Could not find mesh net for clock '{}'", clock_name);
+    return;
+  }
+
+  int proxy_level = proxy_layer_->getRoutingLevel();
+  int h_level = mesh_h_layer_ ? mesh_h_layer_->getRoutingLevel() : 0;
+  int v_level = mesh_v_layer_ ? mesh_v_layer_->getRoutingLevel() : 0;
+
+  // Find the top mesh layer (mesh already has vias connecting h and v layers)
+  odb::dbTechLayer* top_mesh_layer = (h_level >= v_level) ? mesh_h_layer_ : mesh_v_layer_;
+  int top_level = top_mesh_layer ? top_mesh_layer->getRoutingLevel() : 0;
+
+  logger_->report("Creating via stacks from {} (level {}) to {} (level {})", top_mesh_layer ? top_mesh_layer->getName() : "NULL", top_level, proxy_layer_->getName(), proxy_level);
+  int connected = 0;
+  for (const GridIntersection& inter : grid_intersections_) {
+    if (!inter.has_buffer || !inter.proxy_bterm) {
+      continue;
+    }
+    // Create via stack from TOP mesh layer to BTERM layer only
+    odb::Point target(inter.x, inter.y);
+    if (top_mesh_layer && proxy_level > top_level) {
+      createViaStackAtPoint(target, top_mesh_layer, proxy_layer_, mesh_net);
+    }
+    connected++;
+  }
+  if (!connection_vias_.empty()) {
+    logger_->report("Writing {} via stacks to connect BTERMs to mesh...", connection_vias_.size());
+    writeViasToDb(connection_vias_);
+    connection_vias_.clear();
+  }
+  logger_->report("Connected {} proxy BTERMs to mesh via via stacks", connected);
+  logger_->report("======================================");
+}
 
 void ClockMesh::buildCtsTreeToBuffers(const std::string& clock_name)
 {

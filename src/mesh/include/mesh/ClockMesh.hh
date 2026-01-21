@@ -70,12 +70,15 @@ struct MeshVia {
 struct GridIntersection {
   int x;
   int y;
+  int snapped_x = 0;  // BTERM location snapped to routing grid
+  int snapped_y = 0;  // BTERM location snapped to routing grid
   odb::dbTechLayer* layer;
   bool has_buffer = false;
   odb::dbInst* buffer_inst = nullptr;
+  odb::dbBTerm* proxy_bterm = nullptr;  // Proxy BTERM for router-based connection
 
   GridIntersection(int px, int py, odb::dbTechLayer* l)
-    : x(px), y(py), layer(l) {}
+    : x(px), y(py), snapped_x(px), snapped_y(py), layer(l) {}
 };
 
 class ClockMesh
@@ -91,19 +94,25 @@ class ClockMesh
   void createMeshGrid(const std::string& clock_name,
                       odb::dbTechLayer* h_layer,
                       odb::dbTechLayer* v_layer,
-                      int wire_width,
                       int pitch,
                       const std::vector<std::string>& buffer_list = {},
                       odb::dbTechLayer* tree_layer = nullptr);
 
   void findClockSinks();
-  void testPrintSinks();
+  // void testPrintSinks();  // OBSOLETE - commented out
 
   // Connect sinks to mesh
   void connectSinks(const std::string& clock_name);
 
-  // Connect buffers to their intersections
-  void connectBuffersToIntersections(const std::string& clock_name);
+  // Connect buffers to their intersections (OBSOLETE - using router-based approach)
+  // void connectBuffersToIntersections(const std::string& clock_name);
+
+  // Create proxy BTERMs at intersections for router-based buffer connections
+  void setupProxyBTerms(const std::string& clock_name,
+                        odb::dbTechLayer* proxy_layer);
+
+  // Connect proxy BTERMs to mesh after routing (creates via stacks)
+  void connectProxyBTermsToMesh(const std::string& clock_name);
 
   // Get the tree net name for CTS integration
   std::string getTreeNetName(const std::string& clock_name) const {
@@ -134,13 +143,11 @@ class ClockMesh
   void createHorizontalWires(odb::dbNet* net,
                              odb::dbTechLayer* layer,
                              const odb::Rect& bbox,
-                             int wire_width,
                              int pitch,
                              std::vector<MeshWire>& wires);
   void createVerticalWires(odb::dbNet* net,
                            odb::dbTechLayer* layer,
                            const odb::Rect& bbox,
-                           int wire_width,
                            int pitch,
                            std::vector<MeshWire>& wires);
   void createViasAtIntersections(const std::vector<MeshWire>& h_wires,
@@ -176,10 +183,16 @@ class ClockMesh
   void placeBuffersAtIntersections(const std::string& buffer_master,
                                    odb::dbNet* mesh_net);
   void connectBuffersToNets(odb::dbNet* mesh_net, const std::string& clock_name);
-  void createBufferStubWire(const GridIntersection& inter,
-                            odb::dbNet* mesh_net,
-                            odb::dbSWire* swire,
-                            odb::dbTechLayer* li1_layer);
+
+  // Proxy BTERM for router-based buffer connections
+  // void createProxyBTermsAtIntersections(odb::dbNet* mesh_net,
+  //                                       odb::dbTechLayer* proxy_layer);  // OBSOLETE
+  void createProxyBTermsWithSeparateNets(odb::dbNet* mesh_net,
+                                         odb::dbTechLayer* proxy_layer);
+  // void createBufferStubWire(const GridIntersection& inter,
+  //                           odb::dbNet* mesh_net,
+  //                           odb::dbSWire* swire,
+  //                           odb::dbTechLayer* li1_layer);  // OBSOLETE
   odb::dbITerm* getBufferOutputPin(odb::dbInst* buffer);
   odb::dbITerm* getBufferInputPin(odb::dbInst* buffer);
 
@@ -204,11 +217,12 @@ class ClockMesh
   std::vector<MeshVia> mesh_vias_;
   std::vector<MeshVia> connection_vias_;
   odb::Rect mesh_bbox_;
-  int mesh_wire_width_ = 0;
   int mesh_pitch_ = 0;
   odb::dbTechLayer* mesh_h_layer_ = nullptr;
   odb::dbTechLayer* mesh_v_layer_ = nullptr;
   odb::dbTechLayer* tree_layer_ = nullptr;
+  odb::dbTechLayer* bterm_layer_ = nullptr;  // Auto-computed: max(h,v) + 1
+  odb::dbTechLayer* proxy_layer_ = nullptr;  // Layer for proxy BTERMs (above mesh)
 
   // Grid intersections for buffer placement
   std::vector<GridIntersection> grid_intersections_;
