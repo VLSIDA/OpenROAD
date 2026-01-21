@@ -26,10 +26,10 @@ void run_mesh_cmd(const char* name)
 }
 
 // Create mesh grid command - creates clock mesh with horizontal and vertical wires
+// Wire width is automatically taken from tech file (layer default width)
 void create_mesh_grid_cmd(const char* clock_name,
                           const char* h_layer_name,
                           const char* v_layer_name,
-                          int wire_width,
                           int pitch,
                           Tcl_Obj* buffer_list_obj,
                           const char* tree_layer_name = nullptr)
@@ -99,8 +99,8 @@ void create_mesh_grid_cmd(const char* clock_name,
     }
   }
 
-  // Call the main mesh grid creation function with buffer list and tree layer
-  mesh_obj->createMeshGrid(clock_name, h_layer, v_layer, wire_width, pitch, buffer_list, tree_layer);
+  // Call the main mesh grid creation function (wire width auto-computed from tech)
+  mesh_obj->createMeshGrid(clock_name, h_layer, v_layer, pitch, buffer_list, tree_layer);
 }
 
 // Connect sinks to mesh - call AFTER detailed_placement to legalize buffers
@@ -113,14 +113,64 @@ void connect_sinks_cmd(const char* clock_name)
   mesh_obj->connectSinks(clock_name);
 }
 
+// OBSOLETE: Using router-based proxy BTERM approach instead
 // Connect buffers to their associated intersections - call AFTER connect_sinks_cmd
-void connect_buffers_cmd(const char* clock_name)
+// void connect_buffers_cmd(const char* clock_name)
+// {
+//   mesh::ClockMesh* mesh_obj = ord::getClockMesh();
+//   if (!mesh_obj) {
+//     return;
+//   }
+//   mesh_obj->connectBuffersToIntersections(clock_name);
+// }
+
+// Setup proxy BTERMs at intersections for router-based buffer connections
+// This creates BTERMs on the proxy_layer with via stacks down to the mesh
+// The router will then connect buffer outputs to these BTERMs
+void setup_proxy_bterms_cmd(const char* clock_name, const char* proxy_layer_name)
 {
   mesh::ClockMesh* mesh_obj = ord::getClockMesh();
   if (!mesh_obj) {
     return;
   }
-  mesh_obj->connectBuffersToIntersections(clock_name);
+
+  ord::OpenRoad* openroad = ord::OpenRoad::openRoad();
+  odb::dbDatabase* db = openroad->getDb();
+  if (!db) {
+    return;
+  }
+
+  odb::dbTech* tech = db->getTech();
+  if (!tech) {
+    return;
+  }
+
+  odb::dbTechLayer* proxy_layer = nullptr;
+  if (proxy_layer_name && proxy_layer_name[0] != '\0') {
+    proxy_layer = tech->findLayer(proxy_layer_name);
+    if (!proxy_layer) {
+      openroad->getLogger()->error(utl::MESH, 610,
+                                  "Proxy layer '{}' not found", proxy_layer_name);
+      return;
+    }
+  } else {
+    openroad->getLogger()->error(utl::MESH, 611,
+                                "Proxy layer must be specified");
+    return;
+  }
+
+  mesh_obj->setupProxyBTerms(clock_name, proxy_layer);
+}
+
+// Connect proxy BTERMs to mesh after routing
+// This creates via stacks from the routed BTERM locations down to the mesh grid
+void connect_proxy_bterms_to_mesh_cmd(const char* clock_name)
+{
+  mesh::ClockMesh* mesh_obj = ord::getClockMesh();
+  if (!mesh_obj) {
+    return;
+  }
+  mesh_obj->connectProxyBTermsToMesh(clock_name);
 }
 
 }  // namespace mesh
