@@ -282,7 +282,7 @@ add_subdirectory(dst)
 add_subdirectory(pdn)
 add_subdirectory(dft)
 add_subdirectory(mpl)
-add_subdirectory(mesh)
+add_subdirectory(cms)
 add_subdirectory(par)
 add_subdirectory(est)
 
@@ -353,7 +353,7 @@ target_link_libraries(openroad
   pdn
   dft
   mpl
-  mesh
+  cms
   par
   est
   ${ABC_LIBRARY}

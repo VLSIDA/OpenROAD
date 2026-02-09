@@ -1354,8 +1354,6 @@ TreeBuilder* TritonCTS::initClockTreeForMacrosAndRegs(
         computeITermPosition(iterm, x, y);
         float insDelay = computeInsertionDelay(name, inst, mterm);
         clockNet.addSink(name, x, y, iterm, getInputPinCap(iterm), insDelay);
-        // Log sink data for verification (parseable format)
-        logger_->report("CTS_SINK_DATA: {} {} {} {}", name, x, y, firstNet->getConstName());
       }
     }
     if (clockNet.getNumSinks() < 2) {
@@ -1474,8 +1472,6 @@ TreeBuilder* TritonCTS::addClockSinks(
     computeITermPosition(iterm, x, y);
     float insDelay = computeInsertionDelay(name, inst, mterm);
     clockNet.addSink(name, x, y, iterm, getInputPinCap(iterm), insDelay);
-    // Log sink data for verification (parseable format)
-    logger_->report("CTS_SINK_DATA: {} {} {} {}", name, x, y, physicalNet->getConstName());
   }
   logger_->info(CTS,
                 11,

@@ -21,15 +21,9 @@ read_sdc "/home/wajid/OPenroad/OpenROAD-flow-scripts/flow/results/sky130hd/gcd/b
 set clk_name [sta::get_name [lindex [sta::all_clocks] 0]]
 puts "\nUsing clock: $clk_name"
 
-# Run MESH - it will log sink data internally
+# Sinks are now found automatically when create_clock_mesh is called
 puts "\n========================================"
-puts "Running MESH..."
-puts "========================================"
-
-run_mesh -clock $clk_name
-
-puts "\n========================================"
-puts "MESH completed"
+puts "Note: run_mesh removed - sinks found automatically in create_clock_mesh"
 puts "========================================"
 
 exit

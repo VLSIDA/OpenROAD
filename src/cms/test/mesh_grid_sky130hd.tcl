@@ -11,7 +11,6 @@ puts "Loading SDC"
 read_sdc "3_place.sdc"
 
 set clk_name "core_clock"
-run_mesh -clock $clk_name
 
 # Create clock mesh grid
 puts "\nCreating clock mesh grid"
@@ -19,7 +18,6 @@ create_clock_mesh \
     -clock $clk_name \
     -h_layer met4 \
     -v_layer met3 \
-    -wire_width 0.1 \
     -pitch 2.0
 
 
@@ -40,12 +38,12 @@ set block [ord::get_db_block]
 set mesh_net [$block findNet "clk"]
 
 if { $mesh_net == "NULL" } {
-  utl::error MESH 400 "Mesh net 'clk' not found!"
+  utl::error CMS 400 "Mesh net 'clk' not found!"
 }
 
 # set root [$mesh_net get1stBTerm]
 # if { $root == "NULL" } {
-#   utl::error MESH 401 "Clock root not connected to mesh!"
+#   utl::error CMS 401 "Clock root not connected to mesh!"
 # }
 # puts "Root connected: [$root getName]"
 
@@ -54,7 +52,7 @@ set sinks [$mesh_net getITerms]
 #gcd have 35 sinks 
 set expected_sinks 35  
 if { [llength $sinks] != $expected_sinks } {
-  utl::error MESH 402 "Expected $expected_sinks sinks, got [llength $sinks]"
+  utl::error CMS 402 "Expected $expected_sinks sinks, got [llength $sinks]"
 }
 puts "Sinks connected: [llength $sinks]/$expected_sinks"
 

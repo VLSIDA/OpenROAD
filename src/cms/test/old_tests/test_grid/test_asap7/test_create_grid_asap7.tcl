@@ -24,10 +24,6 @@ puts "✓ SDC loaded"
 
 # For ASAP7, the clock name in SDC is "core_clock"
 set clk_name "core_clock"
-puts "\n========================================="
-puts "Finding Clock Sinks"
-puts "========================================="
-run_mesh -clock $clk_name
 
 puts "\n========================================="
 puts "Creating Clock Mesh Grid"
@@ -40,7 +36,6 @@ create_clock_mesh \
     -clock $clk_name \
     -h_layer M7 \
     -v_layer M7 \
-    -wire_width 0.05 \
     -pitch 1.0
 
 set script_dir [file dirname [file normalize [info script]]]

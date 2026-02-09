@@ -2,28 +2,28 @@
 
 #include <tcl.h>
 
-#include "mesh/ClockMesh.hh"
+#include "cms/ClockMesh.hh"
 #include "ord/OpenRoad.hh"
 #include "utl/decode.h"
 
 extern "C" {
-extern int Mesh_Init(Tcl_Interp* interp);
+extern int Cms_Init(Tcl_Interp* interp);
 }
 
 namespace ord {
 // Define the global mesh object
-static mesh::ClockMesh* mesh_obj = nullptr;
+static cms::ClockMesh* mesh_obj = nullptr;
 
-mesh::ClockMesh* getClockMesh()
+cms::ClockMesh* getClockMesh()
 {
   return mesh_obj;
 }
 
 }  // namespace ord
 
-namespace mesh {
+namespace cms {
 
-extern const char* mesh_tcl_inits[];
+extern const char* cms_tcl_inits[];
 
 void initClockMesh(ord::OpenRoad* openroad)
 {
@@ -32,8 +32,8 @@ void initClockMesh(ord::OpenRoad* openroad)
   }
 
   Tcl_Interp* tcl_interp = openroad->tclInterp();
-  Mesh_Init(tcl_interp);
-  utl::evalTclInit(tcl_interp, mesh::mesh_tcl_inits);
+  Cms_Init(tcl_interp);
+  utl::evalTclInit(tcl_interp, cms::cms_tcl_inits);
 
   // Create and initialize the mesh object
   ord::mesh_obj = new ClockMesh();
@@ -46,4 +46,4 @@ void deleteClockMesh()
   ord::mesh_obj = nullptr;
 }
 
-}  // namespace mesh
+}  // namespace cms
