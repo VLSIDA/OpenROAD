@@ -47,6 +47,7 @@ class Progress;
   X(ANT)                \
   X(CGT)                \
   X(CHK)                \
+  X(CMS)                \
   X(CTS)                \
   X(CUT)                \
   X(DFT)                \
@@ -61,7 +62,6 @@ class Progress;
   X(GRT)                \
   X(GUI)                \
   X(IFP)                \
-  X(MESH)               \
   X(MPL)                \
   X(ODB)                \
   X(ORD)                \

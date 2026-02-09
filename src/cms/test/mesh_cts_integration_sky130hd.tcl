@@ -4,7 +4,6 @@ read_liberty "sky130hd/lib/sky130_fd_sc_hd__tt_025C_1v80.lib"
 read_sdc "3_place.sdc"
 
 set clk_name "core_clock"
-run_mesh -clock $clk_name
 set buffer_list [list sky130_fd_sc_hd__clkbuf_1]
 
 create_clock_mesh \
@@ -12,17 +11,20 @@ create_clock_mesh \
     -h_layer met2 \
     -v_layer met3 \
     -pitch 5.0 \
-    -buffers $buffer_list \
-    -tree_layer met4
+    -buffers $buffer_list
 
 puts "Legalizing buffer placement..."
 detailed_placement -max_displacement 1000
 puts "Buffer placement legalized"
 
-# Connect sinks to mesh (special routing)
-connect_sinks_to_mesh -clock $clk_name
-puts "Setting up proxy BTERMs on met4 for router-based buffer connections..."
+# Setup proxy BTERMs for buffer outputs first (so sinks can share them)
+puts "Setting up proxy BTERMs on met4 for buffer connections..."
 setup_proxy_bterms -clock $clk_name -proxy_layer met4
+
+# Connect sinks via router (places BTerms at grid intersections)
+# Sinks that map to buffer intersections will share the buffer's BTerm
+puts "Setting up sink BTerms for router-based connections..."
+connect_sinks_to_mesh -clock $clk_name -proxy_layer met4
 puts "Routing the design..."
 set_routing_layers -signal met1-met4 -clock met1-met4
 set_wire_rc -signal -layer met2
@@ -84,6 +86,20 @@ set def_file [make_result_file "mesh_cts_integration_sky130hd.def"]
 puts "Writing DEF to: $def_file"
 write_def $def_file
 
+# Write Verilog netlists
+# Original netlist (using standard OpenROAD command)
+set verilog_original [make_result_file "mesh_cts_integration_sky130hd_original.v"]
+puts "Writing original Verilog netlist..."
+write_verilog -include_pwr_gnd $verilog_original
+puts "Original netlist: $verilog_original"
+
+# Mesh-merged netlist (reads original, modifies net names)
+set verilog_merged [make_result_file "mesh_cts_integration_sky130hd_merged.v"]
+puts "Writing mesh-merged Verilog netlist..."
+write_mesh_verilog -clock $clk_name -input $verilog_original -output $verilog_merged
+puts "Merged netlist:   $verilog_merged"
+
+
 # puts "\n========================================"
 # puts "Test Complete"
 # puts "========================================"
@@ -99,4 +115,4 @@ write_def $def_file
 # puts "  magic -T sky130A $def_file"
 # puts "========================================"
 
-# exit 0
+ exit 0
