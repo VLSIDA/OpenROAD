@@ -4,6 +4,7 @@
 #include "dbDescriptors.h"
 
 #include <QInputDialog>
+#include <QMessageBox>
 #include <QString>
 #include <QStringList>
 #include <algorithm>
@@ -11,6 +12,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <exception>
 #include <functional>
 #include <limits>
 #include <map>
@@ -30,6 +32,7 @@
 #include "db_sta/dbNetwork.hh"
 #include "db_sta/dbSta.hh"
 #include "gui/gui.h"
+#include "insertBufferDialog.h"
 #include "odb/db.h"
 #include "odb/dbObject.h"
 #include "odb/dbShape.h"
@@ -39,6 +42,8 @@
 #include "odb/geom.h"
 #include "options.h"
 #include "sta/Liberty.hh"
+#include "sta/LibertyClass.hh"
+#include "sta/NetworkClass.hh"
 #include "utl/Logger.h"
 #include "utl/algorithms.h"
 
@@ -1990,6 +1995,68 @@ Descriptor::Actions DbNetDescriptor::getActions(const std::any& object) const
                                            }});
     }
   }
+  int drivers = 0;
+  for (auto* iterm : net->getITerms()) {
+    const auto iotype = iterm->getIoType();
+    if (iotype == odb::dbIoType::OUTPUT || iotype == odb::dbIoType::INOUT) {
+      drivers++;
+    }
+  }
+  for (auto* bterm : net->getBTerms()) {
+    const auto iotype = bterm->getIoType();
+    if (iotype == odb::dbIoType::INPUT || iotype == odb::dbIoType::INOUT
+        || iotype == odb::dbIoType::FEEDTHRU) {
+      drivers++;
+    }
+  }
+
+  if (drivers <= 1) {
+    actions.push_back(
+        {"Insert Buffer", [this, net]() {
+           InsertBufferDialog dialog(net, sta_, nullptr);
+           if (dialog.exec() == QDialog::Accepted) {
+             odb::dbMaster* master = dialog.getSelectedMaster();
+             odb::dbObject* driver = nullptr;
+             std::set<odb::dbObject*> loads;
+             dialog.getSelection(driver, loads);
+
+             std::string buf_name = dialog.getBufferName().toStdString();
+             std::string net_name = dialog.getNetName().toStdString();
+             const char* buf_p
+                 = buf_name.empty() ? kDefaultBufBaseName : buf_name.c_str();
+             const char* net_p
+                 = net_name.empty() ? kDefaultNetBaseName : net_name.c_str();
+
+             try {
+               odb::dbInst* buffer_inst = nullptr;
+               if (driver) {
+                 buffer_inst = net->insertBufferAfterDriver(
+                     driver,
+                     master,
+                     nullptr,
+                     buf_p,
+                     net_p,
+                     odb::dbNameUniquifyType::IF_NEEDED);
+               } else if (!loads.empty()) {
+                 buffer_inst = net->insertBufferBeforeLoads(
+                     loads,
+                     master,
+                     nullptr,
+                     buf_p,
+                     net_p,
+                     odb::dbNameUniquifyType::IF_NEEDED);
+               }
+               Gui::get()->redraw();
+               if (buffer_inst) {
+                 return Gui::get()->makeSelected(buffer_inst);
+               }
+             } catch (const std::exception& e) {
+               QMessageBox::critical(nullptr, "Error", e.what());
+             }
+           }
+           return makeSelected(net);
+         }});
+  }
   return actions;
 }
 
@@ -2726,9 +2793,9 @@ Descriptor::Editors DbBlockageDescriptor::getEditors(
                blockage->setMaxDensity(density);
                return true;
              }
-           } catch (std::out_of_range&) {
+           } catch (std::out_of_range&) {  // NOLINT(bugprone-empty-catch)
              // catch poorly formatted string
-           } catch (std::logic_error&) {
+           } catch (std::logic_error&) {  // NOLINT(bugprone-empty-catch)
              // catch poorly formatted string
            }
          }
@@ -2937,6 +3004,11 @@ Descriptor::Properties DbTechLayerDescriptor::getDBProperties(
     props.emplace_back("Minimum width",
                        Property::convert_dbu(layer->getMinWidth(), true));
   }
+  if (layer->getWrongWayMinWidth() != 0) {
+    props.emplace_back(
+        "Wrong way minimum width",
+        Property::convert_dbu(layer->getWrongWayMinWidth(), true));
+  }
   if (layer->hasMaxWidth()) {
     props.emplace_back("Max width",
                        Property::convert_dbu(layer->getMaxWidth(), true));
@@ -3143,6 +3215,24 @@ Descriptor::Properties DbTechLayerDescriptor::getDBProperties(
       }
     }
     props.emplace_back("Tech vias", tech_vias);
+  }
+
+  for (auto* spacing_table : layer->getTechLayerVoltageSpacings()) {
+    std::string title = "Voltage spacing";
+    if (spacing_table->isTocutAbove() && spacing_table->isTocutBelow()) {
+      title += " - tocut";
+    } else if (spacing_table->isTocutAbove()) {
+      title += " - tocut above";
+    } else if (spacing_table->isTocutBelow()) {
+      title += " - tocut below";
+    }
+
+    PropertyList voltagetable;
+    for (const auto& [voltage, spacing] : spacing_table->getTable()) {
+      voltagetable.emplace_back(fmt::format("{:.3f}V", voltage),
+                                Property::convert_dbu(spacing, true));
+    }
+    props.emplace_back(std::move(title), voltagetable);
   }
 
   return props;

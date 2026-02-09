@@ -20,6 +20,7 @@
 
 #include "dbDescriptors.h"
 #include "gui/gui.h"
+#include "inspector.h"
 #include "odb/db.h"
 #include "odb/geom.h"
 #include "utl/Logger.h"
@@ -370,7 +371,8 @@ void DRCWidget::loadReport(const QString& filename)
                      "Unable to determine type of {}",
                      filename.toStdString());
     }
-  } catch (std::runtime_error&) {
+  } catch (std::runtime_error& e) {
+    logger_->warn(utl::GUI, 110, "Failed to load: {}", e.what());
   }  // catch errors
 
   if (category != nullptr) {

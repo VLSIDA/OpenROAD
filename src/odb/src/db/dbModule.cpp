@@ -8,6 +8,7 @@
 
 #include "dbBlock.h"
 #include "dbCommon.h"
+#include "dbCore.h"
 #include "dbDatabase.h"
 #include "dbHashTable.hpp"
 #include "dbInst.h"
@@ -16,7 +17,6 @@
 #include "dbModInst.h"
 #include "dbModulePortItr.h"
 #include "dbTable.h"
-#include "dbTable.hpp"
 #include "odb/db.h"
 // User Code Begin Includes
 #include <cassert>
@@ -496,10 +496,10 @@ dbModule* dbModule::getModule(dbBlock* block_, uint32_t dbid_)
   return (dbModule*) block->module_tbl_->getPtr(dbid_);
 }
 
-dbModInst* dbModule::findModInst(const char* name)
+dbModInst* dbModule::findModInst(const char* name) const
 {
-  _dbModule* obj = (_dbModule*) this;
-  _dbBlock* par = (_dbBlock*) obj->getOwner();
+  const _dbModule* obj = (const _dbModule*) this;
+  const _dbBlock* par = (const _dbBlock*) obj->getOwner();
   auto it = obj->modinst_hash_.find(name);
   if (it != obj->modinst_hash_.end()) {
     auto db_id = (*it).second;
@@ -508,10 +508,10 @@ dbModInst* dbModule::findModInst(const char* name)
   return nullptr;
 }
 
-dbInst* dbModule::findDbInst(const char* name)
+dbInst* dbModule::findDbInst(const char* name) const
 {
-  _dbModule* obj = (_dbModule*) this;
-  _dbBlock* par = (_dbBlock*) obj->getOwner();
+  const _dbModule* obj = (const _dbModule*) this;
+  const _dbBlock* par = (const _dbBlock*) obj->getOwner();
   auto it = obj->dbinst_hash_.find(name);
   if (it != obj->dbinst_hash_.end()) {
     auto db_id = (*it).second;
@@ -538,7 +538,7 @@ std::vector<dbInst*> dbModule::getLeafInsts()
   return insts;
 }
 
-dbModBTerm* dbModule::findModBTerm(const char* name)
+dbModBTerm* dbModule::findModBTerm(const char* name) const
 {
   std::string modbterm_name(name);
   const char hier_delimiter = getOwner()->getHierarchyDelimiter();
@@ -546,8 +546,8 @@ dbModBTerm* dbModule::findModBTerm(const char* name)
   if (last_idx != std::string::npos) {
     modbterm_name = modbterm_name.substr(last_idx + 1);
   }
-  _dbModule* obj = (_dbModule*) this;
-  _dbBlock* par = (_dbBlock*) obj->getOwner();
+  const _dbModule* obj = (const _dbModule*) this;
+  const _dbBlock* par = (const _dbBlock*) obj->getOwner();
   auto it = obj->modbterm_hash_.find(modbterm_name);
   if (it != obj->modbterm_hash_.end()) {
     auto db_id = (*it).second;
@@ -565,9 +565,9 @@ std::string dbModule::getHierarchicalName() const
   return "<top>";
 }
 
-dbBlock* dbModule::getOwner()
+dbBlock* dbModule::getOwner() const
 {
-  _dbModule* obj = (_dbModule*) this;
+  const _dbModule* obj = (const _dbModule*) this;
   return (dbBlock*) obj->getOwner();
 }
 
@@ -899,19 +899,6 @@ void _dbModule::copyModuleInsts(dbModule* old_module,
       //         net_name = u0/_001_        <-- External net crossing module
       //                                        boundary.
       std::string old_net_name = old_net->getName();
-      if (old_net->isInternalTo(old_module) == false) {
-        // Skip external net crossing module boundary.
-        // It will be connected later.
-        debugPrint(logger,
-                   utl::ODB,
-                   "replace_design",
-                   3,
-                   "    Skip: non-internal dbNet '{}' of old_module '{}'.\n",
-                   old_net_name,
-                   old_module->getHierarchicalName());
-        continue;
-      }
-
       new_net_name += block->getBaseName(old_net_name.c_str());
       auto it = new_net_name_map.find(new_net_name);
       if (it != new_net_name_map.end()) {

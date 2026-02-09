@@ -121,11 +121,10 @@ class DisplayControlModel : public QStandardItemModel
  public:
   DisplayControlModel(int user_data_item_idx, QWidget* parent = nullptr);
 
-  QVariant data(const QModelIndex& index,
-                int role = Qt::DisplayRole) const override;
+  QVariant data(const QModelIndex& index, int role) const override;
   QVariant headerData(int section,
                       Qt::Orientation orientation,
-                      int role = Qt::DisplayRole) const override;
+                      int role) const override;
 
  private:
   const int user_data_item_idx_;
@@ -251,6 +250,7 @@ class DisplayControls : public QDockWidget,
 
   bool isGCellGridVisible() const override;
   bool isFlywireHighlightOnly() const override;
+  bool areFocusedNetsGuidesVisible() const override;
 
   // API from dbNetworkObserver
   void postReadLiberty() override;
@@ -389,6 +389,7 @@ class DisplayControls : public QDockWidget,
     ModelRow flywires_only;
     ModelRow labels;
     ModelRow background;
+    ModelRow focused_nets_guides;
   };
 
   struct InstanceShapeModels

@@ -13,7 +13,9 @@
 #include "odb/wOrder.h"
 #include "parse.h"
 #include "rcx/extMeasureRC.h"
+#include "rcx/extModelGen.h"
 #include "rcx/extPattern.h"
+#include "rcx/extRCap.h"
 #include "utl/Logger.h"
 
 namespace rcx {
@@ -542,7 +544,7 @@ bool Ext::get_model_corners(const std::string& ext_model_file, Logger* logger)
           (int) corner_list.size(),
           version);
   for (it = corner_list.begin(); it != corner_list.end(); ++it) {
-    std::string str = *it;
+    const std::string& str = *it;
     // notice(0, "\t%d %s\n", cnt++, str.c_str())
     fprintf(stdout, "\t%d %s\n", cnt++, str.c_str());
   }

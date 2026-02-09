@@ -16,6 +16,7 @@ or_integration_tests(
     congestion6
     congestion7
     critical_nets_percentage
+    critical_nets_percentage_cugr
     cugr_adjustment1
     cugr_adjustment2
     cugr_adjustment3
@@ -70,6 +71,9 @@ or_integration_tests(
     repair_antennas4
     repair_antennas_error1
     repair_antennas_error2
+    repair_antennas_only_diodes
+    repair_antennas_only_jumpers
+    repair_antennas_allow_congestion
     report_wire_length1
     report_wire_length2
     report_wire_length3
@@ -95,6 +99,3 @@ or_integration_tests(
     write_segments2
 )
 
-# Skipped
-#grt_man_tcl_check
-#grt_readme_msgs_check

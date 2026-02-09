@@ -173,6 +173,7 @@ class dbTechLayerMinStepRule;
 class dbTechLayerSpacingEolRule;
 class dbTechLayerSpacingTablePrlRule;
 class dbTechLayerTwoWiresForbiddenSpcRule;
+class dbTechLayerVoltageSpacing;
 class dbTechLayerWidthTableRule;
 class dbTechLayerWrongDirSpacingRule;
 // Generator Code End ClassDeclarations
@@ -2014,6 +2015,11 @@ class dbNet : public dbObject
   dbObject* getFirstDriverTerm() const;
 
   ///
+  /// Get the 1st driver instance
+  ///
+  dbInst* getFirstDriverInst() const;
+
+  ///
   /// Get the 1st output Iterm; can be
   ///
   dbITerm* getFirstOutput() const;
@@ -2239,7 +2245,7 @@ class dbNet : public dbObject
   ///
   /// Get the gdn cap of this net to *gndcap, total cap to *totalcap
   ///
-  void getGndTotalCap(double* gndcap, double* totalcap, double MillerMult);
+  void getGndTotalCap(double* gndcap, double* totalcap, double miller_mult);
 
   ///
   /// merge rsegs before doing exttree
@@ -2314,7 +2320,8 @@ class dbNet : public dbObject
   ///
   /// compact internal capnode number'
   ///
-  void collapseInternalCapNum(FILE* capNodeMap);
+  void collapseInternalCapNum(FILE* cap_node_map);
+
   ///
   /// find max number of cap nodes that are internal
   ///
@@ -2615,7 +2622,7 @@ class dbNet : public dbObject
   ///   contain an irrelevant load.
   ///
   dbInst* insertBufferBeforeLoads(
-      std::set<dbObject*>& load_pins,
+      const std::set<dbObject*>& load_pins,
       const dbMaster* buffer_master,
       const Point* loc = nullptr,
       const char* new_buf_base_name = kDefaultBufBaseName,
@@ -2627,7 +2634,7 @@ class dbNet : public dbObject
   /// Partial-loads buffering with vector load_pins support.
   ///
   dbInst* insertBufferBeforeLoads(
-      std::vector<dbObject*>& load_pins,
+      const std::vector<dbObject*>& load_pins,
       const dbMaster* buffer_master,
       const Point* loc = nullptr,
       const char* new_buf_base_name = kDefaultBufBaseName,
@@ -4200,7 +4207,7 @@ class dbCapNode : public dbObject
 
   /// Add the gndCap to *gndcap and *totalcap, ccCap to *totalcap
   ///
-  void addGndTotalCap(double* gndcap, double* totalcap, double MillerMult);
+  void addGndTotalCap(double* gndcap, double* totalcap, double miller_mult);
 
   ///
   /// Get the gndCap of this capnode to *gndcap and *totalcap
@@ -4210,12 +4217,12 @@ class dbCapNode : public dbObject
   ///
   /// Get the gndCap to *gndcap and *totalcap, ccCap to *totalcap
   ///
-  void getGndTotalCap(double* gndcap, double* totalcap, double MillerMult);
+  void getGndTotalCap(double* gndcap, double* totalcap, double miller_mult);
 
   ///
   /// Add the caps of all corners of CC's from this capnode to *totalcap
   ///
-  void accAllCcCap(double* totalcap, double MillerMult);
+  void accAllCcCap(double* totalcap, double miller_mult);
 
   ///
   /// Set the capacitance of this CapNode segment for this process corner. Value
@@ -4488,12 +4495,12 @@ class dbRSeg : public dbObject
   ///
   /// Get the gdn cap of this RC segment to *gndcap, total cap to *totalcap
   ///
-  void getGndTotalCap(double* gndcap, double* totalcap, double MillerMult);
+  void getGndTotalCap(double* gndcap, double* totalcap, double miller_mult);
 
   ///
   /// Add the gdn cap of this RC segment to *gndcap, total cap to *totalcap
   ///
-  void addGndTotalCap(double* gndcap, double* totalcap, double MillerMult);
+  void addGndTotalCap(double* gndcap, double* totalcap, double miller_mult);
 
   ///
   /// do merge rsegs
@@ -4545,7 +4552,7 @@ class dbRSeg : public dbObject
   /// for this process corner, if foreign,
   /// plus coupling capacitance. Returns value in FF.
   ///
-  double getCapacitance(int corner, double MillerMult);
+  double getCapacitance(int corner, double miller_mult);
 
   ///
   /// Get the CC segs of this RC segment,
@@ -4736,7 +4743,7 @@ class dbCCSeg : public dbObject
   ///
   /// Add the capacitance of all corners of this CC segment to *ttcap
   ///
-  void accAllCcCap(double* ttcap, double MillerMult);
+  void accAllCcCap(double* ttcap, double miller_mult);
 
   ///
   /// Get the capacitance of all corners of this CC segment to *ttcap
@@ -8653,7 +8660,7 @@ class dbModule : public dbObject
   // module.
   void addInst(dbInst* inst);
 
-  dbBlock* getOwner();
+  dbBlock* getOwner() const;
 
   dbSet<dbModInst> getChildren() const;
   dbSet<dbModInst> getModInsts() const;
@@ -8665,9 +8672,9 @@ class dbModule : public dbObject
   dbModBTerm* getModBTerm(uint32_t id);
   dbSet<dbInst> getInsts() const;
 
-  dbModInst* findModInst(const char* name);
-  dbInst* findDbInst(const char* name);
-  dbModBTerm* findModBTerm(const char* name);
+  dbModInst* findModInst(const char* name) const;
+  dbInst* findDbInst(const char* name) const;
+  dbModBTerm* findModBTerm(const char* name) const;
 
   std::vector<dbInst*> getLeafInsts();
 
@@ -9063,6 +9070,10 @@ class dbTechLayer : public dbObject
 
   uint32_t getWrongWayWidth() const;
 
+  void setWrongWayMinWidth(uint32_t wrong_way_min_width);
+
+  uint32_t getWrongWayMinWidth() const;
+
   void setLayerAdjustment(float layer_adjustment);
 
   float getLayerAdjustment() const;
@@ -9116,6 +9127,8 @@ class dbTechLayer : public dbObject
 
   dbSet<dbTechLayerTwoWiresForbiddenSpcRule>
   getTechLayerTwoWiresForbiddenSpcRules() const;
+
+  dbSet<dbTechLayerVoltageSpacing> getTechLayerVoltageSpacings() const;
 
   void setRectOnly(bool rect_only);
 
@@ -11148,6 +11161,27 @@ class dbTechLayerTwoWiresForbiddenSpcRule : public dbObject
 
   static void destroy(dbTechLayerTwoWiresForbiddenSpcRule* rule);
   // User Code End dbTechLayerTwoWiresForbiddenSpcRule
+};
+
+class dbTechLayerVoltageSpacing : public dbObject
+{
+ public:
+  void setTocutAbove(bool tocut_above);
+
+  bool isTocutAbove() const;
+
+  void setTocutBelow(bool tocut_below);
+
+  bool isTocutBelow() const;
+
+  // User Code Begin dbTechLayerVoltageSpacing
+  const std::map<float, int>& getTable() const;
+  void addEntry(float voltage, int spacing);
+
+  static dbTechLayerVoltageSpacing* create(dbTechLayer* layer);
+
+  static void destroy(dbTechLayerVoltageSpacing* rule);
+  // User Code End dbTechLayerVoltageSpacing
 };
 
 class dbTechLayerWidthTableRule : public dbObject

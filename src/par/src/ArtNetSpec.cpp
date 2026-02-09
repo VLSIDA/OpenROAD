@@ -28,11 +28,7 @@
 #include "odb/dbSet.h"
 #include "odb/dbTypes.h"
 #include "par/PartitionMgr.h"
-#include "sta/ArcDelayCalc.hh"
 #include "sta/Bfs.hh"
-#include "sta/ConcreteNetwork.hh"
-#include "sta/Corner.hh"
-#include "sta/DcalcAnalysisPt.hh"
 #include "sta/ExceptionPath.hh"
 #include "sta/FuncExpr.hh"
 #include "sta/Graph.hh"
@@ -40,7 +36,6 @@
 #include "sta/Liberty.hh"
 #include "sta/MakeConcreteNetwork.hh"
 #include "sta/MinMax.hh"
-#include "sta/Network.hh"
 #include "sta/NetworkClass.hh"
 #include "sta/ParseBus.hh"
 #include "sta/Path.hh"
@@ -55,7 +50,6 @@
 #include "sta/SearchPred.hh"
 #include "sta/Sequential.hh"
 #include "sta/Sta.hh"
-#include "sta/Units.hh"
 #include "sta/VerilogWriter.hh"
 #include "utl/Logger.h"
 
@@ -374,7 +368,7 @@ bool PartitionMgr::partitionCluster(
     cv.push_back(resultCV[1]);
 
     for (int j = 0; j < 2; ++j) {
-      auto newC = resultCV[j];
+      const auto& newC = resultCV[j];
       int newGateNum = newC->getNumInsts();
       if (newGateNum < MIN_GATE_NUM_PER_CLUSTER) {
         flag = false;
@@ -615,7 +609,7 @@ void PartitionMgr::linCurvFit(ModuleMgr& modMgr,
 
   const double b = log(modules[n - 1]->getAvgK());
   for (int i = 0; i < n; i++) {
-    auto m = modules[i];
+    const auto& m = modules[i];
     x[i] = log(m->getAvgInsts());
     y[i] = log(m->getAvgT()) - b;
   }

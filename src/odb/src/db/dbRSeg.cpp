@@ -17,7 +17,6 @@
 #include "dbJournal.h"
 #include "dbNet.h"
 #include "dbTable.h"
-#include "dbTable.hpp"
 #include "odb/db.h"
 #include "odb/dbObject.h"
 #include "odb/dbSet.h"
@@ -463,7 +462,7 @@ dbCapNode* dbRSeg::getSourceCapNode()
   return (dbCapNode*) n;
 }
 
-double dbRSeg::getCapacitance(const int corner, const double MillerMult)
+double dbRSeg::getCapacitance(const int corner, const double miller_mult)
 {
   const double cap = getCapacitance(corner);
 
@@ -478,19 +477,23 @@ double dbRSeg::getCapacitance(const int corner, const double MillerMult)
     ccCap += cc->getCapacitance(corner);
   }
 
-  return cap + (MillerMult * ccCap);
+  return cap + (miller_mult * ccCap);
 }
 
-void dbRSeg::getGndTotalCap(double* gndcap, double* totalcap, double MillerMult)
+void dbRSeg::getGndTotalCap(double* gndcap,
+                            double* totalcap,
+                            double miller_mult)
 {
   getGndCap(gndcap, totalcap);
-  getTargetCapNode()->accAllCcCap(totalcap, MillerMult);
+  getTargetCapNode()->accAllCcCap(totalcap, miller_mult);
 }
 
-void dbRSeg::addGndTotalCap(double* gndcap, double* totalcap, double MillerMult)
+void dbRSeg::addGndTotalCap(double* gndcap,
+                            double* totalcap,
+                            double miller_mult)
 {
   addGndCap(gndcap, totalcap);
-  getTargetCapNode()->accAllCcCap(totalcap, MillerMult);
+  getTargetCapNode()->accAllCcCap(totalcap, miller_mult);
 }
 
 void dbRSeg::getCcSegs(std::vector<dbCCSeg*>& ccsegs)

@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2019-2025, The OpenROAD Authors
 
+#include <string.h>  // NOLINT(modernize-deprecated-headers): for strdup()
+
 #include <algorithm>
 #include <cfloat>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <memory>
 #include <vector>
@@ -152,6 +155,7 @@ uint32_t extMain::GenExtRules(const char* rulesFileName)
     char* overUnderToken = strdup(p->get(1));  // M2oM1uM3
     int wCnt = w->mkWords(overUnderToken, "ou");
     if (wCnt < 2) {
+      free(overUnderToken);
       continue;
     }
 
@@ -194,6 +198,7 @@ uint32_t extMain::GenExtRules(const char* rulesFileName)
       m._overUnder = false;
       m._over = false;
     }
+    free(overUnderToken);
     // TODO DIAGUNDER
     m._met = met;
 

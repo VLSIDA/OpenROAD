@@ -10,6 +10,7 @@
 #include <QPolygon>
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <exception>
 #include <iterator>
 #include <mutex>
@@ -24,6 +25,7 @@
 #include "boost/geometry/index/predicates.hpp"
 #include "boost/geometry/index/rtree.hpp"
 #include "gui/gui.h"
+#include "label.h"
 #include "layoutViewer.h"
 #include "odb/db.h"
 #include "odb/dbObject.h"
@@ -1106,6 +1108,10 @@ void RenderThread::drawLayer(QPainter* painter,
     drawNetTracks(gui_painter, layer);
   }
 
+  if (viewer_->options_->areFocusedNetsGuidesVisible()) {
+    drawNetsRouteGuides(gui_painter, viewer_->focus_nets_, layer);
+  }
+
   for (auto* renderer : Gui::get()->renderers()) {
     if (restart_) {
       break;
@@ -1408,16 +1414,32 @@ void RenderThread::drawRouteGuides(Painter& painter, odb::dbTechLayer* layer)
   if (viewer_->route_guides_.empty()) {
     return;
   }
+
+  drawNetsRouteGuides(painter, viewer_->route_guides_, layer);
+}
+
+void RenderThread::drawNetsRouteGuides(Painter& painter,
+                                       const std::set<odb::dbNet*>& nets,
+                                       odb::dbTechLayer* layer)
+{
   painter.setPen(layer);
   painter.setBrush(layer);
-  for (auto net : viewer_->route_guides_) {
+
+  for (odb::dbNet* net : nets) {
     if (restart_) {
       break;
     }
-    for (auto guide : net->getGuides()) {
-      if (guide->getLayer() != layer) {
-        continue;
-      }
+
+    drawNetRouteGuides(painter, net, layer);
+  }
+}
+
+void RenderThread::drawNetRouteGuides(Painter& painter,
+                                      odb::dbNet* net,
+                                      odb::dbTechLayer* layer)
+{
+  for (odb::dbGuide* guide : net->getGuides()) {
+    if (guide->getLayer() == layer) {
       painter.drawRect(guide->getBox());
     }
   }
@@ -1552,18 +1574,14 @@ void RenderThread::setupIOPins(odb::dbBlock* block, const odb::Rect& bounds)
   }
 
   const auto die_area = block->getDieArea();
-  const auto die_width = die_area.dx();
-  const auto die_height = die_area.dy();
 
   pin_draw_names_ = viewer_->options_->areIOPinNamesVisible();
+  const double scale_factor
+      = 0.02;  // 4 Percent of bounds is used to draw pin-markers
+  const int die_max_dim = std::min(die_area.maxDXDY(), bounds.maxDXDY());
+  const double abs_min_dim = 8.0;  // prevent markers from falling apart
+  pin_max_size_ = std::max(scale_factor * die_max_dim, abs_min_dim);
   if (pin_draw_names_) {
-    const double scale_factor
-        = 0.02;  // 4 Percent of bounds is used to draw pin-markers
-    const int die_max_dim
-        = std::min(std::max(die_width, die_height), bounds.maxDXDY());
-    const double abs_min_dim = 8.0;  // prevent markers from falling apart
-    pin_max_size_ = std::max(scale_factor * die_max_dim, abs_min_dim);
-
     pin_font_ = viewer_->options_->ioPinMarkersFont();
     const QFontMetrics font_metrics(pin_font_);
 
@@ -1690,16 +1708,34 @@ void RenderThread::drawIOPins(Painter& painter,
   };
   std::vector<PinText> pin_text_spec;
 
+  const int min_bpin_size = viewer_->options_->isDetailedVisibility()
+                                ? viewer_->fineViewableResolution()
+                                : viewer_->nominalViewableResolution();
+  const int64_t max_lin_bpins
+      = min_bpin_size > 0 ? bounds.minDXDY() / min_bpin_size : bounds.minDXDY();
+  const int64_t max_bpins
+      = std::min(kMaxBPinsPerLayer, max_lin_bpins * max_lin_bpins);
+
   painter.setPen(layer);
   painter.setBrush(layer);
 
+  auto bpins = viewer_->search_.searchBPins(
+      block, layer, bounds.xMin(), bounds.yMin(), bounds.xMax(), bounds.yMax());
+  debugPrint(logger_,
+             GUI,
+             "draw",
+             2,
+             "found {} bpins on layer {}, drawing limit {} ({}) bpins",
+             bpins.size(),
+             layer->getName(),
+             max_bpins,
+             max_lin_bpins);
+  if (bpins.size() > max_bpins) {
+    return;
+  }
+
   std::vector<odb::Rect> pin_text_spec_shape_rects;
-  for (const auto& [box, pin] : viewer_->search_.searchBPins(block,
-                                                             layer,
-                                                             bounds.xMin(),
-                                                             bounds.yMin(),
-                                                             bounds.xMax(),
-                                                             bounds.yMax())) {
+  for (const auto& [box, pin] : bpins) {
     if (restart_) {
       break;
     }

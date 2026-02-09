@@ -9,8 +9,10 @@
 #include <QString>
 #include <QThread>
 #include <QWaitCondition>
+#include <cstdint>
 #include <map>
 #include <mutex>
+#include <set>
 #include <utility>
 #include <vector>
 
@@ -131,6 +133,12 @@ class RenderThread : public QThread
                         const odb::Rect& bounds,
                         const std::vector<odb::dbInst*>& insts);
   void drawRouteGuides(Painter& painter, odb::dbTechLayer* layer);
+  void drawNetsRouteGuides(Painter& painter,
+                           const std::set<odb::dbNet*>& nets,
+                           odb::dbTechLayer* layer);
+  void drawNetRouteGuides(Painter& painter,
+                          odb::dbNet* net,
+                          odb::dbTechLayer* layer);
   void drawNetTracks(Painter& painter, odb::dbTechLayer* layer);
   void drawModuleView(QPainter* painter,
                       const std::vector<odb::dbInst*>& insts);
@@ -169,6 +177,8 @@ class RenderThread : public QThread
   QFont pin_font_;
   bool pin_draw_names_ = false;
   double pin_max_size_ = 0.0;
+
+  static constexpr int64_t kMaxBPinsPerLayer = 100000;
 };
 
 }  // namespace gui

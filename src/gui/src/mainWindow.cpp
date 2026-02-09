@@ -44,16 +44,20 @@
 #include "dbDescriptors.h"
 #include "displayControls.h"
 #include "drcWidget.h"
+#include "findDialog.h"
 #include "globalConnectDialog.h"
+#include "gotoDialog.h"
 #include "gui/gui.h"
 #include "gui/heatMap.h"
 #include "helpWidget.h"
 #include "highlightGroupDialog.h"
 #include "inspector.h"
+#include "label.h"
 #include "layoutTabs.h"
 #include "layoutViewer.h"
 #include "odb/db.h"
 #include "odb/dbObject.h"
+#include "ruler.h"
 #include "scriptWidget.h"
 #include "selectHighlightWindow.h"
 #include "sta/Liberty.hh"
@@ -374,11 +378,10 @@ MainWindow::MainWindow(bool load_settings, QWidget* parent)
             odb::Rect bbox;
             selected.getBBox(bbox);
 
-            auto* block = getBlock();
             int zoomout_dist = std::numeric_limits<int>::max();
-            if (block != nullptr) {
+            if (db_ != nullptr) {
               // 10 microns
-              zoomout_dist = 10 * block->getDbUnitsPerMicron();
+              zoomout_dist = 10 * db_->getDbuPerMicron();
             }
             // twice the largest dimension of bounding box
             const int zoomout_box = 2 * std::max(bbox.dx(), bbox.dy());
@@ -395,10 +398,10 @@ MainWindow::MainWindow(bool load_settings, QWidget* parent)
       drc_viewer_->updateSelection(*selected_.begin());
     }
   });
-  connect(this,
-          &MainWindow::displayUnitsChanged,
+  connect(viewers_,
+          &LayoutTabs::viewUpdated,
           goto_dialog_,
-          &GotoLocationDialog::updateUnits);
+          &GotoLocationDialog::updateLocation);
   connect(selection_timer_.get(), &QTimer::timeout, [this]() {
     emit selectionChanged();
   });
@@ -814,9 +817,8 @@ void MainWindow::setUseDBU(bool use_dbu)
   for (auto* heat_map : Gui::get()->getHeatMaps()) {
     heat_map->setUseDBU(use_dbu);
   }
-  auto* block = getBlock();
-  if (block != nullptr) {
-    emit displayUnitsChanged(block->getDbUnitsPerMicron(), use_dbu);
+  if (db_) {
+    emit displayUnitsChanged(db_->getDbuPerMicron(), use_dbu);
   }
 }
 
@@ -1431,6 +1433,11 @@ void MainWindow::zoomTo(const odb::Rect& rect_dbu)
   viewers_->zoomTo(rect_dbu);
 }
 
+void MainWindow::zoomTo(const odb::Point& focus, int diameter)
+{
+  viewers_->zoomTo(focus, diameter);
+}
+
 void MainWindow::zoomInToItems(const QList<const Selected*>& items)
 {
   if (items.empty()) {
@@ -1471,7 +1478,7 @@ void MainWindow::showGotoDialog()
     return;
   }
 
-  goto_dialog_->show_init();
+  goto_dialog_->showInit();
 }
 
 void MainWindow::showHelp()
@@ -1745,9 +1752,10 @@ std::vector<std::string> MainWindow::getRestoreTclCommands()
 {
   std::vector<std::string> cmds;
   // Save rulers
-  for (const auto& ruler : rulers_) {
-    cmds.push_back(ruler->getTclCommand(
-        db_->getChip()->getBlock()->getDbUnitsPerMicron()));
+  if (db_) {
+    for (const auto& ruler : rulers_) {
+      cmds.push_back(ruler->getTclCommand(db_->getDbuPerMicron()));
+    }
   }
   // Save buttons
   for (const auto& action : view_tool_bar_->actions()) {
@@ -1775,11 +1783,10 @@ std::string MainWindow::convertDBUToString(int value, bool add_units) const
   if (show_dbu_->isChecked()) {
     return std::to_string(value);
   }
-  auto* block = getBlock();
-  if (block == nullptr) {
+  if (db_ == nullptr) {
     return std::to_string(value);
   }
-  const double dbu_per_micron = block->getDbUnitsPerMicron();
+  const double dbu_per_micron = db_->getDbuPerMicron();
 
   const int precision = std::ceil(std::log10(dbu_per_micron));
   const double micron_value = value / dbu_per_micron;
@@ -1808,11 +1815,10 @@ int MainWindow::convertStringToDBU(const std::string& value, bool* ok) const
   if (show_dbu_->isChecked()) {
     return new_value.toInt(ok);
   }
-  auto* block = getBlock();
-  if (block == nullptr) {
+  if (db_ == nullptr) {
     return new_value.toInt(ok);
   }
-  const int dbu_per_micron = block->getDbUnitsPerMicron();
+  const int dbu_per_micron = db_->getDbuPerMicron();
 
   return new_value.toDouble(ok) * dbu_per_micron;
 }
@@ -1937,7 +1943,9 @@ void MainWindow::saveDesign()
 
   try {
     ord::OpenRoad::openRoad()->writeDb(file.toStdString().c_str());
-  } catch (const std::exception&) {
+  } catch (const std::exception& e) {
+    QMessageBox::warning(
+        this, "Save Error", QString("Db save failed: %1").arg(e.what()));
   }
 }
 

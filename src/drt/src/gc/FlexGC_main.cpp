@@ -14,11 +14,16 @@
 
 #include "boost/geometry/geometry.hpp"
 #include "boost/polygon/polygon.hpp"
+#include "db/drObj/drNet.h"
+#include "db/drObj/drShape.h"
+#include "db/drObj/drVia.h"
 #include "db/gcObj/gcShape.h"
 #include "db/obj/frBlockObject.h"
 #include "db/obj/frMarker.h"
+#include "db/tech/frConstraint.h"
 #include "frBaseTypes.h"
 #include "frProfileTask.h"
+#include "gc/FlexGC.h"
 #include "gc/FlexGC_impl.h"
 #include "odb/dbTypes.h"
 #include "odb/geom.h"
@@ -2227,7 +2232,7 @@ bool FlexGCWorker::Impl::checkMetalShape_lef58Area_rectWidth(
     gtl::get_max_rectangles(rects, polySet);
     if (rects.size() == 1) {
       int min_width = db_rule->getRectWidth();
-      auto rect = rects.back();
+      const auto& rect = rects.back();
       auto xLen = gtl::delta(rect, gtl::HORIZONTAL);
       auto yLen = gtl::delta(rect, gtl::VERTICAL);
       bool apply_rect_width_area = false;

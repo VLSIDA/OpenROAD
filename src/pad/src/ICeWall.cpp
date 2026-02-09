@@ -760,6 +760,15 @@ void ICeWall::placePads(const std::vector<odb::dbInst*>& insts,
       break;
   }
 
+  if (logger_->debugCheck(utl::PAD, "Place", 2)) {
+    int idx = 0;
+    logger_->debug(
+        utl::PAD, "Place", "Pad placement order ({}):", insts.size());
+    for (auto* inst : insts) {
+      logger_->debug(utl::PAD, "Place", "  {:>5}: {}", ++idx, inst->getName());
+    }
+  }
+
   placer->place();
 
   logger_->info(
@@ -1410,7 +1419,7 @@ std::vector<odb::dbInst*> ICeWall::getPadInstsInRow(odb::dbRow* row) const
   const odb::Rect row_bbox = row->getBBox();
 
   for (auto* inst : block->getInsts()) {
-    if (!inst->isPlaced()) {
+    if (!inst->isFixed()) {
       continue;
     }
 
@@ -1475,6 +1484,7 @@ void ICeWall::routeRDL(odb::dbTechLayer* layer,
                                         turn_penalty,
                                         max_iterations);
   router_->setRDLDebugNet(rdl_net_debug_);
+  router_->setRDLDebugPin(rdl_pin_debug_);
   if (router_gui_ != nullptr) {
     router_gui_->setRouter(router_.get());
   }
@@ -1513,6 +1523,20 @@ void ICeWall::routeRDLDebugNet(const char* net)
 
   if (router_ != nullptr) {
     router_->setRDLDebugNet(rdl_net_debug_);
+  }
+}
+
+void ICeWall::routeRDLDebugPin(const char* pin)
+{
+  auto* block = getBlock();
+  if (block == nullptr) {
+    return;
+  }
+
+  rdl_pin_debug_ = block->findITerm(pin);
+
+  if (router_ != nullptr) {
+    router_->setRDLDebugPin(rdl_pin_debug_);
   }
 }
 

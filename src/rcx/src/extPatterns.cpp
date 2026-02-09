@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (c) 2024-2025, The OpenROAD Authors
 
+#include <string.h>  // NOLINT(modernize-deprecated-headers): for strdup()
+
 #include <algorithm>
 #include <cassert>
 #include <cmath>
@@ -12,12 +14,14 @@
 
 #include "odb/db.h"
 #include "odb/dbSet.h"
+#include "odb/dbTypes.h"
 #include "odb/geom.h"
 #include "rcx/dbUtil.h"
 #include "rcx/extPattern.h"
 #include "rcx/extRCap.h"
 #include "rcx/extSpef.h"
 #include "rcx/extprocess.h"
+#include "rcx/util.h"
 #include "utl/Logger.h"
 
 namespace rcx {
@@ -244,7 +248,7 @@ extPattern::extPattern(int cnt,
                        const int org[2],
                        dbCreateNetUtil* net_util)
 {
-  nameHash = new AthHash<int>(10000000, 0);  // TODO: check for memory free
+  nameHash = new AthHash<int, false>(10000000);  // TODO: check for memory free
 
   patternLog = fp;
   opt = opt1;
@@ -830,8 +834,11 @@ bool extPattern::SetPatternName()
     return true;
   }
   nameHash->add(pname, 1);
+  // pname is store in nameHash, not leaked
+  // NOLINTNEXTLINE(clang-analyzer-unix.Malloc)
   return false;
 }
+
 extWirePattern* extPattern::MainPattern(float mw,
                                         float msL,
                                         float msR,
@@ -1479,6 +1486,7 @@ std::vector<float> extPattern::getMultipliers(const char* s)
     float v = atof(tmp);
     table.push_back(v);
   }
+  free(tmp);
   return table;
 }
 FILE* extPattern::OpenLog(int met, const char* postfix)

@@ -19,7 +19,6 @@ namespace dpl {
 
 using utl::DPL;
 
-using std::sort;
 using std::unordered_set;
 
 using odb::dbITerm;
@@ -49,7 +48,7 @@ void NetBox::restoreBox()
 
 ////////////////////////////////////////////////////////////////
 
-OptimizeMirroring::OptimizeMirroring(Logger* logger, odb::dbDatabase* db)
+OptimizeMirroring::OptimizeMirroring(utl::Logger* logger, odb::dbDatabase* db)
     : logger_(logger), db_(db), block_(db_->getChip()->getBlock())
 {
 }

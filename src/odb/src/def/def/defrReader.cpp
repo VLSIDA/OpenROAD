@@ -29,6 +29,9 @@
 
 #include "defrReader.hpp"
 
+#include <string.h>  // NOLINT(modernize-deprecated-headers): for strdup()
+
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -2191,7 +2194,7 @@ void defrDisablePropStrProcess()
   defContext.settings->DisPropStrProcess = 1;
 }
 
-void defrSetNLines(long long n)
+void defrSetNLines(int64_t n)
 {
   defrData* defData = defContext.data;
 
@@ -2209,7 +2212,7 @@ int defrLineNumber()
   return 0;
 }
 
-long long defrLongLineNumber()
+int64_t defrLongLineNumber()
 {
   // Compatibility feature: in old versions the translators,
   // the function can be called before defData initialization.
@@ -2218,7 +2221,7 @@ long long defrLongLineNumber()
     return defContext.data->nlines;
   }
 
-  return (long long) 0;
+  return (int64_t) 0;
 }
 
 END_DEF_PARSER_NAMESPACE
