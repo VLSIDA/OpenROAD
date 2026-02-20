@@ -60,8 +60,6 @@ using sta::Vertex;
 // 4) it doesn't worsen slack
 bool UnbufferMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
 {
-  startMove(drvr_pin);
-
   Instance* drvr = network_->instance(drvr_pin);
   LibertyPort* drvr_port = network_->libertyPort(drvr_pin);
   LibertyCell* drvr_cell = drvr_port ? drvr_port->libertyCell() : nullptr;
@@ -77,7 +75,7 @@ bool UnbufferMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                "REJECT UnbufferMove {}: No liberty cell found for {}",
                network_->pathName(drvr_pin),
                network_->pathName(drvr));
-    return endMove(false);
+    return false;
   }
 
   if (!drvr_cell->isBuffer()) {
@@ -88,7 +86,7 @@ bool UnbufferMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                "REJECT UnbufferMove {}: Driver cell ({}) isn't a buffer",
                network_->pathName(drvr_pin),
                drvr_cell->name());
-    return endMove(false);
+    return false;
   }
 
   // Don't remove buffers from previous sizing, pin swapping, rebuffering, or
@@ -113,7 +111,7 @@ bool UnbufferMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                "REJECT UnbufferMove {}: Buffer is not removed because {}",
                network_->pathName(drvr_pin),
                reason);
-    return endMove(false);
+    return false;
   }
 
   // Don't remove buffer if new max fanout violations are created
@@ -140,7 +138,7 @@ bool UnbufferMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                  new_fanout,
                  max_fanout,
                  network_->pathName(prev_drvr_pin));
-      return endMove(false);
+      return false;
     }
   } else {
     // No max fanout exists, but don't exceed default fanout limit
@@ -155,7 +153,7 @@ bool UnbufferMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                  new_fanout,
                  buffer_removal_max_fanout_,
                  network_->pathName(prev_drvr_pin));
-      return endMove(false);
+      return false;
     }
   }
 
@@ -193,7 +191,7 @@ bool UnbufferMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                  network_->pathName(prev_drvr_pin),
                  cap,
                  new_cap);
-      return endMove(false);
+      return false;
     }
   }
 
@@ -210,7 +208,7 @@ bool UnbufferMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                2,
                "REJECT UnbufferMove {}: Estimated slack not OK",
                network_->pathName(drvr_pin));
-    return endMove(false);
+    return false;
   }
 
   if (!canRemoveBuffer(drvr, /* honorDontTouch */ true)) {
@@ -221,7 +219,7 @@ bool UnbufferMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                "REJECT UnbufferMove {}: Can't remove buffer {}",
                network_->pathName(drvr_pin),
                network_->pathName(drvr));
-    return endMove(false);
+    return false;
   }
 
   debugPrint(logger_,
@@ -232,7 +230,7 @@ bool UnbufferMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
              network_->pathName(drvr_pin),
              network_->pathName(drvr));
   removeBuffer(drvr);
-  return endMove(true);
+  return true;
 }
 
 bool UnbufferMove::removeBufferIfPossible(Instance* buffer,

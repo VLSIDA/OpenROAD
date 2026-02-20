@@ -58,8 +58,6 @@ using sta::Vertex;
 
 bool SwapPinsMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
 {
-  startMove(drvr_pin);
-
   Instance* drvr = network_->instance(drvr_pin);
 
   // Skip if this is don't touch
@@ -71,7 +69,7 @@ bool SwapPinsMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                "REJECT SwapPinsMove {}: {} is \"don't touch\"",
                network_->pathName(drvr_pin),
                network_->pathName(drvr));
-    return endMove(false);
+    return false;
   }
 
   // Check if we have already dealt with this instance
@@ -84,7 +82,7 @@ bool SwapPinsMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                "REJECT SwapPinsMove {}: Already swapped {}",
                network_->pathName(drvr_pin),
                network_->pathName(drvr));
-    return endMove(false);
+    return false;
   }
 
   // Skip if there is no liberty model or this is a single-input cell
@@ -99,7 +97,7 @@ bool SwapPinsMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                "REJECT SwapPinsMove {}: No liberty cell found for {}",
                network_->pathName(drvr_pin),
                network_->pathName(drvr));
-    return endMove(false);
+    return false;
   }
 
   if (drvr_cell->isBuffer() || drvr_cell->isInverter()) {
@@ -110,7 +108,7 @@ bool SwapPinsMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                "REJECT SwapPinsMove {}: Cell {} is single output",
                network_->pathName(drvr_pin),
                drvr_cell->name());
-    return endMove(false);
+    return false;
   }
 
   const DcalcAnalysisPt* dcalc_ap = resizer_->tgt_slew_dcalc_ap_;
@@ -134,7 +132,7 @@ bool SwapPinsMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                2,
                "REJECT SwapPinsMove {}: Output to output path",
                network_->pathName(drvr_pin));
-    return endMove(false);
+    return false;
   }
 
   // Find the equivalent pins for a cell (simple implementation for now)
@@ -152,7 +150,7 @@ bool SwapPinsMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                2,
                "REJECT SwapPinsMove {}: No equivalent pins found",
                network_->pathName(drvr_pin));
-    return endMove(false);
+    return false;
   }
 
   // Pass slews at input pins for more accurate delay/slew estimation
@@ -169,7 +167,7 @@ bool SwapPinsMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                "REJECT SwapPinsMove {}: Selected swap pin is actually the same "
                "input pin",
                network_->pathName(drvr_pin));
-    return endMove(false);
+    return false;
   }
 
   debugPrint(logger_,
@@ -183,7 +181,7 @@ bool SwapPinsMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
              swap_port->name());
   swapPins(drvr, input_port, swap_port);
   countMove(drvr);
-  return endMove(true);
+  return true;
 }
 
 void SwapPinsMove::swapPins(Instance* inst,

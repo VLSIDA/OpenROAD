@@ -79,8 +79,6 @@ using sta::VertexOutEdgeIterator;
 ///
 bool SplitLoadMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
 {
-  startMove(drvr_pin);
-
   Vertex* drvr_vertex = graph_->pinDrvrVertex(drvr_pin);
 
   const int fanout = this->fanout(drvr_vertex);
@@ -94,7 +92,7 @@ bool SplitLoadMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                network_->pathName(drvr_pin),
                fanout,
                split_load_min_fanout_);
-    return endMove(false);
+    return false;
   }
   if (!resizer_->okToBufferNet(drvr_pin)) {
     debugPrint(logger_,
@@ -103,7 +101,7 @@ bool SplitLoadMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                2,
                "REJECT SplitLoadMove {}: Not OK to buffer net",
                network_->pathName(drvr_pin));
-    return endMove(false);
+    return false;
   }
 
   // Sort fanouts of the drvr on the critical path by slack margin
@@ -184,7 +182,7 @@ bool SplitLoadMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                2,
                "REJECT SplitLoadMove {}: Couldn't insert buffer",
                network_->pathName(drvr_pin));
-    return endMove(false);
+    return false;
   }
 
   LibertyPort *input, *output;
@@ -205,7 +203,7 @@ bool SplitLoadMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
              network_->pathName(drvr_pin),
              network_->pathName(buffer));
   countMove(buffer);
-  return endMove(true);
+  return true;
 }
 
 }  // namespace rsz

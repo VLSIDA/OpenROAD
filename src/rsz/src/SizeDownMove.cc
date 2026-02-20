@@ -52,8 +52,6 @@ using sta::VertexOutEdgeIterator;
 
 bool SizeDownMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
 {
-  startMove(drvr_pin);
-
   Vertex* drvr_vertex = graph_->pinDrvrVertex(drvr_pin);
   const int fanout = this->fanout(drvr_vertex);
   // Skip nets with large fanout because we will need to buffer them.
@@ -66,7 +64,7 @@ bool SizeDownMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                network_->pathName(drvr_pin),
                fanout,
                size_down_max_fanout_);
-    return endMove(false);
+    return false;
   }
 
   const DcalcAnalysisPt* dcalc_ap = resizer_->tgt_slew_dcalc_ap_;
@@ -188,7 +186,7 @@ bool SizeDownMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                2,
                "REJECT SizeDownMove {}: Couldn't size down any gates",
                network_->pathName(drvr_pin));
-    return endMove(false);
+    return false;
   }
 
   debugPrint(logger_,
@@ -198,7 +196,7 @@ bool SizeDownMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
              "ACCEPT SizeDownMove {}: Downsized {} gates",
              network_->pathName(drvr_pin),
              num_down_sizes);
-  return endMove(true);
+  return true;
 }
 
 // This will downsize the gate to the smallest input capacitance that satisfies

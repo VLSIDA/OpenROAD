@@ -87,6 +87,9 @@ BaseMove::BaseMove(Resizer* resizer)
   dbu_ = resizer_->dbu_;
   opendp_ = resizer_->opendp_;
 
+  all_inst_set_ = InstanceSet(db_network_);
+  accepted_inst_set_ = InstanceSet(db_network_);
+  pending_inst_set_ = InstanceSet(db_network_);
   accepted_count_ = 0;
   rejected_count_ = 0;
   pending_count_ = 0;
@@ -97,28 +100,9 @@ void BaseMove::init()
   pending_count_ = 0;
   rejected_count_ = 0;
   accepted_count_ = 0;
-  pending_inst_set_.clear();
-  accepted_inst_set_.clear();
   all_inst_set_.clear();
-  pending_move_info_.clear();
-}
-
-void BaseMove::startMove(const Pin* drvr_pin)
-{
-  assert(!active_move_info_);
-  active_move_info_ = new MoveInfo(this, drvr_pin);
-}
-
-bool BaseMove::endMove(bool accepted)
-{
-  assert(active_move_info_);
-  if (accepted) {
-    pending_move_info_.push_back(active_move_info_);
-  } else {
-    delete active_move_info_;
-  }
-  active_move_info_ = nullptr;
-  return accepted;
+  accepted_inst_set_.clear();
+  pending_inst_set_.clear();
 }
 
 void BaseMove::countMove(Instance* inst, int count)
@@ -133,16 +117,6 @@ void BaseMove::countMove(Instance* inst, int count)
   // Add it to all moves, even though it wasn't accepted.
   // This is the behavior to match the current resizer.
   all_inst_set_.insert(inst);
-  // Record this in the active move info
-  if (active_move_info_) {
-    active_move_info_->changes.emplace_back(inst, count);
-  }
-}
-
-void BaseMove::discountMove(Instance* inst, int count)
-{
-  pending_count_ -= count;
-  pending_inst_set_.erase(inst);
 }
 
 void BaseMove::commitMoves()
@@ -150,10 +124,6 @@ void BaseMove::commitMoves()
   accepted_count_ += pending_count_;
   pending_count_ = 0;
   accepted_inst_set_.merge(pending_inst_set_);
-  for (auto info : pending_move_info_) {
-    delete info;
-  }
-  pending_move_info_.clear();
 }
 
 void BaseMove::undoMoves()
@@ -161,10 +131,6 @@ void BaseMove::undoMoves()
   rejected_count_ += pending_count_;
   pending_count_ = 0;
   pending_inst_set_.clear();
-  for (auto info : pending_move_info_) {
-    delete info;
-  }
-  pending_move_info_.clear();
 }
 
 int BaseMove::hasMoves(Instance* inst) const

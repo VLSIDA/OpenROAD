@@ -104,17 +104,6 @@ struct SlackEstimatorParams
   const Corner* corner;
 };
 
-struct MoveInfo
-{
-  MoveInfo(BaseMove* move, const Pin* drvr_pin) : move(move), drvr_pin(drvr_pin)
-  {
-  }
-
-  BaseMove* move;
-  const Pin* drvr_pin;
-  std::vector<std::pair<Instance*, int>> changes;
-};
-
 class BaseMove : public sta::dbStaState
 {
  public:
@@ -130,14 +119,8 @@ class BaseMove : public sta::dbStaState
 
   void init();
 
-  // Start a move
-  void startMove(const Pin* drvr_pin);
-  // End a move
-  bool endMove(bool accepted);
-
   // Count a new pending optimization
   void countMove(Instance* inst, int count = 1);
-  void discountMove(Instance* inst, int count = 1);
   // Accept the pending optimizations
   void commitMoves();
   // Abandon the pending optimizations
@@ -171,14 +154,10 @@ class BaseMove : public sta::dbStaState
   // This can result in long run-time.
   // These are all of the optimized insts of this type.
   // Some may not have been accepted, but this replicates the prior behavior.
-  std::unordered_multiset<Instance*> all_inst_set_;
-  std::unordered_multiset<Instance*> accepted_inst_set_;
+  InstanceSet all_inst_set_;
+  InstanceSet accepted_inst_set_;
   // This is just the set of the pending moves.
-  std::unordered_multiset<Instance*> pending_inst_set_;
-  // This is used to keep track of the pending moves so we know what each move
-  // did
-  MoveInfo* active_move_info_ = nullptr;
-  std::vector<MoveInfo*> pending_move_info_;
+  InstanceSet pending_inst_set_;
   // These are move change counts
   int all_count_ = 0;
   int pending_count_ = 0;

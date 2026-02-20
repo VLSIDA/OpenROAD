@@ -40,8 +40,6 @@ using sta::VertexOutEdgeIterator;
 
 bool SizeUpMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
 {
-  startMove(drvr_pin);
-
   Instance* drvr = network_->instance(drvr_pin);
 
   if (resizer_->dontTouch(drvr)) {
@@ -52,7 +50,7 @@ bool SizeUpMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                "REJECT SizeUpMove {}: {} is \"don't touch\"",
                network_->pathName(drvr_pin),
                network_->pathName(drvr));
-    return endMove(false);
+    return false;
   }
 
   if (!resizer_->isLogicStdCell(drvr)) {
@@ -63,7 +61,7 @@ bool SizeUpMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                "REJECT SizeUpMove {}: {} isn't logic std cell",
                network_->pathName(drvr_pin),
                network_->pathName(drvr));
-    return endMove(false);
+    return false;
   }
 
   Pin* prev_drvr_pin;
@@ -97,7 +95,7 @@ bool SizeUpMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                "REJECT SizeUpMove {}: Couldn't upsize cell {}",
                network_->pathName(drvr_pin),
                drvr_port->libertyCell()->name());
-    return endMove(false);
+    return false;
   }
 
   if (!replaceCell(drvr, upsize)) {
@@ -109,7 +107,7 @@ bool SizeUpMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                network_->pathName(drvr_pin),
                drvr_port->libertyCell()->name(),
                upsize->name());
-    return endMove(false);
+    return false;
   }
 
   debugPrint(logger_,
@@ -121,7 +119,7 @@ bool SizeUpMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
              drvr_port->libertyCell()->name(),
              upsize->name());
   countMove(drvr);
-  return endMove(true);
+  return true;
 }
 
 // Compare drive strength with previous stage
@@ -129,8 +127,6 @@ bool SizeUpMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
 // For example, if BUFX16 drives BUFX1, replace BUFX1 with BUFX16
 bool SizeUpMatchMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
 {
-  startMove(drvr_pin);
-
   Pin* prev_drvr_pin;
   Pin* drvr_input_pin;
   Pin* load_pin;
@@ -143,7 +139,7 @@ bool SizeUpMatchMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                2,
                "REJECT SizeUpMatchMove {}: No previous driver pin",
                network_->pathName(drvr_pin));
-    return endMove(false);
+    return false;
   }
 
   if (drvr_pin == nullptr) {
@@ -153,7 +149,7 @@ bool SizeUpMatchMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                2,
                "REJECT SizeUpMatchMove {}: No driver pin",
                network_->pathName(drvr_pin));
-    return endMove(false);
+    return false;
   }
 
   Instance* drvr = network_->instance(drvr_pin);
@@ -165,7 +161,7 @@ bool SizeUpMatchMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                2,
                "REJECT SizeUpMatchMove {}: No driver instance",
                network_->pathName(drvr_pin));
-    return endMove(false);
+    return false;
   }
 
   if (resizer_->dontTouch(drvr)) {
@@ -176,7 +172,7 @@ bool SizeUpMatchMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                "REJECT SizeUpMatchMove {}: {} is \"don't touch\"",
                network_->pathName(drvr_pin),
                network_->pathName(drvr));
-    return endMove(false);
+    return false;
   }
 
   if (!resizer_->isLogicStdCell(drvr)) {
@@ -187,7 +183,7 @@ bool SizeUpMatchMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                "REJECT SizeUpMatchMove {}: {} isn't logic std cell",
                network_->pathName(drvr_pin),
                network_->pathName(drvr));
-    return endMove(false);
+    return false;
   }
 
   LibertyPort* drvr_port = network_->libertyPort(drvr_pin);
@@ -201,7 +197,7 @@ bool SizeUpMatchMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                "REJECT SizeUpMatchMove {}: No liberty cell found for {}",
                network_->pathName(drvr_pin),
                network_->pathName(drvr));
-    return endMove(false);
+    return false;
   }
 
   Vertex* prev_drvr_vertex = graph_->pinDrvrVertex(prev_drvr_pin);
@@ -212,7 +208,7 @@ bool SizeUpMatchMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                2,
                "REJECT SizeUpMatchMove {}: No previous driver vertex",
                network_->pathName(drvr_pin));
-    return endMove(false);
+    return false;
   }
 
   // Skip if the previous driver has multi fanout
@@ -225,7 +221,7 @@ bool SizeUpMatchMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                "REJECT SizeUpMatchMove {}: Previous driver fanout {} > 1",
                network_->pathName(drvr_pin),
                prev_drvr_fanout);
-    return endMove(false);
+    return false;
   }
 
   Instance* prev_drvr = network_->instance(prev_drvr_pin);
@@ -237,7 +233,7 @@ bool SizeUpMatchMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                2,
                "REJECT SizeUpMatchMove {}: No previous driver instance",
                network_->pathName(drvr_pin));
-    return endMove(false);
+    return false;
   }
 
   LibertyPort* prev_drvr_port = network_->libertyPort(prev_drvr_pin);
@@ -252,7 +248,7 @@ bool SizeUpMatchMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                "REJECT SizeUpMatchMove {}: No liberty cell found for {}",
                network_->pathName(drvr_pin),
                network_->pathName(prev_drvr));
-    return endMove(false);
+    return false;
   }
 
   if (prev_cell == drvr_cell) {
@@ -263,7 +259,7 @@ bool SizeUpMatchMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                "REJECT SizeUpMatchMove {}: Two cells are the same ({})",
                network_->pathName(drvr_pin),
                drvr_cell->name());
-    return endMove(false);
+    return false;
   }
 
   if (!(prev_cell->isBuffer() && drvr_cell->isBuffer())
@@ -277,7 +273,7 @@ bool SizeUpMatchMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                network_->pathName(drvr_pin),
                prev_cell->name(),
                drvr_cell->name());
-    return endMove(false);
+    return false;
   }
 
   const float prev_drive_res = resizer_->bufferDriveResistance(prev_cell);
@@ -293,7 +289,7 @@ bool SizeUpMatchMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                network_->pathName(drvr_pin),
                prev_drive_res,
                drive_res);
-    return endMove(false);
+    return false;
   }
 
   if (!replaceCell(drvr, prev_cell)) {
@@ -305,7 +301,7 @@ bool SizeUpMatchMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                network_->pathName(drvr_pin),
                drvr_cell->name(),
                prev_cell->name());
-    return endMove(false);
+    return false;
   }
 
   debugPrint(logger_,
@@ -317,7 +313,7 @@ bool SizeUpMatchMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
              drvr_cell->name(),
              prev_cell->name());
   countMove(drvr);
-  return endMove(true);
+  return true;
 }
 
 }  // namespace rsz

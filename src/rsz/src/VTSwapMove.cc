@@ -28,8 +28,6 @@ using sta::Slew;
 
 bool VTSwapSpeedMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
 {
-  startMove(drvr_pin);
-
   LibertyCell* drvr_cell;
   LibertyCell* best_cell;
 
@@ -41,7 +39,7 @@ bool VTSwapSpeedMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                "REJECT VTSwapSpeedMove {}: {} has no swappable cell",
                network_->pathName(drvr_pin),
                drvr_cell->name());
-    return endMove(false);
+    return false;
   }
 
   // TODO: Avoid swapping to the lowest VT by considering slack
@@ -55,7 +53,7 @@ bool VTSwapSpeedMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                network_->pathName(drvr_pin),
                drvr_cell->name(),
                best_cell->name());
-    return endMove(false);
+    return false;
   }
 
   debugPrint(logger_,
@@ -67,7 +65,7 @@ bool VTSwapSpeedMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
              drvr_cell->name(),
              best_cell->name());
   countMove(drvr);
-  return endMove(true);
+  return true;
 }
 
 // This is a special move used during separate critical cell VT swap routine

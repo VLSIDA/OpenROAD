@@ -43,8 +43,6 @@ BufferMove::BufferMove(Resizer* resizer) : BaseMove(resizer)
 
 bool BufferMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
 {
-  startMove(drvr_pin);
-
   Vertex* drvr_vertex = graph_->pinDrvrVertex(drvr_pin);
   Instance* drvr = network_->instance(drvr_pin);
 
@@ -57,7 +55,7 @@ bool BufferMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                "REJECT BufferMove {}: Fanout {} <= 1 min fanout",
                network_->pathName(drvr_pin),
                fanout);
-    return endMove(false);
+    return false;
   }
 
   // Rebuffer blows up on large fanout nets.
@@ -70,7 +68,7 @@ bool BufferMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                network_->pathName(drvr_pin),
                fanout,
                rebuffer_max_fanout_);
-    return endMove(false);
+    return false;
   }
 
   if (!resizer_->okToBufferNet(drvr_pin)) {
@@ -80,7 +78,7 @@ bool BufferMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                2,
                "REJECT BufferMove {}: Not OK to buffer net",
                network_->pathName(drvr_pin));
-    return endMove(false);
+    return false;
   }
 
   const int rebuffer_count = rebuffer(drvr_pin);
@@ -92,7 +90,7 @@ bool BufferMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                2,
                "REJECT BufferMove {}: Couldn't insert any buffers",
                network_->pathName(drvr_pin));
-    return endMove(false);
+    return false;
   }
 
   debugPrint(logger_,
@@ -103,7 +101,7 @@ bool BufferMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
              network_->pathName(drvr_pin),
              rebuffer_count);
   countMove(drvr, rebuffer_count);
-  return endMove(true);
+  return true;
 }
 
 void BufferMove::debugCheckMultipleBuffers(Path* path, PathExpanded* expanded)

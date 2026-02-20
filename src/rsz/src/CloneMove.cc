@@ -98,8 +98,6 @@ Point CloneMove::computeCloneGateLocation(
 //
 bool CloneMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
 {
-  startMove(drvr_pin);
-
   Vertex* drvr_vertex = graph_->pinDrvrVertex(drvr_pin);
 
   const int fanout = this->fanout(drvr_vertex);
@@ -112,7 +110,7 @@ bool CloneMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                network_->pathName(drvr_pin),
                fanout,
                split_load_min_fanout_);
-    return endMove(false);
+    return false;
   }
 
   if (!resizer_->okToBufferNet(drvr_pin)) {
@@ -122,7 +120,7 @@ bool CloneMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                2,
                "REJECT CloneMove {}: Not OK to buffer net",
                network_->pathName(drvr_pin));
-    return endMove(false);
+    return false;
   }
 
   // We can probably relax this with the new ECO code
@@ -134,7 +132,7 @@ bool CloneMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                2,
                "REJECT CloneMove {}: Has pending BufferMove",
                network_->pathName(drvr_pin));
-    return endMove(false);
+    return false;
   }
 
   // We can probably relax this with the new ECO code
@@ -147,7 +145,7 @@ bool CloneMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                2,
                "REJECT CloneMove {}: Has pending SplitLoadMove",
                network_->pathName(drvr_pin));
-    return endMove(false);
+    return false;
   }
 
   Instance* drvr_inst = db_network_->instance(drvr_pin);
@@ -158,7 +156,7 @@ bool CloneMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                2,
                "REJECT CloneMove {}: Not single output combinational",
                network_->pathName(drvr_pin));
-    return endMove(false);
+    return false;
   }
 
   // Sort fanouts of the drvr on the critical path by slack margin
@@ -314,7 +312,7 @@ bool CloneMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
       }
     }
   }
-  return endMove(true);
+  return true;
 }
 
 }  // namespace rsz
