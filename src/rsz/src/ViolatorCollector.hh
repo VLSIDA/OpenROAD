@@ -95,7 +95,7 @@ class ViolatorCollector
     return current_end_original_slack_;
   }
   int getCurrentEndpointIndex() const { return current_endpoint_index_; }
-  int getMaxEndpointCount() const { return violating_ends_.size(); }
+  int getMaxEndpointCount() const { return violating_endpoints_.size(); }
   int getCurrentPass() const;
   void useWorstEndpoint(Vertex* end);
 
@@ -155,7 +155,7 @@ class ViolatorCollector
   int getTotalViolations() const;
 
   // Get current number of violating endpoints
-  int getNumViolatingEndpoints() const { return violating_ends_.size(); }
+  int getNumViolatingEndpoints() const { return violating_endpoints_.size(); }
 
   // Public utility methods
   const char* getEnumString(ViolatorSortType sort_type);
@@ -165,13 +165,11 @@ class ViolatorCollector
   Slack getPathSlackByIndex(const Pin* endpoint_pin, int path_index);
   const vector<std::pair<const Pin*, Slack>>& getViolatingEndpoints() const
   {
-    return violating_ends_;
+    return violating_endpoints_;
   }
 
   // Public startpoint collection for STARTPOINT_FANOUT Phase
   void collectViolatingStartpoints();
-  Slack getStartpointWNS(const Pin* startpoint_pin);
-  Slack getStartpointTNS(const Pin* startpoint_pin);
   const vector<std::pair<const Pin*, Slack>>& getViolatingStartpoints() const
   {
     return violating_startpoints_;
@@ -183,13 +181,20 @@ class ViolatorCollector
   int getCurrentStartpointIndex() const { return current_startpoint_index_; }
   int getMaxStartpointCount() const { return violating_startpoints_.size(); }
 
-  // Get overall startpoint metrics (worst and total across all startpoints)
-  Slack getOverallStartpointWNS();
-  Slack getOverallStartpointTNS();
+  // Get slack metrics (worst and total across endpoints/startpoints)
+  Slack getOverallStartpointWNS() const;
+  Slack getOverallStartpointTNS(bool use_cone = false) const;
+  Slack getOverallEndpointWNS() const;
+  Slack getOverallEndpointTNS(bool use_cone = false) const;
+
+  Slack getEndpointWNS(const Pin* endpoint_pin) const;
+  Slack getEndpointTNS(const Pin* endpoint_pin) const;
+  Slack getStartpointWNS(const Pin* startpoint_pin) const;
+  Slack getStartpointTNS(const Pin* startpoint_pin) const;
 
   // Proxy methods that return either startpoint or endpoint metrics
   Slack getWNS() const;  // WNS is the same for both start and endpoints
-  Slack getTNS(bool use_startpoints) const;
+  Slack getTNS(bool use_startpoints, bool use_cone = false) const;
   const Pin* getWorstPin(bool use_startpoints) const;
 
   // Unified wrapper methods for directional traversal (fanin vs fanout)
@@ -288,7 +293,7 @@ class ViolatorCollector
   float slack_margin_;
   vector<const Pin*> violating_pins_;
   std::map<const Pin*, pinData> pin_data_;
-  vector<std::pair<const Pin*, Slack>> violating_ends_;
+  vector<std::pair<const Pin*, Slack>> violating_endpoints_;
   vector<std::pair<const Pin*, Slack>> violating_startpoints_;
 
   // Endpoint pass tracking
