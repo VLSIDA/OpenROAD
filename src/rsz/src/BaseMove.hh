@@ -70,6 +70,7 @@ using sta::InstanceSet;
 using sta::LibertyCell;
 using sta::LibertyPort;
 using sta::LoadPinIndexMap;
+using sta::MinMax;
 using sta::Net;
 using sta::NetConnectedPinIterator;
 using sta::Network;
@@ -178,6 +179,13 @@ class BaseMove : public sta::dbStaState
                        Pin*& prev_drvr_pin,
                        Pin*& input_pin,
                        Pin*& load_pin);
+  // Return the corner, transition, and min/max of the worst slack path through
+  // pin.
+  void getWorstCornerTransitionMinMax(const Pin* pin,
+                                      // Return values
+                                      const Corner*& corner,
+                                      const RiseFall*& rf,
+                                      const MinMax*& min_max);
 
   void gateDelays(const LibertyPort* drvr_port,
                   float load_cap,

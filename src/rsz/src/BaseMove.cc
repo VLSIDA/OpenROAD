@@ -26,6 +26,7 @@
 #include "sta/Liberty.hh"
 #include "sta/MinMax.hh"
 #include "sta/NetworkClass.hh"
+#include "sta/PathAnalysisPt.hh"
 #include "sta/PortDirection.hh"
 #include "sta/TimingArc.hh"
 #include "sta/Transition.hh"
@@ -1076,6 +1077,32 @@ void BaseMove::getPrevNextPins(const Pin* drvr_pin,
   } else {
     prev_drvr_pin = nullptr;
   }
+}
+
+void BaseMove::getWorstCornerTransitionMinMax(const Pin* pin,
+                                              // Return values
+                                              const Corner*& corner,
+                                              const RiseFall*& rf,
+                                              const MinMax*& min_max)
+{
+  corner = nullptr;
+  rf = nullptr;
+  min_max = nullptr;
+  Vertex* vertex = graph_->pinDrvrVertex(pin);
+  if (!vertex) {
+    vertex = graph_->pinLoadVertex(pin);
+  }
+  if (!vertex) {
+    return;
+  }
+  Path* path = sta_->vertexWorstSlackPath(vertex, resizer_->max_);
+  if (!path || path->isNull()) {
+    return;
+  }
+  auto* path_ap = path->pathAnalysisPt(sta_);
+  corner = path_ap ? path_ap->corner() : nullptr;
+  rf = path->transition(sta_);
+  min_max = path->minMax(sta_);
 }
 
 }  // namespace rsz
