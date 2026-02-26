@@ -111,20 +111,22 @@ void HierRTLMP::setGlobalFence(odb::Rect global_fence)
   }
 }
 
-void HierRTLMP::setHaloWidth(int halo_width)
+void HierRTLMP::setDefaultHalo(int halo_width, int halo_height)
 {
-  tree_->halo_width = halo_width;
-}
-
-void HierRTLMP::setHaloHeight(int halo_height)
-{
-  tree_->halo_height = halo_height;
+  tree_->default_halo = {.width = halo_width, .height = halo_height};
 }
 
 void HierRTLMP::setGuidanceRegions(
     const std::map<odb::dbInst*, odb::Rect>& guidance_regions)
 {
   guides_ = guidance_regions;
+}
+
+void HierRTLMP::setMacroHalo(odb::dbInst* macro,
+                             int halo_width,
+                             int halo_height)
+{
+  macro_to_halo_[macro] = {.width = halo_width, .height = halo_height};
 }
 
 // Options related to clustering
@@ -247,6 +249,11 @@ void HierRTLMP::run()
 void HierRTLMP::init()
 {
   block_ = db_->getChip()->getBlock();
+  clustering_engine_ = std::make_unique<ClusteringEngine>(
+      block_, network_, logger_, tritonpart_, graphics_.get());
+
+  // Set target structure
+  clustering_engine_->setTree(tree_.get());
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -261,6 +268,7 @@ void HierRTLMP::runMultilevelAutoclustering()
 
   // Set target structure
   clustering_engine_->setTree(tree_.get());
+  clustering_engine_->setHalos(macro_to_halo_);
   clustering_engine_->run();
 
   if (!tree_->has_unfixed_macros) {
@@ -1080,10 +1088,17 @@ int HierRTLMP::computePinAccessBaseDepth(const int io_span) const
     }
   }
 
-  int64_t root_area = (tree_->root->getWidth()
-                       * static_cast<int64_t>(tree_->root->getHeight()));
+  const odb::Rect root_box = tree_->root->getBBox();
+
+  if (root_box.area() == 0) {
+    logger_->error(MPL,
+                   67,
+                   "Failed computing pin access blockages' base depth: root "
+                   "area is zero.");
+  }
+
   const double macro_dominance_factor
-      = tree_->macro_with_halo_area / static_cast<double>(root_area);
+      = tree_->macro_with_halo_area / static_cast<double>(root_box.area());
 
   const int base_depth = std_cell_area / static_cast<double>(io_span)
                          * std::pow((1 - macro_dominance_factor), 2);
@@ -1338,6 +1353,9 @@ void HierRTLMP::placeChildren(Cluster* parent)
       std::vector<SoftMacro> inflated_macros
           = applyUtilization(utilization, outline, macros);
 
+      const bool single_array_single_std_cell_cluster
+          = singleArraySingleStdCellCluster(macros);
+
       std::unique_ptr<SACoreSoftMacro> sa
           = std::make_unique<SACoreSoftMacro>(tree_.get(),
                                               outline,
@@ -1363,7 +1381,9 @@ void HierRTLMP::placeChildren(Cluster* parent)
       sa->setFences(fences);
       sa->setGuides(guides);
       sa->setNets(nets);
-
+      if (single_array_single_std_cell_cluster) {
+        sa->forceCentralization();
+      }
       sa_batch.push_back(std::move(sa));
     }
 
@@ -1411,7 +1431,8 @@ void HierRTLMP::placeChildren(Cluster* parent)
   if (!best_sa) {
     logger_->error(MPL,
                    40,
-                   "Cluster placement failed!\nId: {}\nName: {}",
+                   "Annealing engine failed to find a valid solution.\nCluster "
+                   "Id: {}\n Cluster Name: {}",
                    parent->getId(),
                    parent->getName());
   }
@@ -3090,16 +3111,24 @@ void Snapper::attemptSnapToExtraPatterns(
     }
   }
 
-  if (best_snapped_pins != total_pins) {
-    reportUnalignedPins(layers_data_list, target_direction);
-  }
-
   snapPinToPosition(snap_pin, positions[best_index], target_direction);
+
+  if (best_snapped_pins != total_pins) {
+    totalAlignedPins(layers_data_list, target_direction, true);
+
+    logger_->warn(MPL,
+                  2,
+                  "Could not align all pins of the macro {} to the track-grid. "
+                  "{} out of {} pins were aligned.",
+                  inst_->getName(),
+                  best_snapped_pins,
+                  total_pins);
+  }
 }
 
 int Snapper::totalAlignedPins(const LayerDataList& layers_data_list,
                               const odb::dbTechLayerDir& direction,
-                              bool report_unaligned_pins)
+                              bool error_unaligned_right_way_on_grid)
 {
   int pins_aligned = 0;
 
@@ -3119,22 +3148,14 @@ int Snapper::totalAlignedPins(const LayerDataList& layers_data_list,
         pins_aligned++;
         i++;
       } else if (pin_centers[i] < data.available_positions[j]) {
-        if (report_unaligned_pins) {
-          if (data.track_grid->getTechLayer()->isRightWayOnGridOnly()) {
-            logger_->error(MPL,
-                           5,
-                           "Couldn't align pin {} from the RightWayOnGridOnly "
-                           "layer {} with the track-grid.",
-                           data.pins[i]->getName(),
-                           data.track_grid->getTechLayer()->getName());
-          } else {
-            logger_->warn(
-                MPL,
-                2,
-                "Couldn't align pin {} from layer {} to the track-grid.",
-                data.pins[i]->getName(),
-                data.track_grid->getTechLayer()->getName());
-          }
+        if (error_unaligned_right_way_on_grid
+            && data.track_grid->getTechLayer()->isRightWayOnGridOnly()) {
+          logger_->error(MPL,
+                         5,
+                         "Couldn't align pin {} from the RightWayOnGridOnly "
+                         "layer {} with the track-grid.",
+                         data.pins[i]->getName(),
+                         data.track_grid->getTechLayer()->getName());
         }
 
         i++;
@@ -3144,12 +3165,6 @@ int Snapper::totalAlignedPins(const LayerDataList& layers_data_list,
     }
   }
   return pins_aligned;
-}
-
-void Snapper::reportUnalignedPins(const LayerDataList& layers_data_list,
-                                  const odb::dbTechLayerDir& direction)
-{
-  totalAlignedPins(layers_data_list, direction, true);
 }
 
 void Snapper::alignWithManufacturingGrid(int& origin)

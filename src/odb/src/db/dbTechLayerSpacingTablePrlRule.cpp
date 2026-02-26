@@ -8,11 +8,21 @@
 #include <cstring>
 #include <tuple>
 
+#include "dbCore.h"
 #include "dbDatabase.h"
 #include "dbTable.h"
-#include "dbTable.hpp"
 #include "dbTechLayer.h"
 #include "odb/db.h"
+// User Code Begin Includes
+#include <algorithm>
+#include <iterator>
+#include <map>
+#include <ranges>
+#include <utility>
+#include <vector>
+
+#include "dbVector.h"
+// User Code End Includes
 namespace odb {
 template class dbTable<_dbTechLayerSpacingTablePrlRule>;
 

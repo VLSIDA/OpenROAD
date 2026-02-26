@@ -40,10 +40,12 @@
 #include "browserWidget.h"
 #include "bufferTreeDescriptor.h"
 #include "chartsWidget.h"
+#include "chiplet3DWidget.h"
 #include "clockWidget.h"
 #include "dbDescriptors.h"
 #include "displayControls.h"
 #include "drcWidget.h"
+#include "findDialog.h"
 #include "globalConnectDialog.h"
 #include "gotoDialog.h"
 #include "gui/gui.h"
@@ -51,10 +53,12 @@
 #include "helpWidget.h"
 #include "highlightGroupDialog.h"
 #include "inspector.h"
+#include "label.h"
 #include "layoutTabs.h"
 #include "layoutViewer.h"
 #include "odb/db.h"
 #include "odb/dbObject.h"
+#include "ruler.h"
 #include "scriptWidget.h"
 #include "selectHighlightWindow.h"
 #include "sta/Liberty.hh"
@@ -103,6 +107,8 @@ MainWindow::MainWindow(bool load_settings, QWidget* parent)
       hierarchy_widget_(
           new BrowserWidget(viewers_->getModuleSettings(), controls_, this)),
       charts_widget_(new ChartsWidget(this)),
+      chiplet_viewer_(new Chiplet3DWidget(this)),
+      chiplet_dock_(new QDockWidget("3D Viewer", this)),
       help_widget_(new HelpWidget(this)),
       find_dialog_(new FindObjectDialog(this)),
       goto_dialog_(new GotoLocationDialog(this, viewers_)),
@@ -123,6 +129,9 @@ MainWindow::MainWindow(bool load_settings, QWidget* parent)
   addDockWidget(Qt::RightDockWidgetArea, drc_viewer_);
   addDockWidget(Qt::RightDockWidgetArea, clock_viewer_);
   addDockWidget(Qt::RightDockWidgetArea, charts_widget_);
+  chiplet_dock_->setObjectName("chiplet_viewer_dock");
+  chiplet_dock_->setWidget(chiplet_viewer_);
+  addDockWidget(Qt::RightDockWidgetArea, chiplet_dock_);
   addDockWidget(Qt::RightDockWidgetArea, help_widget_);
 
   tabifyDockWidget(selection_browser_, script_);
@@ -133,10 +142,12 @@ MainWindow::MainWindow(bool load_settings, QWidget* parent)
   tabifyDockWidget(inspector_, drc_viewer_);
   tabifyDockWidget(inspector_, clock_viewer_);
   tabifyDockWidget(inspector_, charts_widget_);
+  tabifyDockWidget(inspector_, chiplet_dock_);
   tabifyDockWidget(inspector_, help_widget_);
 
   drc_viewer_->hide();
   clock_viewer_->hide();
+  chiplet_dock_->hide();
 
   // Hook up all the signals/slots
   connect(viewers_,
@@ -153,6 +164,10 @@ MainWindow::MainWindow(bool load_settings, QWidget* parent)
           viewers_,
           &LayoutTabs::commandAboutToExecute);
   connect(this, &MainWindow::chipLoaded, viewers_, &LayoutTabs::chipLoaded);
+  connect(this,
+          &MainWindow::chipLoaded,
+          chiplet_viewer_,
+          &Chiplet3DWidget::setChip);
   connect(this, &MainWindow::redraw, viewers_, &LayoutTabs::fullRepaint);
   connect(
       this, &MainWindow::blockLoaded, controls_, &DisplayControls::blockLoaded);
@@ -375,11 +390,10 @@ MainWindow::MainWindow(bool load_settings, QWidget* parent)
             odb::Rect bbox;
             selected.getBBox(bbox);
 
-            auto* block = getBlock();
             int zoomout_dist = std::numeric_limits<int>::max();
-            if (block != nullptr) {
+            if (db_ != nullptr) {
               // 10 microns
-              zoomout_dist = 10 * block->getDbUnitsPerMicron();
+              zoomout_dist = 10 * db_->getDbuPerMicron();
             }
             // twice the largest dimension of bounding box
             const int zoomout_box = 2 * std::max(bbox.dx(), bbox.dy());
@@ -637,7 +651,7 @@ void MainWindow::init(sta::dbSta* sta, const std::string& help_path)
   gui->registerDescriptor<odb::dbCellEdgeSpacing*>(
       new DbCellEdgeSpacingDescriptor(db_));
 
-  gui->registerDescriptor<sta::Corner*>(new CornerDescriptor(sta));
+  gui->registerDescriptor<sta::Scene*>(new CornerDescriptor(sta));
   gui->registerDescriptor<sta::LibertyLibrary*>(
       new LibertyLibraryDescriptor(sta));
   gui->registerDescriptor<sta::LibertyCell*>(new LibertyCellDescriptor(sta));
@@ -815,9 +829,8 @@ void MainWindow::setUseDBU(bool use_dbu)
   for (auto* heat_map : Gui::get()->getHeatMaps()) {
     heat_map->setUseDBU(use_dbu);
   }
-  auto* block = getBlock();
-  if (block != nullptr) {
-    emit displayUnitsChanged(block->getDbUnitsPerMicron(), use_dbu);
+  if (db_) {
+    emit displayUnitsChanged(db_->getDbuPerMicron(), use_dbu);
   }
 }
 
@@ -887,6 +900,7 @@ void MainWindow::createMenus()
   windows_menu_->addAction(clock_viewer_->toggleViewAction());
   windows_menu_->addAction(hierarchy_widget_->toggleViewAction());
   windows_menu_->addAction(charts_widget_->toggleViewAction());
+  windows_menu_->addAction(chiplet_dock_->toggleViewAction());
   windows_menu_->addAction(help_widget_->toggleViewAction());
 
   auto option_menu = menuBar()->addMenu("&Options");
@@ -1680,6 +1694,7 @@ void MainWindow::setLogger(utl::Logger* logger)
   clock_viewer_->setLogger(logger);
   charts_widget_->setLogger(logger);
   timing_widget_->setLogger(logger);
+  chiplet_viewer_->setLogger(logger);
 }
 
 void MainWindow::fit()
@@ -1751,9 +1766,10 @@ std::vector<std::string> MainWindow::getRestoreTclCommands()
 {
   std::vector<std::string> cmds;
   // Save rulers
-  for (const auto& ruler : rulers_) {
-    cmds.push_back(ruler->getTclCommand(
-        db_->getChip()->getBlock()->getDbUnitsPerMicron()));
+  if (db_) {
+    for (const auto& ruler : rulers_) {
+      cmds.push_back(ruler->getTclCommand(db_->getDbuPerMicron()));
+    }
   }
   // Save buttons
   for (const auto& action : view_tool_bar_->actions()) {
@@ -1781,11 +1797,10 @@ std::string MainWindow::convertDBUToString(int value, bool add_units) const
   if (show_dbu_->isChecked()) {
     return std::to_string(value);
   }
-  auto* block = getBlock();
-  if (block == nullptr) {
+  if (db_ == nullptr) {
     return std::to_string(value);
   }
-  const double dbu_per_micron = block->getDbUnitsPerMicron();
+  const double dbu_per_micron = db_->getDbuPerMicron();
 
   const int precision = std::ceil(std::log10(dbu_per_micron));
   const double micron_value = value / dbu_per_micron;
@@ -1814,11 +1829,10 @@ int MainWindow::convertStringToDBU(const std::string& value, bool* ok) const
   if (show_dbu_->isChecked()) {
     return new_value.toInt(ok);
   }
-  auto* block = getBlock();
-  if (block == nullptr) {
+  if (db_ == nullptr) {
     return new_value.toInt(ok);
   }
-  const int dbu_per_micron = block->getDbUnitsPerMicron();
+  const int dbu_per_micron = db_->getDbuPerMicron();
 
   return new_value.toDouble(ok) * dbu_per_micron;
 }

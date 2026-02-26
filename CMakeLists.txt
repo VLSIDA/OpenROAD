@@ -12,6 +12,12 @@ cmake_policy(SET CMP0086 NEW)
 # Allows <PackageName>_ROOT to be used
 cmake_policy(SET CMP0074 NEW)
 
+if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.27")
+  # Disallows <PACKAGENAME>_ROOT in find_package.
+  # TODO: resolve absl/or-tools issue and switch to NEW
+  cmake_policy(SET CMP0144 OLD)
+endif()
+
 # Allow AUTOUIC on generated source
 cmake_policy(SET CMP0071 NEW)
 
@@ -20,13 +26,6 @@ cmake_policy(SET CMP0077 NEW)
 
 # Let AUTOMOC and AUTOUIC process GENERATED files.
 cmake_policy(SET CMP0071 NEW)
-
-# Interfers with Qt so off by default.
-option(LINK_TIME_OPTIMIZATION "Flag to control link time optimization: off by default" OFF)
-
-if (LINK_TIME_OPTIMIZATION)
-set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
-endif()
 
 # Allow to use external shared boost libraries
 option(USE_SYSTEM_BOOST "Use system shared Boost libraries" OFF)
@@ -69,7 +68,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 # Get version string in OPENROAD_VERSION
 if(NOT OPENROAD_VERSION)
   include(GetGitRevisionDescription)
-  git_describe(OPENROAD_VERSION)
+  git_describe(OPENROAD_VERSION --tags --match "[0-9][0-9]Q[0-9]")
   string(FIND ${OPENROAD_VERSION} "NOTFOUND" GIT_DESCRIBE_NOTFOUND)
   if(${GIT_DESCRIBE_NOTFOUND} GREATER -1)
     message(WARNING "OpenROAD git describe failed, using sha1 instead")

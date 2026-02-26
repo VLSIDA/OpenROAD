@@ -20,6 +20,7 @@
 #include "sta/Graph.hh"
 #include "sta/GraphDelayCalc.hh"
 #include "sta/Liberty.hh"
+#include "sta/Mode.hh"
 #include "sta/NetworkClass.hh"
 #include "sta/Path.hh"
 #include "sta/PathExpanded.hh"
@@ -35,20 +36,21 @@ using odb::dbInst;
 using utl::RSZ;
 
 using sta::ArcDelay;
-using sta::Corner;
-using sta::DcalcAnalysisPt;
 using sta::GraphDelayCalc;
 using sta::Instance;
 using sta::InstancePinIterator;
 using sta::LibertyCell;
 using sta::LibertyPort;
 using sta::LoadPinIndexMap;
+using sta::MinMax;
 using sta::Net;
 using sta::NetConnectedPinIterator;
 using sta::Path;
 using sta::PathExpanded;
 using sta::Pin;
 using sta::RiseFall;
+using sta::Scene;
+using sta::Sdc;
 using sta::Slack;
 using sta::Slew;
 using sta::Vertex;
@@ -121,9 +123,17 @@ bool UnbufferMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
   Pin* load_pin;
   getPrevNextPins(drvr_pin, prev_drvr_pin, drvr_input_pin, load_pin);
 
+  Scene* scene;
+  const RiseFall* rf;
+  const MinMax* min_max;
+  getWorstCornerTransitionMinMax(drvr_pin, scene, rf, min_max);
   float curr_fanout, max_fanout, load_slack;
-  sta_->checkFanout(
-      prev_drvr_pin, resizer_->max_, curr_fanout, max_fanout, load_slack);
+  sta_->checkFanout(prev_drvr_pin,
+                    scene->mode(),
+                    resizer_->max_,
+                    curr_fanout,
+                    max_fanout,
+                    load_slack);
   float new_fanout = curr_fanout + fanout(drvr_vertex) - 1;
   if (max_fanout > 0.0) {
     // Honor max fanout when the constraint exists
@@ -159,22 +169,20 @@ bool UnbufferMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
 
   // Watch out for new max cap violations
   float cap, max_cap, cap_slack;
-  const Corner* corner;
+  const Scene* corner;
   const RiseFall* tr;
   sta_->checkCapacitance(prev_drvr_pin,
-                         nullptr /* corner */,
+                         sta_->scenes(),
                          resizer_->max_,
                          // return values
-                         corner,
-                         tr,
                          cap,
                          max_cap,
-                         cap_slack);
+                         cap_slack,
+                         tr,
+                         corner);
   if (max_cap > 0.0 && corner) {
-    const DcalcAnalysisPt* dcalc_ap
-        = corner->findDcalcAnalysisPt(resizer_->max_);
     GraphDelayCalc* dcalc = sta_->graphDelayCalc();
-    float drvr_cap = dcalc->loadCap(drvr_pin, dcalc_ap);
+    float drvr_cap = dcalc->loadCap(drvr_pin, corner, resizer_->max_);
     LibertyPort *buffer_input_port, *buffer_output_port;
     drvr_cell->bufferPorts(buffer_input_port, buffer_output_port);
     float new_cap
@@ -229,8 +237,7 @@ bool UnbufferMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
              "ACCEPT UnbufferMove {}: Removed buffer {}",
              network_->pathName(drvr_pin),
              network_->pathName(drvr));
-  removeBuffer(drvr);
-  return true;
+  return removeBuffer(drvr);
 }
 
 bool UnbufferMove::removeBufferIfPossible(Instance* buffer,
@@ -293,8 +300,8 @@ bool UnbufferMove::canRemoveBuffer(Instance* buffer, bool honorDontTouchFixed)
   Pin* out_pin = db_network_->findPin(buffer, out_port);
   Net* in_net = db_network_->net(in_pin);
   Net* out_net = db_network_->net(out_pin);
-  dbNet* in_db_net = db_network_->findFlatDbNet(in_net);
-  dbNet* out_db_net = db_network_->findFlatDbNet(out_net);
+  odb::dbNet* in_db_net = db_network_->findFlatDbNet(in_net);
+  odb::dbNet* out_db_net = db_network_->findFlatDbNet(out_net);
   // honor net dont-touch on input net or output net
   if ((in_db_net && in_db_net->isDoNotTouch())
       || (out_db_net && out_db_net->isDoNotTouch())) {
@@ -326,9 +333,11 @@ bool UnbufferMove::canRemoveBuffer(Instance* buffer, bool honorDontTouchFixed)
     db_net_removed = out_db_net;
   }
 
-  if (!sdc_->isConstrained(in_pin) && !sdc_->isConstrained(out_pin)
-      && (!removed || !sdc_->isConstrained(removed))
-      && !sdc_->isConstrained(buffer)) {
+  Sdc* sdc = sta_->cmdMode()->sdc();
+
+  if (!sdc->isConstrained(in_pin) && !sdc->isConstrained(out_pin)
+      && (!removed || !sdc->isConstrained(removed))
+      && !sdc->isConstrained(buffer)) {
     return db_net_removed == nullptr
            || (db_net_survivor && db_net_survivor->canMergeNet(db_net_removed));
   }

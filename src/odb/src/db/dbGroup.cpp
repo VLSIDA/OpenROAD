@@ -10,6 +10,7 @@
 
 #include "dbBlock.h"
 #include "dbBox.h"
+#include "dbCore.h"
 #include "dbDatabase.h"
 #include "dbGroupInstItr.h"
 #include "dbGroupItr.h"
@@ -19,13 +20,15 @@
 #include "dbModInst.h"
 #include "dbNet.h"
 #include "dbTable.h"
-#include "dbTable.hpp"
 #include "odb/db.h"
 // User Code Begin Includes
 #include "dbCommon.h"
 #include "dbGroupGroundNetItr.h"
 #include "dbGroupPowerNetItr.h"
 #include "dbRegion.h"
+#include "dbVector.h"
+#include "odb/dbSet.h"
+#include "odb/dbTypes.h"
 // User Code End Includes
 namespace odb {
 template class dbTable<_dbGroup>;

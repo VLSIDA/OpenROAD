@@ -86,6 +86,7 @@ or_integration_tests(
     repair_setup_sizedown
     repair_setup_sizeup_match
     repair_setup1
+    repair_setup2
     repair_setup3
     repair_setup4
     repair_setup4_flat
@@ -130,6 +131,7 @@ or_integration_tests(
     repair_tie10_hier
     repair_tie11_hier
     repair_tie12_hier
+    repair_tie13_hier
     repair_wire1
     repair_wire2
     repair_wire3
@@ -184,6 +186,7 @@ or_integration_tests(
     report_buffers_sky130hs
     report_buffers_sky130hd
     report_buffers_gf180
+    report_buffers_no_lef
     repair_setup_vt_swap
     repair_setup_vt_swap2
     repair_fanout7_skip_pin_swap
@@ -191,9 +194,6 @@ or_integration_tests(
     cpp_tests
 )
 
-# Skipped
-#rsz_man_tcl_check
-#rsz_readme_msgs_check
 #repair_setup2
 
 add_subdirectory(cpp)

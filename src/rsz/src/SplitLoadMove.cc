@@ -106,7 +106,7 @@ bool SplitLoadMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
 
   // Sort fanouts of the drvr on the critical path by slack margin
   // wrt the critical path slack.
-  const Slack drvr_slack = sta_->vertexSlack(drvr_vertex, resizer_->max_);
+  const Slack drvr_slack = sta_->slack(drvr_vertex, resizer_->max_);
   vector<pair<Vertex*, Slack>> fanout_slacks;
   VertexOutEdgeIterator edge_iter(drvr_vertex, graph_);
   while (edge_iter.hasNext()) {
@@ -114,8 +114,7 @@ bool SplitLoadMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
     // Watch out for problematic asap7 output->output timing arcs.
     if (edge->isWire()) {
       Vertex* fanout_vertex = edge->to(graph_);
-      const Slack fanout_slack
-          = sta_->vertexSlack(fanout_vertex, resizer_->max_);
+      const Slack fanout_slack = sta_->slack(fanout_vertex, resizer_->max_);
       const Slack slack_margin = fanout_slack - drvr_slack;
       debugPrint(logger_,
                  RSZ,
@@ -147,7 +146,7 @@ bool SplitLoadMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
   const Point drvr_loc = db_network_->location(drvr_pin);
 
   // Identify loads to split (top 50% with most slack)
-  PinSet load_pins(network_);
+  sta::PinSet load_pins(network_);
   const int split_index = fanout_slacks.size() / 2;
   for (int i = 0; i < split_index; i++) {
     Vertex* load_vertex = fanout_slacks[i].first;

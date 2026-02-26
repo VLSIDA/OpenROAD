@@ -7,11 +7,15 @@
 #include <cstdint>
 #include <cstring>
 
+#include "dbCore.h"
 #include "dbDatabase.h"
 #include "dbTable.h"
-#include "dbTable.hpp"
 #include "dbTechLayer.h"
 #include "odb/db.h"
+// User Code Begin Includes
+#include <utility>
+#include <vector>
+// User Code End Includes
 namespace odb {
 template class dbTable<_dbTechLayerEolExtensionRule>;
 

@@ -14,8 +14,6 @@
 #include <tuple>
 #include <utility>
 
-#include "sta/Corner.hh"
-#include "sta/DcalcAnalysisPt.hh"
 #include "sta/Delay.hh"
 #include "sta/ExceptionPath.hh"
 #include "sta/Graph.hh"
@@ -27,6 +25,7 @@
 #include "sta/PathEnd.hh"
 #include "sta/PathExpanded.hh"
 #include "sta/PortDirection.hh"
+#include "sta/Scene.hh"
 #include "sta/Sdc.hh"
 #include "sta/Search.hh"
 #include "sta/SearchClass.hh"
@@ -73,7 +72,7 @@ void MoveTracker::setCurrentEndpoint(const sta::Pin* endpoint_pin)
       && endpoint_slack_.find(endpoint_pin) == endpoint_slack_.end()) {
     Vertex* vertex = sta_->graph()->pinLoadVertex(endpoint_pin);
     if (vertex) {
-      Slack current_slack = sta_->vertexSlack(vertex, MinMax::max());
+      Slack current_slack = sta_->slack(vertex, MinMax::max());
       // Store (original_slack, pre_phase_slack, post_phase_slack)
       // Initialize all to current_slack (will be properly set by capture
       // methods)
@@ -103,13 +102,15 @@ void MoveTracker::trackCriticalPins(const vector<const Pin*>& critical_pins)
       // Only track output (driver) pins
       if (sta_->network()->isDriver(pin)) {
         // Skip pins on clock networks
-        Vertex* vertex = sta_->graph()->pinDrvrVertex(pin);
-        if (vertex && sta_->search()->isClock(vertex)) {
+        if (sta_->isClock(pin, sta_->cmdMode())) {
           continue;
         }
 
         // Get setup slack for this pin
-        Slack slack = sta_->pinSlack(pin, MinMax::max());
+        Slack slack = sta_->slack(pin,
+                                  sta::RiseFall::rise()->asRiseFallBoth(),
+                                  sta_->scenes(),
+                                  MinMax::max());
         float slack_ps = delayAsFloat(slack) * 1e12;
 
         // Only track pins with negative slack
@@ -464,7 +465,7 @@ void MoveTracker::printEndpointSummary(const std::string& title)
   for (auto& [endpoint_pin, slack_tuple] : endpoint_slack_) {
     Vertex* vertex = sta_->graph()->pinLoadVertex(endpoint_pin);
     if (vertex) {
-      Slack post_phase_slack = sta_->vertexSlack(vertex, MinMax::max());
+      Slack post_phase_slack = sta_->slack(vertex, MinMax::max());
       std::get<2>(slack_tuple)
           = post_phase_slack;  // Update post-phase slack (3rd element)
     }
@@ -1232,8 +1233,14 @@ void MoveTracker::printMissedOpportunitiesReport(const std::string& title)
 
   // Sort by most negative slack
   std::ranges::sort(critical_never_visited, [this](const Pin* a, const Pin* b) {
-    Slack slack_a = sta_->pinSlack(a, MinMax::max());
-    Slack slack_b = sta_->pinSlack(b, MinMax::max());
+    Slack slack_a = sta_->slack(a,
+                                sta::RiseFall::rise()->asRiseFallBoth(),
+                                sta_->scenes(),
+                                MinMax::max());
+    Slack slack_b = sta_->slack(b,
+                                sta::RiseFall::rise()->asRiseFallBoth(),
+                                sta_->scenes(),
+                                MinMax::max());
     return slack_a < slack_b;  // Most negative first
   });
 
@@ -1289,7 +1296,10 @@ void MoveTracker::printMissedOpportunitiesReport(const std::string& title)
       }
 
       // Get pin slack
-      Slack pin_slack = sta_->pinSlack(pin, MinMax::max());
+      Slack pin_slack = sta_->slack(pin,
+                                    sta::RiseFall::rise()->asRiseFallBoth(),
+                                    sta_->scenes(),
+                                    MinMax::max());
       float pin_slack_ps = delayAsFloat(pin_slack) * 1e12;
 
       // Calculate effort delays (similar to ViolatorCollector::getEffortDelays)
@@ -1322,17 +1332,15 @@ void MoveTracker::printMissedOpportunitiesReport(const std::string& title)
 
             const sta::Transition* from_trans = prev_arc->fromEdge();
             const sta::RiseFall* from_rf = from_trans->asRiseFall();
-            Slack from_slack
-                = sta_->vertexSlack(from_vertex, from_rf, MinMax::max());
+            Slack from_slack = sta_->slack(from_vertex, from_rf, MinMax::max());
 
-            sta::Corner* corner = sta_->cmdCorner();
-            sta::DcalcAnalysisPt* dcalc_ap
-                = corner->findDcalcAnalysisPt(MinMax::max());
-            int lib_ap = dcalc_ap->libertyIndex();
-            const sta::TimingArc* corner_arc = prev_arc->cornerArc(lib_ap);
+            sta::Scene* corner = sta_->cmdScene();
+            int dcalc_ap = corner->dcalcAnalysisPtIndex(MinMax::max());
+            int lib_ap = corner->libertyIndex(MinMax::max());
+            const sta::TimingArc* corner_arc = prev_arc->sceneArc(lib_ap);
             const sta::Delay intrinsic_delay = corner_arc->intrinsicDelay();
-            const sta::Delay delay = sta_->graph()->arcDelay(
-                prev_edge, prev_arc, dcalc_ap->index());
+            const sta::Delay delay
+                = sta_->graph()->arcDelay(prev_edge, prev_arc, dcalc_ap);
             const sta::Delay load_delay = delay - intrinsic_delay;
 
             // Select delays from arc with most negative slack
@@ -1418,14 +1426,14 @@ void MoveTracker::captureOriginalEndpointSlack()
 {
   // Capture the original slack for all violating endpoints
   // This should be called once at the very beginning before any phases
-  sta::VertexSet* endpoints = sta_->search()->endpoints();
-  for (Vertex* vertex : *endpoints) {
+  sta::VertexSet& endpoints = sta_->search()->endpoints();
+  for (Vertex* vertex : endpoints) {
     const Pin* pin = vertex->pin();
     if (!pin) {
       continue;
     }
 
-    Slack slack = sta_->vertexSlack(vertex, MinMax::max());
+    Slack slack = sta_->slack(vertex, MinMax::max());
 
     // Initialize or update only the original slack (first element of tuple)
     auto it = endpoint_slack_.find(pin);
@@ -1446,7 +1454,7 @@ void MoveTracker::capturePrePhaseSlack()
   for (auto& [endpoint_pin, slack_tuple] : endpoint_slack_) {
     Vertex* vertex = sta_->graph()->pinLoadVertex(endpoint_pin);
     if (vertex) {
-      Slack pre_phase_slack = sta_->vertexSlack(vertex, MinMax::max());
+      Slack pre_phase_slack = sta_->slack(vertex, MinMax::max());
       std::get<1>(slack_tuple)
           = pre_phase_slack;  // Update pre-phase slack (2nd element)
     }
@@ -1479,13 +1487,15 @@ void MoveTracker::captureInitialSlackDistribution()
         total_driver_pins++;
 
         // Skip pins on clock networks
-        Vertex* vertex = sta_->graph()->pinDrvrVertex(pin);
-        if (vertex && sta_->search()->isClock(vertex)) {
+        if (sta_->isClock(pin, sta_->cmdMode())) {
           continue;
         }
 
         // Get setup slack for this pin
-        Slack slack = sta_->pinSlack(pin, MinMax::max());
+        Slack slack = sta_->slack(pin,
+                                  sta::RiseFall::rise()->asRiseFallBoth(),
+                                  sta_->scenes(),
+                                  MinMax::max());
         float slack_seconds = delayAsFloat(slack);
         float slack_ns = slack_seconds * 1e9;  // Convert seconds to nanoseconds
 
@@ -1512,8 +1522,8 @@ void MoveTracker::captureInitialSlackDistribution()
   int total_endpoints = 0;
   int violating_endpoints = 0;
 
-  sta::VertexSet* endpoints = sta_->search()->endpoints();
-  for (Vertex* vertex : *endpoints) {
+  sta::VertexSet& endpoints = sta_->search()->endpoints();
+  for (Vertex* vertex : endpoints) {
     const Pin* pin = vertex->pin();
     if (!pin) {
       continue;
@@ -1521,7 +1531,7 @@ void MoveTracker::captureInitialSlackDistribution()
     total_endpoints++;
 
     // Get setup slack for this endpoint
-    Slack slack = sta_->vertexSlack(vertex, MinMax::max());
+    Slack slack = sta_->slack(vertex, MinMax::max());
     float slack_seconds = delayAsFloat(slack);
     float slack_ns = slack_seconds * 1e9;  // Convert seconds to nanoseconds
 
@@ -1564,8 +1574,11 @@ void MoveTracker::printSlackDistribution(const std::string& title)
     min_slack_ns = std::min(initial_slack_ns, min_slack_ns);
     max_slack_ns = std::max(initial_slack_ns, max_slack_ns);
 
-    // Get current (post-optimization) slack using pinSlack (setup timing)
-    Slack post_slack = sta_->pinSlack(pin, MinMax::max());
+    // Get current (post-optimization) slack using slack (setup timing)
+    Slack post_slack = sta_->slack(pin,
+                                   sta::RiseFall::rise()->asRiseFallBoth(),
+                                   sta_->scenes(),
+                                   MinMax::max());
     float post_slack_ns = delayAsFloat(post_slack) * 1e9;  // Convert to ns
     min_slack_ns = std::min(post_slack_ns, min_slack_ns);
     max_slack_ns = std::max(post_slack_ns, max_slack_ns);
@@ -1615,8 +1628,11 @@ void MoveTracker::printSlackDistribution(const std::string& title)
     }
     pre_counts[bin]++;
 
-    // Get current (post-optimization) slack using pinSlack
-    Slack post_slack = sta_->pinSlack(pin, MinMax::max());
+    // Get current (post-optimization) slack using slack
+    Slack post_slack = sta_->slack(pin,
+                                   sta::RiseFall::rise()->asRiseFallBoth(),
+                                   sta_->scenes(),
+                                   MinMax::max());
     float post_slack_ns = delayAsFloat(post_slack) * 1e9;  // Convert to ns
 
     // Find bin for post slack
@@ -1774,7 +1790,7 @@ void MoveTracker::printSlackDistribution(const std::string& title)
       // Get current (post-optimization) slack
       Vertex* vertex = sta_->graph()->pinLoadVertex(endpoint_pin);
       if (vertex) {
-        Slack post_slack = sta_->vertexSlack(vertex, MinMax::max());
+        Slack post_slack = sta_->slack(vertex, MinMax::max());
         float post_slack_ns = delayAsFloat(post_slack) * 1e9;  // Convert to ns
 
         // Find bin for post slack
@@ -1897,14 +1913,14 @@ void MoveTracker::printTopBinEndpoints(const std::string& title,
   // Collect all violating endpoints (negative slack) after optimization
   vector<pair<const Pin*, Slack>> violating_endpoints;
 
-  sta::VertexSet* endpoints = sta_->search()->endpoints();
-  for (Vertex* vertex : *endpoints) {
+  sta::VertexSet& endpoints = sta_->search()->endpoints();
+  for (Vertex* vertex : endpoints) {
     const Pin* endpoint_pin = vertex->pin();
     if (!endpoint_pin) {
       continue;
     }
 
-    Slack slack = sta_->vertexSlack(vertex, MinMax::max());
+    Slack slack = sta_->slack(vertex, MinMax::max());
     if (slack < 0.0) {
       violating_endpoints.emplace_back(endpoint_pin, slack);
     }
@@ -2193,9 +2209,9 @@ vector<pair<Slack, const sta::PathEnd*>> MoveTracker::enumerateEndpointPaths(
 
   // Create ExceptionTo for this endpoint to enumerate paths
   sta::Network* network = sta_->network();
-  sta::Sdc* sdc = sta_->sdc();
+  sta::Sdc* sdc = sta_->cmdScene()->sdc();
   sta::Search* search = sta_->search();
-  sta::Corner* corner = sta_->cmdCorner();
+  sta::Scene* corner = sta_->cmdScene();
 
   sta::PinSet* to_pins = new sta::PinSet(network);
   to_pins->insert(endpoint_pin);
@@ -2206,12 +2222,13 @@ vector<pair<Slack, const sta::PathEnd*>> MoveTracker::enumerateEndpointPaths(
                                               sta::RiseFallBoth::riseFall());
 
   // Find paths to this endpoint
+  sta::StdStringSeq group_names;
   sta::PathEndSeq path_ends
       = search->findPathEnds(nullptr,                // from
                              nullptr,                // thrus
                              to,                     // to (this endpoint)
                              false,                  // unconstrained
-                             corner,                 // corner
+                             sta_->scenes(),         // corner
                              sta::MinMaxAll::all(),  // min_max
                              max_paths,              // group_path_count
                              max_paths,              // endpoint_path_count
@@ -2220,7 +2237,7 @@ vector<pair<Slack, const sta::PathEnd*>> MoveTracker::enumerateEndpointPaths(
                              -sta::INF,              // slack_min
                              sta::INF,               // slack_max
                              true,                   // sort_by_slack
-                             nullptr,                // group_names
+                             group_names,            // group_names
                              true,                   // setup
                              false,                  // hold
                              true,                   // recovery
@@ -2294,13 +2311,13 @@ void MoveTracker::printCriticalEndpointPathHistogram(const string& title)
 
   // Find the top 3 most critical endpoints
   sta::Network* network = sta_->network();
-  const sta::VertexSet* endpoints = sta_->endpoints();
+  const sta::VertexSet& endpoints = sta_->endpoints();
 
   vector<pair<Slack, const sta::Pin*>> endpoint_slacks;
-  for (sta::Vertex* vertex : *endpoints) {
+  for (sta::Vertex* vertex : endpoints) {
     const sta::Pin* pin = vertex->pin();
     if (pin) {
-      Slack pin_slack = sta_->vertexSlack(vertex, MinMax::max());
+      Slack pin_slack = sta_->slack(vertex, MinMax::max());
       if (pin_slack < 0.0) {  // Only consider violating endpoints
         endpoint_slacks.emplace_back(pin_slack, pin);
       }

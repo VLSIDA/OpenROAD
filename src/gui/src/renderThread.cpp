@@ -13,18 +13,19 @@
 #include <cstdint>
 #include <exception>
 #include <iterator>
-#include <mutex>
 #include <optional>
 #include <set>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "absl/synchronization/mutex.h"
 #include "boost/geometry/geometry.hpp"
 #include "boost/geometry/index/parameters.hpp"
 #include "boost/geometry/index/predicates.hpp"
 #include "boost/geometry/index/rtree.hpp"
 #include "gui/gui.h"
+#include "label.h"
 #include "layoutViewer.h"
 #include "odb/db.h"
 #include "odb/dbObject.h"
@@ -33,6 +34,7 @@
 #include "odb/dbTypes.h"
 #include "odb/geom.h"
 #include "painter.h"
+#include "ruler.h"
 #include "utl/Logger.h"
 #include "utl/timer.h"
 
@@ -200,7 +202,7 @@ void RenderThread::draw(QImage& image,
   }
   // Prevent a paintEvent and a save_image call from interfering
   // (eg search RTree construction)
-  std::lock_guard<std::mutex> lock(drawing_mutex_);
+  absl::MutexLock lock(&drawing_mutex_);
   QPainter painter(&image);
   painter.setRenderHints(QPainter::Antialiasing);
 
@@ -1107,6 +1109,10 @@ void RenderThread::drawLayer(QPainter* painter,
     drawNetTracks(gui_painter, layer);
   }
 
+  if (viewer_->options_->areFocusedNetsGuidesVisible()) {
+    drawNetsRouteGuides(gui_painter, viewer_->focus_nets_, layer);
+  }
+
   for (auto* renderer : Gui::get()->renderers()) {
     if (restart_) {
       break;
@@ -1409,16 +1415,32 @@ void RenderThread::drawRouteGuides(Painter& painter, odb::dbTechLayer* layer)
   if (viewer_->route_guides_.empty()) {
     return;
   }
+
+  drawNetsRouteGuides(painter, viewer_->route_guides_, layer);
+}
+
+void RenderThread::drawNetsRouteGuides(Painter& painter,
+                                       const std::set<odb::dbNet*>& nets,
+                                       odb::dbTechLayer* layer)
+{
   painter.setPen(layer);
   painter.setBrush(layer);
-  for (auto net : viewer_->route_guides_) {
+
+  for (odb::dbNet* net : nets) {
     if (restart_) {
       break;
     }
-    for (auto guide : net->getGuides()) {
-      if (guide->getLayer() != layer) {
-        continue;
-      }
+
+    drawNetRouteGuides(painter, net, layer);
+  }
+}
+
+void RenderThread::drawNetRouteGuides(Painter& painter,
+                                      odb::dbNet* net,
+                                      odb::dbTechLayer* layer)
+{
+  for (odb::dbGuide* guide : net->getGuides()) {
+    if (guide->getLayer() == layer) {
       painter.drawRect(guide->getBox());
     }
   }

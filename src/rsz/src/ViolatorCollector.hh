@@ -24,6 +24,7 @@
 
 namespace rsz {
 
+using sta::Delay;
 using sta::Pin;
 using sta::Slack;
 using sta::Vertex;
@@ -65,7 +66,7 @@ class ViolatorCollector
     sta_ = resizer_->sta_;
     network_ = resizer_->network_;
     max_ = resizer_->max_;
-    dcalc_ap_ = nullptr;
+    dcalc_ap_ = -1;
     lib_ap_ = -1;
     max_passes_per_endpoint_ = 1000;  // Default value
     cached_cone_threshold_ = 0.0;
@@ -277,17 +278,17 @@ class ViolatorCollector
       Slack threshold);
 
   Resizer* resizer_;
-  Logger* logger_;
+  utl::Logger* logger_;
   sta::Sta* sta_;
   sta::Graph* graph_;
   sta::Network* network_;
   sta::dbNetwork* db_network_;
-  const MinMax* max_;
+  const sta::MinMax* max_;
   sta::Search* search_;
   sta::Sdc* sdc_;
   sta::Report* report_;
-  sta::Corner* corner_;
-  sta::DcalcAnalysisPt* dcalc_ap_;
+  sta::Scene* corner_;
+  int dcalc_ap_;
   int lib_ap_;
 
   float slack_margin_;

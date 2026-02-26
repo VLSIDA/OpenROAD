@@ -2,8 +2,14 @@
 // Copyright (c) 2025-2025, The OpenROAD Authors
 
 #include <cmath>
+#include <unordered_set>
 
 #include "BaseMove.hh"
+#include "sta/Delay.hh"
+#include "sta/Liberty.hh"
+#include "sta/NetworkClass.hh"
+#include "sta/Path.hh"
+#include "sta/PathExpanded.hh"
 
 namespace rsz {
 
@@ -12,16 +18,17 @@ class VTSwapSpeedMove : public BaseMove
  public:
   using BaseMove::BaseMove;
 
-  bool doMove(const Pin* drvr_pin, float setup_slack_margin) override;
+  bool doMove(const sta::Pin* drvr_pin, float setup_slack_margin) override;
 
-  bool doMove(Instance* drvr, std::unordered_set<Instance*>& notSwappable);
+  bool doMove(sta::Instance* drvr,
+              std::unordered_set<sta::Instance*>& notSwappable);
 
   const char* name() override { return "VTSwapSpeed"; }
 
  private:
-  bool isSwappable(const Pin*& drvr_pin,
-                   LibertyCell*& drvr_cell,
-                   LibertyCell*& best_cell);
+  bool isSwappable(const sta::Pin*& drvr_pin,
+                   sta::LibertyCell*& drvr_cell,
+                   sta::LibertyCell*& best_cell);
 };
 
 }  // namespace rsz

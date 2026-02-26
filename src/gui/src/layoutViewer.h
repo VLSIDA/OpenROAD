@@ -37,6 +37,7 @@
 #include "odb/geom.h"
 #include "options.h"
 #include "renderThread.h"
+#include "ruler.h"
 #include "search.h"
 
 namespace utl {
@@ -131,6 +132,7 @@ class LayoutViewer : public QWidget
 
   odb::dbBlock* getBlock() const { return chip_->getBlock(); }
   odb::dbChip* getChip() const { return chip_; }
+  std::map<odb::dbChipInst*, odb::dbChip*> getChips() const;
   void setLogger(utl::Logger* logger);
   qreal getPixelsPerDBU() { return pixels_per_dbu_; }
   void setScroller(LayoutScroll* scroller);
@@ -288,7 +290,8 @@ class LayoutViewer : public QWidget
   void setPixelsPerDBU(qreal pixels_per_dbu);
   void selectAt(odb::Rect region_dbu, std::vector<Selected>& selection);
   SelectionSet selectAt(odb::Rect region_dbu);
-  void selectViaShapesAt(odb::dbTechLayer* cut_layer,
+  void selectViaShapesAt(odb::dbBlock* block,
+                         odb::dbTechLayer* cut_layer,
                          odb::dbTechLayer* select_layer,
                          const odb::Rect& region,
                          int shape_limit,
@@ -322,10 +325,11 @@ class LayoutViewer : public QWidget
 
   using Edge = std::pair<odb::Point, odb::Point>;
   // search for nearest edge to point
-  std::pair<Edge, bool> searchNearestEdge(const odb::Point& pt,
+  std::pair<Edge, bool> searchNearestEdge(odb::Point pt,
                                           bool horizontal,
                                           bool vertical);
   void searchNearestViaEdge(
+      odb::dbBlock* block,
       odb::dbTechLayer* cut_layer,
       odb::dbTechLayer* search_layer,
       const odb::Rect& search_line,

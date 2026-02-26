@@ -24,7 +24,6 @@ using std::string;
 using utl::RSZ;
 
 using sta::ArcDelay;
-using sta::DcalcAnalysisPt;
 using sta::Instance;
 using sta::InstancePinIterator;
 using sta::LibertyCell;
@@ -80,12 +79,15 @@ bool SizeUpMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
     prev_drive = 0.0;
   }
 
-  const DcalcAnalysisPt* dcalc_ap = resizer_->tgt_slew_dcalc_ap_;
-  const float load_cap = graph_delay_calc_->loadCap(drvr_pin, dcalc_ap);
+  sta::Scene* scene;
+  const sta::RiseFall* rf;
+  const sta::MinMax* min_max;
+  getWorstCornerTransitionMinMax(drvr_pin, scene, rf, min_max);
+  const float load_cap = graph_delay_calc_->loadCap(drvr_pin, scene, min_max);
   LibertyPort* in_port = network_->libertyPort(drvr_input_pin);
   LibertyPort* drvr_port = network_->libertyPort(drvr_pin);
   LibertyCell* upsize
-      = upsizeCell(in_port, drvr_port, load_cap, prev_drive, dcalc_ap);
+      = upsizeCell(in_port, drvr_port, load_cap, prev_drive, scene, min_max);
 
   if (!upsize) {
     debugPrint(logger_,
@@ -200,7 +202,7 @@ bool SizeUpMatchMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
     return false;
   }
 
-  Vertex* prev_drvr_vertex = graph_->pinDrvrVertex(prev_drvr_pin);
+  sta::Vertex* prev_drvr_vertex = graph_->pinDrvrVertex(prev_drvr_pin);
   if (prev_drvr_vertex == nullptr) {
     debugPrint(logger_,
                RSZ,

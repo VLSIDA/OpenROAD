@@ -7,6 +7,7 @@
 #include <cstdlib>
 
 #include "dbBlock.h"
+#include "dbCore.h"
 #include "dbDatabase.h"
 #include "dbHashTable.hpp"
 #include "dbJournal.h"
@@ -14,7 +15,6 @@
 #include "dbModInst.h"
 #include "dbModNet.h"
 #include "dbTable.h"
-#include "dbTable.hpp"
 #include "odb/db.h"
 // User Code Begin Includes
 #include <cassert>
@@ -24,6 +24,8 @@
 
 #include "dbCommon.h"
 #include "odb/dbBlockCallBackObj.h"
+#include "odb/dbObject.h"
+#include "odb/dbSet.h"
 #include "utl/Logger.h"
 // User Code End Includes
 namespace odb {

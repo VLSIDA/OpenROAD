@@ -5,16 +5,17 @@
 #include "dbChipBump.h"
 
 #include "dbChip.h"
+#include "dbCore.h"
 #include "dbDatabase.h"
 #include "dbInst.h"
 #include "dbTable.h"
-#include "dbTable.hpp"
 #include "odb/db.h"
 // User Code Begin Includes
 #include "dbBTerm.h"
 #include "dbBlock.h"
 #include "dbChipRegion.h"
 #include "dbNet.h"
+#include "utl/Logger.h"
 // User Code End Includes
 namespace odb {
 template class dbTable<_dbChipBump>;

@@ -8,15 +8,18 @@
 #include <string>
 
 #include "dbBlock.h"
+#include "dbCore.h"
 #include "dbDatabase.h"
 #include "dbHashTable.hpp"
 #include "dbMaster.h"
 #include "dbNet.h"
 #include "dbPowerDomain.h"
 #include "dbTable.h"
-#include "dbTable.hpp"
 #include "odb/db.h"
 // User Code Begin Includes
+#include <utility>
+#include <vector>
+
 #include "dbCommon.h"
 // User Code End Includes
 namespace odb {

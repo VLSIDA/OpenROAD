@@ -154,6 +154,7 @@ class Cuboid
   int xCenter() const { return (xlo_ + xhi_) / 2; }
   int yCenter() const { return (ylo_ + yhi_) / 2; }
   int zCenter() const { return (zlo_ + zhi_) / 2; }
+  Rect getEnclosingRect() const;
 
   std::vector<Point3D> getPoints() const;
   Point3D lll() const;  // lower corner (xMin, yMin, zMin)
@@ -166,11 +167,17 @@ class Cuboid
   // A cuboid intersects any part of this cuboid.
   bool intersects(const Cuboid& b) const;
 
+  // A cuboid intersects any part of this cuboid in XY plane
+  bool xyIntersects(const Cuboid& b) const;
+
   // A point intersects the interior of this cuboid
   bool overlaps(const Point3D& p) const;
 
   // A cuboid intersects the interior of this cuboid
   bool overlaps(const Cuboid& b) const;
+
+  // A cuboid intersects the interior of this cuboid in XY plane
+  bool xyOverlaps(const Cuboid& b) const;
 
   //  A cuboid is contained in the interior of this cuboid
   bool contains(const Cuboid& b) const;
@@ -205,6 +212,8 @@ class Cuboid
 
   void printf(FILE* fp, const char* prefix = "");
   void print(const char* prefix = "");
+  friend dbIStream& operator>>(dbIStream& stream, Cuboid& c);
+  friend dbOStream& operator<<(dbOStream& stream, const Cuboid& c);
 
  private:
   int xlo_ = 0;
@@ -1240,6 +1249,11 @@ inline Point3D Cuboid::center() const
   return Point3D(xCenter(), yCenter(), zCenter());
 }
 
+inline Rect Cuboid::getEnclosingRect() const
+{
+  return Rect(xlo_, ylo_, xhi_, yhi_);
+}
+
 inline bool Cuboid::intersects(const Point3D& p) const
 {
   return (p.x() >= xlo_) && (p.x() <= xhi_) && (p.y() >= ylo_)
@@ -1252,6 +1266,12 @@ inline bool Cuboid::intersects(const Cuboid& b) const
          && (b.ylo_ <= yhi_) && (b.zhi_ >= zlo_) && (b.zlo_ <= zhi_);
 }
 
+inline bool Cuboid::xyIntersects(const Cuboid& b) const
+{
+  return (b.xhi_ >= xlo_) && (b.xlo_ <= xhi_) && (b.yhi_ >= ylo_)
+         && (b.ylo_ <= yhi_);
+}
+
 inline bool Cuboid::overlaps(const Point3D& p) const
 {
   return (p.x() > xlo_) && (p.x() < xhi_) && (p.y() > ylo_) && (p.y() < yhi_)
@@ -1262,6 +1282,12 @@ inline bool Cuboid::overlaps(const Cuboid& b) const
 {
   return (b.xhi_ > xlo_) && (b.xlo_ < xhi_) && (b.yhi_ > ylo_)
          && (b.ylo_ < yhi_) && (b.zhi_ > zlo_) && (b.zlo_ < zhi_);
+}
+
+inline bool Cuboid::xyOverlaps(const Cuboid& b) const
+{
+  return (b.xhi_ > xlo_) && (b.xlo_ < xhi_) && (b.yhi_ > ylo_)
+         && (b.ylo_ < yhi_);
 }
 
 inline bool Cuboid::contains(const Cuboid& b) const

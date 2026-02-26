@@ -4,6 +4,9 @@
 #include <cmath>
 
 #include "BaseMove.hh"
+#include "sta/Delay.hh"
+#include "sta/Path.hh"
+#include "sta/PathExpanded.hh"
 
 namespace rsz {
 
@@ -12,7 +15,7 @@ class SizeUpMove : public BaseMove
  public:
   using BaseMove::BaseMove;
 
-  bool doMove(const Pin* drvr_pin, float setup_slack_margin) override;
+  bool doMove(const sta::Pin* drvr_pin, float setup_slack_margin) override;
 
   const char* name() override { return "SizeUpMove"; }
 };
@@ -23,7 +26,7 @@ class SizeUpMatchMove : public BaseMove
  public:
   using BaseMove::BaseMove;
 
-  bool doMove(const Pin* drvr_pin, float setup_slack_margin) override;
+  bool doMove(const sta::Pin* drvr_pin, float setup_slack_margin) override;
 
   const char* name() override { return "SizeUpMoveMatch"; }
 };

@@ -33,7 +33,6 @@ using std::vector;
 
 using utl::RSZ;
 
-using sta::dbITerm;
 using sta::Edge;
 using sta::Instance;
 using sta::InstancePinIterator;
@@ -161,13 +160,13 @@ bool CloneMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
 
   // Sort fanouts of the drvr on the critical path by slack margin
   // wrt the critical path slack.
-  const Slack drvr_slack = sta_->vertexSlack(drvr_vertex, resizer_->max_);
+  const Slack drvr_slack = sta_->slack(drvr_vertex, resizer_->max_);
   vector<pair<Vertex*, Slack>> fanout_slacks;
   VertexOutEdgeIterator edge_iter(drvr_vertex, graph_);
   while (edge_iter.hasNext()) {
     Edge* edge = edge_iter.next();
     Vertex* fanout_vertex = edge->to(graph_);
-    const Slack fanout_slack = sta_->vertexSlack(fanout_vertex, resizer_->max_);
+    const Slack fanout_slack = sta_->slack(fanout_vertex, resizer_->max_);
     const Slack slack_margin = fanout_slack - drvr_slack;
     debugPrint(logger_,
                RSZ,
@@ -235,11 +234,11 @@ bool CloneMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
       auto libPort = network_->libertyPort(
           pin);  // get the liberty port of the original inst/pin
       // Hierarchy fix: make sure modnet on input supported
-      dbNet* dbnet = db_network_->flatNet(pin);
+      odb::dbNet* dbnet = db_network_->flatNet(pin);
       odb::dbModNet* modnet = db_network_->hierNet(pin);
       // get the iterm
       Pin* clone_pin = db_network_->findPin(clone_inst, libPort->name());
-      dbITerm* iterm = db_network_->flatPin(clone_pin);
+      odb::dbITerm* iterm = db_network_->flatPin(clone_pin);
 
       sta_->connectPin(
           clone_inst,
@@ -291,7 +290,7 @@ bool CloneMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
     pair<Vertex*, Slack> fanout_slack = fanout_slacks[i];
     Vertex* load_vertex = fanout_slack.first;
     Pin* load_pin = load_vertex->pin();
-    dbITerm* load_iterm = db_network_->flatPin(load_pin);
+    odb::dbITerm* load_iterm = db_network_->flatPin(load_pin);
 
     // Leave top level ports connected to original net so verilog port names are
     // preserved.

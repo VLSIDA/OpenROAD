@@ -10,7 +10,6 @@
 #include <vector>
 
 #include "odb/db.h"
-#include "sta/Corner.hh"
 #include "sta/NetworkClass.hh"
 
 namespace utl {
@@ -27,6 +26,7 @@ class dbSta;
 class FuncExpr;
 class LibertyCell;
 class LibertyPort;
+class Scene;
 }  // namespace sta
 
 namespace gpl {
@@ -96,7 +96,6 @@ class MBFF
   const sta::LibertyCell* getLibertyCell(const sta::Cell* cell);
   float GetDist(const Point& a, const Point& b);
   float GetDistAR(const Point& a, const Point& b, float AR);
-  int GetRows(int slot_cnt, const Mask& array_mask);
   int GetBitCnt(int bit_idx);
   int GetBitIdx(int bit_cnt);
 
@@ -147,8 +146,7 @@ class MBFF
   Point GetTrayCenter(const Mask& array_mask, int idx);
   // get slots w.r.t. tray center
   void GetSlots(const Point& tray,
-                int rows,
-                int cols,
+                int bit_cnt,
                 std::vector<Point>& slots,
                 const Mask& array_mask);
 
@@ -230,12 +228,14 @@ class MBFF
   void displayFlopClusters(const char* stage,
                            std::vector<std::vector<Flop>>& clusters);
 
+  float getLeakage(odb::dbMaster* master);
+
   // OpenROAD vars
   odb::dbDatabase* db_;
   odb::dbBlock* block_;
   sta::dbSta* sta_;
   sta::dbNetwork* network_;
-  sta::Corner* corner_;
+  sta::Scene* corner_;
   std::unique_ptr<AbstractGraphics> graphics_;
   utl::Logger* log_;
   rsz::Resizer* resizer_;

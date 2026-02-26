@@ -5,15 +5,16 @@
 #include "dbChipRegionInst.h"
 
 #include "dbChipRegion.h"
+#include "dbCore.h"
 #include "dbDatabase.h"
 #include "dbTable.h"
-#include "dbTable.hpp"
 #include "odb/db.h"
 // User Code Begin Includes
 #include "dbChip.h"
 #include "dbChipBumpInst.h"
 #include "dbChipBumpInstItr.h"
 #include "dbChipInst.h"
+#include "odb/dbSet.h"
 #include "odb/dbTransform.h"
 #include "odb/geom.h"
 // User Code End Includes

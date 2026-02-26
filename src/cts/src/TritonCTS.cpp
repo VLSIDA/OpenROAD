@@ -34,6 +34,7 @@
 #include "TreeBuilder.h"
 #include "db_sta/dbNetwork.hh"
 #include "db_sta/dbSta.hh"
+#include "est/EstimateParasitics.h"
 #include "odb/db.h"
 #include "odb/dbSet.h"
 #include "odb/dbShape.h"
@@ -45,14 +46,12 @@
 #include "sta/Graph.hh"
 #include "sta/GraphDelayCalc.hh"
 #include "sta/Liberty.hh"
+#include "sta/Mode.hh"
 #include "sta/Network.hh"
-#include "sta/Path.hh"
-#include "sta/PathAnalysisPt.hh"
+#include "sta/NetworkClass.hh"
 #include "sta/PathEnd.hh"
-#include "sta/PathExpanded.hh"
 #include "sta/PatternMatch.hh"
 #include "sta/Sdc.hh"
-#include "sta/Vector.hh"
 #include "stt/SteinerTreeBuilder.h"
 #include "utl/Logger.h"
 
@@ -143,6 +142,15 @@ int TritonCTS::getBufferFanoutLimit(const std::string& bufferName)
   int fanout = std::numeric_limits<int>::max();
   float tempFanout;
   bool existMaxFanout;
+
+  // Check if top instance has fanout limit
+  sta::Cell* top_cell = network_->cell(network_->topInstance());
+  openSta_->cmdMode()->sdc()->fanoutLimit(
+      top_cell, sta::MinMax::max(), tempFanout, existMaxFanout);
+  if (existMaxFanout) {
+    fanout = std::min(fanout, (int) tempFanout);
+  }
+
   odb::dbMaster* bufferMaster = db_->findMaster(bufferName.c_str());
   sta::Cell* bufferCell = network_->dbToSta(bufferMaster);
   sta::Port* buffer_port = nullptr;
@@ -159,17 +167,17 @@ int TritonCTS::getBufferFanoutLimit(const std::string& bufferName)
     }
   }
   if (buffer_port == nullptr) {
-    return 0;
+    return (existMaxFanout) ? fanout : 0;
   }
 
-  openSta_->sdc()->fanoutLimit(
-      buffer_port, sta::MinMax::max(), tempFanout, existMaxFanout);
+  auto sdc = openSta_->cmdMode()->sdc();
+
+  sdc->fanoutLimit(buffer_port, sta::MinMax::max(), tempFanout, existMaxFanout);
   if (existMaxFanout) {
     fanout = std::min(fanout, (int) tempFanout);
   }
 
-  openSta_->sdc()->fanoutLimit(
-      bufferCell, sta::MinMax::max(), tempFanout, existMaxFanout);
+  sdc->fanoutLimit(bufferCell, sta::MinMax::max(), tempFanout, existMaxFanout);
   if (existMaxFanout) {
     fanout = std::min(fanout, (int) tempFanout);
   }
@@ -206,7 +214,10 @@ void TritonCTS::setupCharacterization()
     }
   }
 
-  openSta_->checkFanoutLimitPreamble();
+  block_ = db_->getChip()->getBlock();
+  options_->setDbUnits(block_->getDbUnitsPerMicron());
+
+  openSta_->checkFanoutPreamble();
   // Finalize root/sink buffers
   std::string rootBuffer = selectRootBuffer(rootBuffers_);
   options_->setRootBuffer(rootBuffer);
@@ -226,6 +237,10 @@ void TritonCTS::setupCharacterization()
       options_->setMaxFanout(sinkMaxFanout);
     }
   }
+
+  double maxWlMicrons
+      = resizer_->findMaxWireLength(/* don't issue error */ false) * 1e+6;
+  options_->setMaxWl(block_->micronsToDbu(maxWlMicrons));
 
   // A new characteriztion is always created.
   techChar_ = std::make_unique<TechChar>(options_,
@@ -314,6 +329,7 @@ void TritonCTS::initOneClockTree(odb::dbNet* driverNet,
   visitedClockNets_.insert(driverNet);
   odb::dbITerm* driver = driverNet->getFirstOutput();
   odb::dbSet<odb::dbITerm> iterms = driverNet->getITerms();
+  auto sdc = openSta_->cmdMode()->sdc();
   for (odb::dbITerm* iterm : iterms) {
     if (iterm != driver && iterm->isInputSignal()) {
       if (!isSink(iterm)) {
@@ -321,8 +337,7 @@ void TritonCTS::initOneClockTree(odb::dbNet* driverNet,
         if (outputPin && outputPin->getNet()) {
           odb::dbNet* outputNet = outputPin->getNet();
           if (visitedClockNets_.find(outputNet) == visitedClockNets_.end()
-              && !openSta_->sdc()->isLeafPinClock(
-                  network_->dbToSta(outputPin))) {
+              && !sdc->isLeafPinClock(network_->dbToSta(outputPin))) {
             if (clockBuilder == nullptr
                 && net2builder_[clkInputNet] != nullptr) {
               initOneClockTree(outputNet,
@@ -664,7 +679,7 @@ void TritonCTS::setBufferList(const char* buffers)
     options_->setBufferListInferred(true);
   } else {
     // Iterate the user-defined buffer list
-    sta::Vector<sta::LibertyCell*> selected_buffers;
+    std::vector<sta::LibertyCell*> selected_buffers;
     for (const std::string& buffer : bufferList) {
       odb::dbMaster* buffer_master = db_->findMaster(buffer.c_str());
       if (buffer_master == nullptr) {
@@ -735,7 +750,7 @@ std::string TritonCTS::selectRootBuffer(std::vector<std::string>& buffers)
   float sinkWireLength
       = static_cast<float>(std::max(coreArea.dx(), coreArea.dy()))
         / block->getDbUnitsPerMicron();
-  sta::Corner* corner = openSta_->cmdCorner();
+  sta::Scene* corner = openSta_->cmdScene();
   float rootWireCap = estimate_parasitics_->wireSignalCapacitance(corner) * 1e-6
                       * sinkWireLength / 2.0;
   std::string rootBuf = selectBestMaxCapBuffer(buffers, rootWireCap);
@@ -778,7 +793,7 @@ std::string TritonCTS::selectSinkBuffer(std::vector<std::string>& buffers)
   float sinkWireLength
       = static_cast<float>(std::max(coreArea.dx(), coreArea.dy()))
         / block->getDbUnitsPerMicron();
-  sta::Corner* corner = openSta_->cmdCorner();
+  sta::Scene* corner = openSta_->cmdScene();
   float sinkWireCap = estimate_parasitics_->wireSignalCapacitance(corner) * 1e-6
                       * sinkWireLength;
 
@@ -885,8 +900,9 @@ void TritonCTS::cloneClockGaters(odb::dbNet* clkNet)
     return;
   }
 
+  // xs is empty if the fanout is a bterm
   if (isSink(driver) || driver->getInst()->isFixed()
-      || driver->getInst()->isPad()) {
+      || driver->getInst()->isPad() || xs.empty()) {
     return;
   }
 
@@ -903,9 +919,7 @@ void TritonCTS::findLongEdges(
     odb::Point driverPt,
     std::map<odb::Point, std::vector<odb::dbITerm*>>& point2pin)
 {
-  double maxWlMicrons
-      = resizer_->findMaxWireLength(/* don't issue error */ false) * 1e+6;
-  const int threshold = block_->micronsToDbu(maxWlMicrons);
+  const int threshold = options_->getMaxWl();
   debugPrint(
       logger_, CTS, "clock gate cloning", 1, "Threshold = {}", threshold);
 
@@ -1163,9 +1177,6 @@ void TritonCTS::findLongEdges(
 
 void TritonCTS::populateTritonCTS()
 {
-  block_ = db_->getChip()->getBlock();
-  options_->setDbUnits(block_->getDbUnitsPerMicron());
-
   clearNumClocks();
 
   // Use dbSta to find all clock nets in the design.
@@ -1186,8 +1197,8 @@ void TritonCTS::populateTritonCTS()
     clockNetsInfo.emplace_back(clockNets, "");
   } else {
     staClockNets_ = openSta_->findClkNets();
-    sta::Sdc* sdc = openSta_->sdc();
-    for (auto clk : *sdc->clocks()) {
+    sta::Sdc* sdc = openSta_->cmdMode()->sdc();
+    for (auto clk : sdc->clocks()) {
       std::string clkName = clk->name();
       std::set<odb::dbNet*> clkNets;
       findClockRoots(clk, clkNets);
@@ -2199,7 +2210,7 @@ double TritonCTS::computeInsertionDelay(const std::string& name,
         // TODO: do we need to look at min insertion delays?
         double delayPerSec = (rise + fall) / 2.0;
         // convert delay to length because HTree uses lengths
-        sta::Corner* corner = openSta_->cmdCorner();
+        sta::Scene* corner = openSta_->cmdScene();
         double capPerMicron
             = estimate_parasitics_->wireSignalCapacitance(corner) * 1e-6;
         double resPerMicron
@@ -2531,10 +2542,13 @@ void TritonCTS::printClockNetwork(const Clock& clockNet) const
 
 void TritonCTS::setAllClocksPropagated()
 {
-  sta::Sdc* sdc = openSta_->sdc();
-  for (sta::Clock* clk : *sdc->clocks()) {
-    openSta_->setPropagatedClock(clk);
+  for (sta::Mode* mode : openSta_->modes()) {
+    sta::Sdc* sdc = mode->sdc();
+    for (sta::Clock* clk : sdc->clocks()) {
+      openSta_->setPropagatedClock(clk, mode);
+    }
   }
+
   estimate_parasitics_->estimateParasitics(est::ParasiticsSrc::placement);
 }
 
@@ -2560,7 +2574,7 @@ void TritonCTS::balanceMacroRegisterLatencies()
   // trees first
   int totalDelayBuff = 0;
 
-  sta::Corner* corner = openSta_->cmdCorner();
+  sta::Scene* corner = openSta_->cmdScene();
   // convert from per meter to per dbu
   double capPerDBU = estimate_parasitics_->wireClkCapacitance(corner) * 1e-6
                      / block_->getDbUnitsPerMicron();

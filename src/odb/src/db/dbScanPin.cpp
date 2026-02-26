@@ -7,12 +7,13 @@
 #include <variant>
 
 #include "dbBlock.h"
+#include "dbCore.h"
 #include "dbDatabase.h"
 #include "dbDft.h"
 #include "dbTable.h"
-#include "dbTable.hpp"
 #include "odb/db.h"
 // User Code Begin Includes
+#include <type_traits>
 namespace {
 template <class>
 inline constexpr bool always_false_v = false;

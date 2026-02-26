@@ -3,8 +3,6 @@
 
 #include "tst/IntegratedFixture.h"
 
-#include <gtest/gtest.h>
-
 #include <cstdio>
 #include <fstream>
 #include <iostream>
@@ -13,11 +11,13 @@
 
 #include "db_sta/dbReadVerilog.hh"
 #include "db_sta/dbSta.hh"
+#include "gtest/gtest.h"
 #include "odb/db.h"
 #include "odb/dbTypes.h"
 #include "sta/Clock.hh"
 #include "sta/Graph.hh"
 #include "sta/MinMax.hh"
+#include "sta/Mode.hh"
 #include "sta/NetworkClass.hh"
 #include "sta/Sdc.hh"
 #include "sta/SdcClass.hh"
@@ -72,7 +72,8 @@ IntegratedFixture::IntegratedFixture(Technology tech,
   db_network_->setHierarchy();
 }
 
-void IntegratedFixture::readVerilogAndSetup(const std::string& verilog_file)
+void IntegratedFixture::readVerilogAndSetup(const std::string& verilog_file,
+                                            bool init_default_sdc)
 {
   ord::dbVerilogNetwork verilog_network(sta_.get());
   sta::VerilogReader verilog_reader(&verilog_network);
@@ -89,6 +90,13 @@ void IntegratedFixture::readVerilogAndSetup(const std::string& verilog_file)
   block_->setDieArea(odb::Rect(0, 0, 1000, 1000));
   sta_->postReadDef(block_);
 
+  if (init_default_sdc) {
+    initStaDefaultSdc();
+  }
+}
+
+void IntegratedFixture::initStaDefaultSdc()
+{
   // Timing setup
   sta::Cell* top_cell = db_network_->cell(db_network_->topInstance());
   ASSERT_NE(top_cell, nullptr);
@@ -115,9 +123,10 @@ void IntegratedFixture::readVerilogAndSetup(const std::string& verilog_file)
                     /*add_to_pins=*/false,
                     /*period=*/period,
                     waveform,
-                    /*comment=*/nullptr);
+                    /*comment=*/nullptr,
+                    /*mode=*/sta_->cmdMode());
 
-    sta::Sdc* sdc = sta_->sdc();
+    sta::Sdc* sdc = sta_->cmdMode()->sdc();
     const sta::RiseFallBoth* rf = sta::RiseFallBoth::riseFall();
     sta::Clock* clk = sdc->findClock("clk");
     const sta::RiseFall* clk_rf = sta::RiseFall::rise();
@@ -142,7 +151,8 @@ void IntegratedFixture::readVerilogAndSetup(const std::string& verilog_file)
                             false,
                             sta::MinMaxAll::all(),
                             true,
-                            0.0);
+                            0.0,
+                            sta_->cmdMode()->sdc());
       } else if (io_type == odb::dbIoType::OUTPUT) {
         sta_->setOutputDelay(pin,
                              rf,
@@ -153,7 +163,8 @@ void IntegratedFixture::readVerilogAndSetup(const std::string& verilog_file)
                              false,
                              sta::MinMaxAll::all(),
                              true,
-                             0.0);
+                             0.0,
+                             sta_->cmdMode()->sdc());
       }
     }
   }

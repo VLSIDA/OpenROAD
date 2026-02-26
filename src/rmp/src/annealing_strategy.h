@@ -5,15 +5,19 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <random>
+#include <vector>
 
+#include "aig/gia/gia.h"
 #include "cut/abc_library_factory.h"
 #include "db_sta/dbSta.hh"
 #include "resynthesis_strategy.h"
 #include "rsz/Resizer.hh"
-#include "sta/Corner.hh"
 #include "sta/Delay.hh"
+#include "sta/Graph.hh"
+#include "sta/Scene.hh"
 #include "utl/Logger.h"
 #include "utl/unique_name.h"
 
@@ -24,7 +28,7 @@ using GiaOp = std::function<void(abc::Gia_Man_t*&)>;
 class AnnealingStrategy : public ResynthesisStrategy
 {
  public:
-  explicit AnnealingStrategy(sta::Corner* corner,
+  explicit AnnealingStrategy(sta::Scene* corner,
                              sta::Slack slack_threshold,
                              std::optional<std::mt19937::result_type> seed,
                              std::optional<float> temperature,
@@ -55,7 +59,7 @@ class AnnealingStrategy : public ResynthesisStrategy
               utl::Logger* logger);
 
  private:
-  sta::Corner* corner_;
+  sta::Scene* corner_;
   sta::Slack slack_threshold_;
   std::optional<float> temperature_;
   unsigned iterations_;

@@ -15,9 +15,14 @@
 #include "db_sta/dbNetwork.hh"
 #include "db_sta/dbSta.hh"
 #include "rsz/Resizer.hh"
+#include "sta/Delay.hh"
 #include "sta/FuncExpr.hh"
+#include "sta/Graph.hh"
+#include "sta/Liberty.hh"
+#include "sta/LibertyClass.hh"
 #include "sta/MinMax.hh"
-#include "sta/StaState.hh"
+#include "sta/NetworkClass.hh"
+#include "sta/Path.hh"
 #include "utl/Logger.h"
 
 namespace sta {
@@ -35,30 +40,6 @@ class RemoveBuffer;
 class BaseMove;
 class ViolatorCollector;
 class MoveTracker;
-
-using odb::Point;
-using utl::Logger;
-
-using sta::Corner;
-using sta::dbNetwork;
-using sta::dbSta;
-using sta::DcalcAnalysisPt;
-using sta::Delay;
-using sta::Instance;
-using sta::LibertyCell;
-using sta::LibertyPort;
-using sta::MinMax;
-using sta::Net;
-using sta::Path;
-using sta::PathExpanded;
-using sta::Pin;
-using sta::RiseFall;
-using sta::RiseFallBoth;
-using sta::Slack;
-using sta::Slew;
-using sta::StaState;
-using sta::TimingArc;
-using sta::Vertex;
 
 struct OptoParams
 {
@@ -126,7 +107,7 @@ class RepairSetup : public sta::dbStaState
                    bool skip_vt_swap,
                    bool skip_crit_vt_swap);
   // For testing.
-  void repairSetup(const Pin* end_pin);
+  void repairSetup(const sta::Pin* end_pin);
   // For testing.
   void reportSwappablePins();
   // Rebuffer one net (for testing).
@@ -134,14 +115,16 @@ class RepairSetup : public sta::dbStaState
 
  private:
   void init();
-  bool repairPath(Path* path, Slack path_slack, float setup_slack_margin);
+  bool repairPath(sta::Path* path,
+                  sta::Slack path_slack,
+                  float setup_slack_margin);
   bool repairPins(
       const std::vector<const Pin*>& pins,
       float setup_slack_margin,
       const std::map<const Pin*, std::set<BaseMove*>>* rejected_moves = nullptr,
       std::vector<std::pair<const Pin*, BaseMove*>>* chosen_moves = nullptr);
-  int fanout(Vertex* vertex);
-  bool hasTopLevelOutputPort(Net* net);
+  int fanout(sta::Vertex* vertex);
+  bool hasTopLevelOutputPort(sta::Net* net);
 
   void printProgress(int iteration,
                      bool force,
@@ -159,12 +142,12 @@ class RepairSetup : public sta::dbStaState
                          const char* phase_name,
                          char phase_marker);
   bool swapVTCritCells(const OptoParams& params, int& num_viols);
-  void traverseFaninCone(Vertex* endpoint,
-                         std::unordered_map<Instance*, float>& crit_insts,
-                         std::unordered_set<Vertex*>& visited,
-                         std::unordered_set<Instance*>& notSwappable,
+  void traverseFaninCone(sta::Vertex* endpoint,
+                         std::unordered_map<sta::Instance*, float>& crit_insts,
+                         std::unordered_set<sta::Vertex*>& visited,
+                         std::unordered_set<sta::Instance*>& notSwappable,
                          const OptoParams& params);
-  Slack getInstanceSlack(Instance* inst);
+  sta::Slack getInstanceSlack(sta::Instance* inst);
 
   // Different repair setup methods
   void repairSetup_Legacy(float setup_slack_margin,
@@ -219,8 +202,8 @@ class RepairSetup : public sta::dbStaState
                             int max_iterations,
                             char phase_marker = 'G');
 
-  Logger* logger_ = nullptr;
-  dbNetwork* db_network_ = nullptr;
+  utl::Logger* logger_ = nullptr;
+  sta::dbNetwork* db_network_ = nullptr;
   Resizer* resizer_;
   est::EstimateParasitics* estimate_parasitics_;
   std::unique_ptr<ViolatorCollector> violator_collector_;
@@ -249,10 +232,10 @@ class RepairSetup : public sta::dbStaState
   // Used to early-exit some unit tests
   int max_end_repairs_ = -1;
 
-  const MinMax* min_ = MinMax::min();
-  const MinMax* max_ = MinMax::max();
+  const sta::MinMax* min_ = sta::MinMax::min();
+  const sta::MinMax* max_ = sta::MinMax::max();
 
-  sta::UnorderedMap<LibertyPort*, sta::LibertyPortSet> equiv_pin_map_;
+  std::unordered_map<sta::LibertyPort*, sta::LibertyPortSet> equiv_pin_map_;
 
   static constexpr int initial_decreasing_slack_max_passes_ = 6;
   static constexpr int pass_limit_increment_ = 5;

@@ -6,7 +6,6 @@
 #include <cstdlib>
 #include <iostream>
 #include <memory>
-#include <mutex>
 #include <sstream>
 #include <string>
 #include <utility>
@@ -19,6 +18,7 @@
 #include "distributed/PinAccessJobDescription.h"
 #include "distributed/RoutingJobDescription.h"
 #include "distributed/frArchive.h"
+#include "distributed/paUpdate.h"
 #include "dr/FlexDR.h"
 #include "drt/TritonRoute.h"
 #include "dst/Distributed.h"

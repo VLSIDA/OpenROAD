@@ -10,13 +10,13 @@
 #include "dbCore.h"
 #include "dbDatabase.h"
 #include "dbTable.h"
-#include "dbTable.hpp"
 #include "odb/db.h"
 #include "odb/dbObject.h"
 #include "odb/dbTypes.h"
 // User Code Begin Includes
 #include <algorithm>
 #include <cstdint>
+#include <utility>
 #include <vector>
 
 #include "dbBPin.h"
@@ -30,6 +30,7 @@
 #include "dbTechLayer.h"
 #include "dbTechVia.h"
 #include "dbVia.h"
+#include "odb/geom.h"
 #include "utl/Logger.h"
 // User Code End Includes
 namespace odb {

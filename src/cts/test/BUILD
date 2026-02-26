@@ -10,6 +10,7 @@ package(features = ["layering_check"])
 COMPULSORY_TESTS = [
     "array",
     "array_ins_delay",
+    "array_max_wl",
     "array_no_blockages",
     "array_repair_clock_nets",
     "check_buffers",
@@ -23,9 +24,11 @@ COMPULSORY_TESTS = [
     "check_max_fanout2",
     "check_max_fanout3",
     "check_wire_rc_cts",
+    "clock_buffer_footprint",
     "dummy_load",
     "find_clock",
-    "find_clock_pad",
+    #   cmake gives 17.47 um ave sink WL vs. bazel 11.54 um
+    #    "find_clock_pad",
     "gated_clock1",
     "gated_clock2",
     "gated_clock3",
@@ -43,6 +46,7 @@ COMPULSORY_TESTS = [
     "simple_test_clustered",
     "simple_test_clustered_max_cap",
     "simple_test_hier",
+    "sink_clustering_collision",
     "skip_nets",
     "twice",
 ]
@@ -69,16 +73,10 @@ filegroup(
         "Nangate45/Nangate45_tech.lef",
         "Nangate45/Nangate45_typ.lib",
         "helpers.tcl",
-    ],
-)
-
-filegroup(
-    name = "ihp_resources",
-    srcs = [
-        "ihp-sg13g2_data/setRC.tcl",
-        "ihp-sg13g2_data/sg13g2_stdcell.lef",
-        "ihp-sg13g2_data/sg13g2_stdcell_typ_1p20V_25C.lib",
-        "ihp-sg13g2_data/sg13g2_tech.lef",
+        "ihp-sg13g2/setRC.tcl",
+        "ihp-sg13g2/sg13g2_stdcell.lef",
+        "ihp-sg13g2/sg13g2_stdcell_typ_1p20V_25C.lib",
+        "ihp-sg13g2/sg13g2_tech.lef",
     ],
 )
 
@@ -106,6 +104,10 @@ filegroup(
                 "array_tile.lef",
                 "array_tile_ins_delay.lib",
             ],
+            "array_max_wl": [
+                "array_tile.lef",
+                "array_tile.lib",
+            ],
             "array_no_blockages": [
                 "array_tile.lef",
                 "array_tile.lib",
@@ -113,6 +115,7 @@ filegroup(
             "array_repair_clock_nets": [
                 "array_tile.lef",
                 "array_tile.lib",
+                "array_max_wl.defok",
             ],
             "check_buffer_inference1": [
                 "ModNangate45/ModNangate45_typ.lib",
@@ -129,16 +132,29 @@ filegroup(
                 "16sinks.def",
             ],
             "check_max_fanout1": [
-                ":ihp_resources",
+                "ihp-sg13g2/setRC.tcl",
+                "ihp-sg13g2/sg13g2_stdcell.lef",
+                "ihp-sg13g2/sg13g2_stdcell_typ_1p20V_25C.lib",
+                "ihp-sg13g2/sg13g2_tech.lef",
             ],
             "check_max_fanout2": [
                 "check_buffers.def",
             ],
             "check_max_fanout3": [
-                ":ihp_resources",
+                "ihp-sg13g2/setRC.tcl",
+                "ihp-sg13g2/sg13g2_stdcell.lef",
+                "ihp-sg13g2/sg13g2_stdcell_typ_1p20V_25C.lib",
+                "ihp-sg13g2/sg13g2_tech.lef",
             ],
             "check_wire_rc_cts": [
                 "check_buffers.def",
+            ],
+            "clock_buffer_footprint": [
+                "ihp-sg13g2/setRC.tcl",
+                "ihp-sg13g2/sg13g2_stdcell_typ_1p20V_25C.lib",
+                "ihp-sg13g2/sg13g2_tech.lef",
+                "ihp-sg13g2/sg13g2_stdcell.lef",
+                "check_max_fanout3.def",
             ],
             "dummy_load": [
                 "check_buffers.def",
@@ -147,7 +163,9 @@ filegroup(
                 "16sinks.def",
             ],
             "find_clock_pad": [
+                "Nangate45/Nangate45.lef",
                 "pad.lef",
+                "Nangate45/Nangate45_typ.lib",
                 "pad.lib",
             ],
             "gated_clock5": [

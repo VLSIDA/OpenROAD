@@ -4,6 +4,11 @@
 #include "ConcreteSwapArithModules.hh"
 
 #include <algorithm>
+#include <cstddef>
+#include <cstring>
+#include <set>
+#include <string>
+#include <utility>
 #include <vector>
 
 #include "db_sta/dbSta.hh"
@@ -11,7 +16,6 @@
 #include "rsz/Resizer.hh"
 #include "sta/Delay.hh"
 #include "sta/Graph.hh"
-#include "sta/Liberty.hh"
 #include "sta/Network.hh"
 #include "sta/Path.hh"
 #include "sta/PathEnd.hh"
@@ -100,14 +104,20 @@ void ConcreteSwapArithModules::findCriticalInstances(
                 slack_threshold);
 
   // Find all violating endpoints and slacks
-  const VertexSet* endpoints = sta_->endpoints();
+  //
+  // Make sure timing is fully computed before we start iterating
+  // over the endpoint set. Otherwise the set can get modified
+  // mid iteration by the slack query.
+  sta_->updateTiming(false);
+  const VertexSet& endpoints = sta_->endpoints();
   vector<pair<Vertex*, Slack>> violating_ends;
-  for (Vertex* end : *endpoints) {
-    const Slack end_slack = sta_->vertexSlack(end, max_);
+  for (Vertex* end : endpoints) {
+    const Slack end_slack = sta_->slack(end, max_);
     if (end_slack < slack_threshold) {
       violating_ends.emplace_back(end, end_slack);
     }
   }
+
   std::ranges::stable_sort(violating_ends,
                            [](const auto& end_slack1, const auto& end_slack2) {
                              return end_slack1.second < end_slack2.second;

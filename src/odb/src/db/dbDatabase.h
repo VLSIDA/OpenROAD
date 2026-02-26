@@ -15,6 +15,7 @@
 
 #include "dbChipRegionInstItr.h"
 #include "odb/dbDatabaseObserver.h"
+#include "odb/dbObject.h"
 namespace utl {
 class Logger;
 }
@@ -49,7 +50,13 @@ namespace odb {
 inline constexpr uint32_t kSchemaMajor = 0;  // Not used...
 inline constexpr uint32_t kSchemaInitial = 57;
 
-inline constexpr uint32_t kSchemaMinor = 124;  // Current revision number
+inline constexpr uint32_t kSchemaMinor = 127;  // Current revision number
+
+// Revision where dbTechLayer::wrong_way_min_width_ was added
+inline constexpr uint32_t kSchemaTechLayerMinWidthWrongway = 126;
+
+// Revision where dbTechLayer::voltage_spacings_ was added
+inline constexpr uint32_t kSchemaVoltageSpacingTables = 125;
 
 // Revision where _dbDatabase::hierarchy_ was added
 inline constexpr uint32_t kSchemaHierarchyFlag = 124;
