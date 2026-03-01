@@ -192,10 +192,10 @@ void ViolatorCollector::init(float slack_margin)
   search_ = sta_->search();
   sdc_ = sta_->cmdMode()->sdc();
   report_ = sta_->report();
-  // IMPROVE ME: always looks at cmd corner
-  corner_ = sta_->cmdScene();
-  dcalc_ap_ = corner_->dcalcAnalysisPtIndex(sta::MinMax::max());
-  lib_ap_ = corner_->libertyIndex(sta::MinMax::max());
+  // IMPROVE ME: always looks at cmd scene
+  scene_ = sta_->cmdScene();
+  dcalc_ap_ = scene_->dcalcAnalysisPtIndex(sta::MinMax::max());
+  lib_ap_ = scene_->libertyIndex(sta::MinMax::max());
 
   slack_margin_ = slack_margin;
 
@@ -295,8 +295,8 @@ std::pair<sta::Delay, sta::Delay> ViolatorCollector::getEffortDelays(
       // Get slack for the input transition
       sta::Slack from_slack = sta_->slack(from_vertex, from_rf, max_);
 
-      const sta::TimingArc* corner_arc = prev_arc->sceneArc(lib_ap_);
-      const sta::Delay intrinsic_delay = corner_arc->intrinsicDelay();
+      const sta::TimingArc* scene_arc = prev_arc->sceneArc(lib_ap_);
+      const sta::Delay intrinsic_delay = scene_arc->intrinsicDelay();
       const sta::Delay delay = graph_->arcDelay(prev_edge, prev_arc, dcalc_ap_);
       const sta::Delay load_delay = delay - intrinsic_delay;
 
@@ -427,7 +427,7 @@ sta::Slack ViolatorCollector::getPathSlackByIndex(const sta::Pin* endpoint_pin,
                               nullptr,                // thrus
                               to,                     // to
                               false,                  // unconstrained
-                              sta_->scenes(),         // corner
+                              sta_->scenes(),         // scene
                               sta::MinMaxAll::all(),  // min_max
                               num_paths_needed,       // group_path_count
                               num_paths_needed,       // endpoint_path_count
@@ -1074,7 +1074,7 @@ set<const sta::Pin*> ViolatorCollector::collectPinsByPathEndpoint(
                               nullptr,                // thrus
                               to,                     // to
                               false,                  // unconstrained
-                              sta_->scenes(),         // corner
+                              sta_->scenes(),         // scene
                               sta::MinMaxAll::all(),  // min_max
                               paths_per_endpoint,     // group_path_count
                               paths_per_endpoint,     // endpoint_path_count

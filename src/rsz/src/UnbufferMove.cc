@@ -103,7 +103,7 @@ bool UnbufferMove::doMove(const sta::Pin* drvr_pin, float setup_slack_margin)
   sta::Scene* scene;
   const sta::RiseFall* rf;
   const sta::MinMax* min_max;
-  getWorstCornerTransitionMinMax(drvr_pin, scene, rf, min_max);
+  getWorstSceneTransitionMinMax(drvr_pin, scene, rf, min_max);
   float curr_fanout, max_fanout, load_slack;
   sta_->checkFanout(prev_drvr_pin,
                     scene->mode(),
@@ -146,8 +146,8 @@ bool UnbufferMove::doMove(const sta::Pin* drvr_pin, float setup_slack_margin)
 
   // Watch out for new max cap violations
   float cap, max_cap, cap_slack;
-  const sta::Scene* corner;
-  const sta::RiseFall* tr;
+  const sta::Scene* prev_drvr_scene;
+  const sta::RiseFall* prev_drvr_tr;
   sta_->checkCapacitance(prev_drvr_pin,
                          sta_->scenes(),
                          resizer_->max_,
@@ -155,15 +155,16 @@ bool UnbufferMove::doMove(const sta::Pin* drvr_pin, float setup_slack_margin)
                          cap,
                          max_cap,
                          cap_slack,
-                         tr,
-                         corner);
-  if (max_cap > 0.0 && corner) {
+                         prev_drvr_tr,
+                         prev_drvr_scene);
+  if (max_cap > 0.0 && prev_drvr_scene) {
     sta::GraphDelayCalc* dcalc = sta_->graphDelayCalc();
-    float drvr_cap = dcalc->loadCap(drvr_pin, corner, resizer_->max_);
+    float drvr_cap = dcalc->loadCap(drvr_pin, prev_drvr_scene, resizer_->max_);
     sta::LibertyPort *buffer_input_port, *buffer_output_port;
     drvr_cell->bufferPorts(buffer_input_port, buffer_output_port);
     float new_cap
-        = cap + drvr_cap - resizer_->portCapacitance(buffer_input_port, corner);
+        = cap + drvr_cap
+          - resizer_->portCapacitance(buffer_input_port, prev_drvr_scene);
     if (new_cap > max_cap) {
       debugPrint(logger_,
                  RSZ,
@@ -180,7 +181,7 @@ bool UnbufferMove::doMove(const sta::Pin* drvr_pin, float setup_slack_margin)
     }
   }
 
-  SlackEstimatorParams params(setup_slack_margin, corner);
+  SlackEstimatorParams params(setup_slack_margin, prev_drvr_scene);
   params.driver_pin = drvr_vertex->pin();
   params.prev_driver_pin = prev_drvr_pin;
   params.driver_input_pin = drvr_input_pin;

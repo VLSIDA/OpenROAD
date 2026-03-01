@@ -1336,11 +1336,11 @@ void MoveTracker::printMissedOpportunitiesReport(const std::string& title)
             sta::Slack from_slack
                 = sta_->slack(from_vertex, from_rf, sta::MinMax::max());
 
-            sta::Scene* corner = sta_->cmdScene();
-            int dcalc_ap = corner->dcalcAnalysisPtIndex(sta::MinMax::max());
-            int lib_ap = corner->libertyIndex(sta::MinMax::max());
-            const sta::TimingArc* corner_arc = prev_arc->sceneArc(lib_ap);
-            const sta::Delay intrinsic_delay = corner_arc->intrinsicDelay();
+            sta::Scene* scene = sta_->cmdScene();
+            int dcalc_ap = scene->dcalcAnalysisPtIndex(sta::MinMax::max());
+            int lib_ap = scene->libertyIndex(sta::MinMax::max());
+            const sta::TimingArc* scene_arc = prev_arc->sceneArc(lib_ap);
+            const sta::Delay intrinsic_delay = scene_arc->intrinsicDelay();
             const sta::Delay delay
                 = sta_->graph()->arcDelay(prev_edge, prev_arc, dcalc_ap);
             const sta::Delay load_delay = delay - intrinsic_delay;
@@ -2214,7 +2214,7 @@ MoveTracker::enumerateEndpointPaths(const sta::Pin* endpoint_pin, int max_paths)
   sta::Network* network = sta_->network();
   sta::Sdc* sdc = sta_->cmdScene()->sdc();
   sta::Search* search = sta_->search();
-  sta::Scene* corner = sta_->cmdScene();
+  sta::Scene* scene = sta_->cmdScene();
 
   sta::PinSet* to_pins = new sta::PinSet(network);
   to_pins->insert(endpoint_pin);
@@ -2231,7 +2231,7 @@ MoveTracker::enumerateEndpointPaths(const sta::Pin* endpoint_pin, int max_paths)
                              nullptr,                // thrus
                              to,                     // to (this endpoint)
                              false,                  // unconstrained
-                             sta_->scenes(),         // corner
+                             sta_->scenes(),         // scene
                              sta::MinMaxAll::all(),  // min_max
                              max_paths,              // group_path_count
                              max_paths,              // endpoint_path_count

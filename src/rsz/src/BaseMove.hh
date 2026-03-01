@@ -54,8 +54,8 @@ class BaseMove;
 
 struct SlackEstimatorParams
 {
-  SlackEstimatorParams(const float margin, const sta::Scene* corner)
-      : setup_slack_margin(margin), corner(corner)
+  SlackEstimatorParams(const float margin, const sta::Scene* scene)
+      : setup_slack_margin(margin), scene(scene)
   {
   }
 
@@ -65,7 +65,7 @@ struct SlackEstimatorParams
   sta::Instance* driver{nullptr};
   sta::LibertyCell* driver_cell{nullptr};
   const float setup_slack_margin;
-  const sta::Scene* corner;
+  const sta::Scene* scene;
 };
 
 class BaseMove : public sta::dbStaState
@@ -112,7 +112,7 @@ class BaseMove : public sta::dbStaState
   odb::dbDatabase* db_ = nullptr;
   int dbu_ = 0;
   dpl::Opendp* opendp_ = nullptr;
-  const sta::Scene* corner_ = nullptr;
+  const sta::Scene* scene_ = nullptr;
 
   // Need to track these so we don't optimize the optimizations.
   // This can result in long run-time.
@@ -141,13 +141,13 @@ class BaseMove : public sta::dbStaState
                        sta::Pin*& prev_drvr_pin,
                        sta::Pin*& input_pin,
                        sta::Pin*& load_pin);
-  // Return the corner, transition, and min/max of the worst slack path through
+  // Return the scene, transition, and min/max of the worst slack path through
   // pin.
-  void getWorstCornerTransitionMinMax(const sta::Pin* pin,
-                                      // Return values
-                                      sta::Scene*& corner,
-                                      const sta::RiseFall*& rf,
-                                      const sta::MinMax*& min_max);
+  void getWorstSceneTransitionMinMax(const sta::Pin* pin,
+                                     // Return values
+                                     sta::Scene*& scene,
+                                     const sta::RiseFall*& rf,
+                                     const sta::MinMax*& min_max);
 
   bool isPortEqiv(sta::FuncExpr* expr,
                   const sta::LibertyCell* cell,
@@ -169,7 +169,7 @@ class BaseMove : public sta::dbStaState
   bool estimatedSlackOK(const SlackEstimatorParams& params);
   bool estimateInputSlewImpact(
       sta::Instance* instance,
-      const sta::Scene* corner,
+      const sta::Scene* scene,
       const sta::MinMax* min_max,
       sta::Slew old_in_slew[sta::RiseFall::index_count],
       sta::Slew new_in_slew[sta::RiseFall::index_count],
@@ -184,7 +184,7 @@ class BaseMove : public sta::dbStaState
                                sta::LibertyPort* drvr_port,
                                float load_cap,
                                float prev_drive,
-                               const sta::Scene* corner,
+                               const sta::Scene* scene,
                                const sta::MinMax* min_max);
   bool replaceCell(sta::Instance* inst, const sta::LibertyCell* replacement);
   bool checkMaxCapViolation(sta::Instance* inst,
@@ -199,7 +199,7 @@ class BaseMove : public sta::dbStaState
                              sta::LibertyPort* output_port,
                              float output_slew_factor,
                              float output_cap,
-                             const sta::Scene* corner);
+                             const sta::Scene* scene);
   float computeElmoreSlewFactor(const sta::Pin* output_pin,
                                 sta::LibertyPort* output_port,
                                 float output_load_cap);

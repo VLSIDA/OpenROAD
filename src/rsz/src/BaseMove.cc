@@ -291,9 +291,9 @@ sta::Instance* BaseMove::makeBuffer(sta::LibertyCell* cell,
 //
 bool BaseMove::estimatedSlackOK(const SlackEstimatorParams& params)
 {
-  const sta::Scene* scene = params.corner;
+  const sta::Scene* scene = params.scene;
   if (scene == nullptr) {
-    // can't do any estimation without a corner
+    // can't do any estimation without a scene
     return false;
   }
 
@@ -306,7 +306,7 @@ bool BaseMove::estimatedSlackOK(const SlackEstimatorParams& params)
   float old_cap, new_cap;
   if (!resizer_->computeNewDelaysSlews(params.prev_driver_pin,
                                        params.driver,
-                                       params.corner,
+                                       params.scene,
                                        old_delay,
                                        new_delay,
                                        old_drvr_slew,
@@ -331,14 +331,14 @@ bool BaseMove::estimatedSlackOK(const SlackEstimatorParams& params)
   sta::Scene* unused_scene;
   const sta::RiseFall* rf;
   const sta::MinMax* min_max;
-  getWorstCornerTransitionMinMax(params.driver_pin, unused_scene, rf, min_max);
+  getWorstSceneTransitionMinMax(params.driver_pin, unused_scene, rf, min_max);
   sta::Scene* unused_prev_driver_scene;
   const sta::RiseFall* prev_driver_rf;
   const sta::MinMax* unused_prev_driver_min_max;
-  getWorstCornerTransitionMinMax(params.prev_driver_pin,
-                                 unused_prev_driver_scene,
-                                 prev_driver_rf,
-                                 unused_prev_driver_min_max);
+  getWorstSceneTransitionMinMax(params.prev_driver_pin,
+                                unused_prev_driver_scene,
+                                prev_driver_rf,
+                                unused_prev_driver_min_max);
   float delay_degrad
       = new_delay[prev_driver_rf->index()] - old_delay[prev_driver_rf->index()];
   float delay_imp = resizer_->bufferDelay(
@@ -367,7 +367,7 @@ bool BaseMove::estimatedSlackOK(const SlackEstimatorParams& params)
           params.prev_driver_pin,
           params.driver,
           new_drvr_slew[prev_driver_rf->index()],
-          params.corner,
+          params.scene,
           load_pin_slew)) {
     return false;
   }
@@ -732,7 +732,7 @@ float BaseMove::getInputPinCapacitance(sta::Pin* pin,
 bool BaseMove::checkMaxCapOK(const sta::Pin* drvr_pin, float cap_delta)
 {
   float cap, max_cap, cap_slack;
-  const sta::Scene* corner;
+  const sta::Scene* scene;
   const sta::RiseFall* tr;
   sta_->checkCapacitance(drvr_pin,
                          sta_->scenes(),
@@ -742,9 +742,9 @@ bool BaseMove::checkMaxCapOK(const sta::Pin* drvr_pin, float cap_delta)
                          max_cap,
                          cap_slack,
                          tr,
-                         corner);
+                         scene);
 
-  if (max_cap > 0.0 && corner) {
+  if (max_cap > 0.0 && scene) {
     float new_cap = cap + cap_delta;
     // If it is already violating, accept only if violation is no worse
     if (cap_slack < 0.0) {
@@ -1029,13 +1029,13 @@ void BaseMove::getPrevNextPins(const sta::Pin* drvr_pin,
   }
 }
 
-void BaseMove::getWorstCornerTransitionMinMax(const sta::Pin* pin,
-                                              // Return values
-                                              sta::Scene*& corner,
-                                              const sta::RiseFall*& rf,
-                                              const sta::MinMax*& min_max)
+void BaseMove::getWorstSceneTransitionMinMax(const sta::Pin* pin,
+                                             // Return values
+                                             sta::Scene*& scene,
+                                             const sta::RiseFall*& rf,
+                                             const sta::MinMax*& min_max)
 {
-  corner = nullptr;
+  scene = nullptr;
   rf = nullptr;
   min_max = sta::MinMax::max();
 
@@ -1050,7 +1050,7 @@ void BaseMove::getWorstCornerTransitionMinMax(const sta::Pin* pin,
   if (!path || path->isNull()) {
     return;
   }
-  corner = path->scene(sta_);
+  scene = path->scene(sta_);
   rf = path->transition(sta_);
   min_max = path->minMax(sta_);
 }

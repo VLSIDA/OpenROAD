@@ -65,7 +65,7 @@ bool SizeUpMove::doMove(const sta::Pin* drvr_pin, float setup_slack_margin)
   sta::Scene* scene;
   const sta::RiseFall* rf;
   const sta::MinMax* min_max;
-  getWorstCornerTransitionMinMax(drvr_pin, scene, rf, min_max);
+  getWorstSceneTransitionMinMax(drvr_pin, scene, rf, min_max);
   const float load_cap = graph_delay_calc_->loadCap(drvr_pin, scene, min_max);
   sta::LibertyPort* in_port = network_->libertyPort(drvr_input_pin);
   sta::LibertyPort* drvr_port = network_->libertyPort(drvr_pin);

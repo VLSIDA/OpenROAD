@@ -289,7 +289,7 @@ class ViolatorCollector
   sta::Search* search_;
   sta::Sdc* sdc_;
   sta::Report* report_;
-  sta::Scene* corner_;
+  sta::Scene* scene_;
   int dcalc_ap_;
   int lib_ap_;
 

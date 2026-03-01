@@ -113,7 +113,7 @@ bool SizeDownMove::doMove(const sta::Pin* drvr_pin, float setup_slack_margin)
   sta::Scene* scene;
   const sta::RiseFall* rf;
   const sta::MinMax* min_max;
-  getWorstCornerTransitionMinMax(drvr_pin, scene, rf, min_max);
+  getWorstSceneTransitionMinMax(drvr_pin, scene, rf, min_max);
 
   int num_down_sizes = 0;
 

@@ -91,7 +91,7 @@ bool SwapPinsMove::doMove(const sta::Pin* drvr_pin, float setup_slack_margin)
   sta::Scene* scene;
   const sta::RiseFall* rf;
   const sta::MinMax* min_max;
-  getWorstCornerTransitionMinMax(drvr_pin, scene, rf, min_max);
+  getWorstSceneTransitionMinMax(drvr_pin, scene, rf, min_max);
   const float load_cap = graph_delay_calc_->loadCap(drvr_pin, scene, min_max);
   sta::Pin* prev_drvr_pin;
   sta::Pin* drvr_input_pin;
@@ -342,7 +342,7 @@ void SwapPinsMove::findSwapPinCandidate(sta::LibertyPort* input_port,
                                         sta::LibertyPort* drvr_port,
                                         const LibertyPortVec& equiv_ports,
                                         float load_cap,
-                                        const sta::Scene* corner,
+                                        const sta::Scene* scene,
                                         const sta::MinMax* min_max,
                                         sta::LibertyPort** swap_port)
 {
@@ -372,7 +372,7 @@ void SwapPinsMove::findSwapPinCandidate(sta::LibertyPort* input_port,
                                          load_cap,
                                          nullptr,
                                          load_pin_index_map,
-                                         corner,
+                                         scene,
                                          min_max);
 
         const sta::ArcDelay& gate_delay = dcalc_result.gateDelay();
