@@ -202,26 +202,27 @@ sta::LibertyCell* SizeDownMove::downSizeGate(const sta::LibertyPort* drvr_port,
   if (swappable_cells.size() > 1) {
     // Sort from the smallest input capacitance to the smallest
     // breaking tie by the intrinsic delay
-    sort(&swappable_cells,
-         [=, this](const sta::LibertyCell* cell1,
-                   const sta::LibertyCell* cell2) {
-           // Cast to const to use the public version of scenePort
-           const sta::LibertyPort* port1
-               = static_cast<const sta::LibertyPort*>(
-                     cell1->findLibertyPort(load_port_name))
-                     ->scenePort(lib_ap);
-           const sta::LibertyPort* port2
-               = static_cast<const sta::LibertyPort*>(
-                     cell2->findLibertyPort(load_port_name))
-                     ->scenePort(lib_ap);
+    std::ranges::sort(
+        swappable_cells,
+        [=, this](const sta::LibertyCell* cell1,
+                  const sta::LibertyCell* cell2) {
+          // Cast to const to use the public version of scenePort
+          const sta::LibertyPort* port1
+              = static_cast<const sta::LibertyPort*>(
+                    cell1->findLibertyPort(load_port_name))
+                    ->scenePort(lib_ap);
+          const sta::LibertyPort* port2
+              = static_cast<const sta::LibertyPort*>(
+                    cell2->findLibertyPort(load_port_name))
+                    ->scenePort(lib_ap);
 
-           const float cap1 = port1->capacitance();
-           const float cap2 = port2->capacitance();
+          const float cap1 = port1->capacitance();
+          const float cap2 = port2->capacitance();
 
-           const sta::ArcDelay intrinsic1 = getWorstIntrinsicDelay(port1);
-           const sta::ArcDelay intrinsic2 = getWorstIntrinsicDelay(port2);
-           return (std::tie(cap1, intrinsic2) < std::tie(cap2, intrinsic1));
-         });
+          const sta::ArcDelay intrinsic1 = getWorstIntrinsicDelay(port1);
+          const sta::ArcDelay intrinsic2 = getWorstIntrinsicDelay(port2);
+          return (std::tie(cap1, intrinsic2) < std::tie(cap2, intrinsic1));
+        });
   }
 
   if (logger_->debugCheck(RSZ, "size_down_move", 6)) {

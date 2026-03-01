@@ -577,26 +577,27 @@ sta::LibertyCell* BaseMove::upsizeCell(sta::LibertyPort* in_port,
   if (!swappable_cells.empty()) {
     const char* in_port_name = in_port->name();
     const char* drvr_port_name = drvr_port->name();
-    sort(swappable_cells,
-         [=, this](const sta::LibertyCell* cell1,
-                   const sta::LibertyCell* cell2) {
-           const sta::LibertyPort* port1
-               = static_cast<const sta::LibertyPort*>(
-                     cell1->findLibertyPort(drvr_port_name))
-                     ->scenePort(lib_ap);
-           const sta::LibertyPort* port2
-               = static_cast<const sta::LibertyPort*>(
-                     cell2->findLibertyPort(drvr_port_name))
-                     ->scenePort(lib_ap);
-           const float drive1 = port1->driveResistance();
-           const float drive2 = port2->driveResistance();
-           const sta::ArcDelay intrinsic1 = port1->intrinsicDelay(this);
-           const sta::ArcDelay intrinsic2 = port2->intrinsicDelay(this);
-           const float capacitance1 = port1->capacitance();
-           const float capacitance2 = port2->capacitance();
-           return std::tie(drive2, intrinsic1, capacitance1)
-                  < std::tie(drive1, intrinsic2, capacitance2);
-         });
+    std::ranges::sort(
+        swappable_cells,
+        [=, this](const sta::LibertyCell* cell1,
+                  const sta::LibertyCell* cell2) {
+          const sta::LibertyPort* port1
+              = static_cast<const sta::LibertyPort*>(
+                    cell1->findLibertyPort(drvr_port_name))
+                    ->scenePort(lib_ap);
+          const sta::LibertyPort* port2
+              = static_cast<const sta::LibertyPort*>(
+                    cell2->findLibertyPort(drvr_port_name))
+                    ->scenePort(lib_ap);
+          const float drive1 = port1->driveResistance();
+          const float drive2 = port2->driveResistance();
+          const sta::ArcDelay intrinsic1 = port1->intrinsicDelay(this);
+          const sta::ArcDelay intrinsic2 = port2->intrinsicDelay(this);
+          const float capacitance1 = port1->capacitance();
+          const float capacitance2 = port2->capacitance();
+          return std::tie(drive2, intrinsic1, capacitance1)
+                 < std::tie(drive1, intrinsic2, capacitance2);
+        });
     const float drive = static_cast<const sta::LibertyPort*>(drvr_port)
                             ->scenePort(lib_ap)
                             ->driveResistance();
