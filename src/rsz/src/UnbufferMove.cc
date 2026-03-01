@@ -16,14 +16,11 @@
 #include "odb/db.h"
 #include "rsz/Resizer.hh"
 #include "sta/ArcDelayCalc.hh"
-#include "sta/Delay.hh"
 #include "sta/Graph.hh"
 #include "sta/GraphDelayCalc.hh"
 #include "sta/Liberty.hh"
 #include "sta/Mode.hh"
 #include "sta/NetworkClass.hh"
-#include "sta/Path.hh"
-#include "sta/PathExpanded.hh"
 #include "sta/Transition.hh"
 #include "utl/Logger.h"
 
@@ -35,36 +32,16 @@ using odb::dbInst;
 
 using utl::RSZ;
 
-using sta::ArcDelay;
-using sta::GraphDelayCalc;
-using sta::Instance;
-using sta::InstancePinIterator;
-using sta::LibertyCell;
-using sta::LibertyPort;
-using sta::LoadPinIndexMap;
-using sta::MinMax;
-using sta::Net;
-using sta::NetConnectedPinIterator;
-using sta::Path;
-using sta::PathExpanded;
-using sta::Pin;
-using sta::RiseFall;
-using sta::Scene;
-using sta::Sdc;
-using sta::Slack;
-using sta::Slew;
-using sta::Vertex;
-
 // Remove driver if
 // 1) it is a buffer without attributes like dont-touch
 // 2) it doesn't create new max fanout violations
 // 3) it doesn't create new max cap violations
 // 4) it doesn't worsen slack
-bool UnbufferMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
+bool UnbufferMove::doMove(const sta::Pin* drvr_pin, float setup_slack_margin)
 {
-  Instance* drvr = network_->instance(drvr_pin);
-  LibertyPort* drvr_port = network_->libertyPort(drvr_pin);
-  LibertyCell* drvr_cell = drvr_port ? drvr_port->libertyCell() : nullptr;
+  sta::Instance* drvr = network_->instance(drvr_pin);
+  sta::LibertyPort* drvr_port = network_->libertyPort(drvr_pin);
+  sta::LibertyCell* drvr_cell = drvr_port ? drvr_port->libertyCell() : nullptr;
 
   // TODO:
   // 1. add max slew check
@@ -117,15 +94,15 @@ bool UnbufferMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
   }
 
   // Don't remove buffer if new max fanout violations are created
-  Vertex* drvr_vertex = graph_->pinDrvrVertex(drvr_pin);
-  Pin* prev_drvr_pin;
-  Pin* drvr_input_pin;
-  Pin* load_pin;
+  sta::Vertex* drvr_vertex = graph_->pinDrvrVertex(drvr_pin);
+  sta::Pin* prev_drvr_pin;
+  sta::Pin* drvr_input_pin;
+  sta::Pin* load_pin;
   getPrevNextPins(drvr_pin, prev_drvr_pin, drvr_input_pin, load_pin);
 
-  Scene* scene;
-  const RiseFall* rf;
-  const MinMax* min_max;
+  sta::Scene* scene;
+  const sta::RiseFall* rf;
+  const sta::MinMax* min_max;
   getWorstCornerTransitionMinMax(drvr_pin, scene, rf, min_max);
   float curr_fanout, max_fanout, load_slack;
   sta_->checkFanout(prev_drvr_pin,
@@ -169,8 +146,8 @@ bool UnbufferMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
 
   // Watch out for new max cap violations
   float cap, max_cap, cap_slack;
-  const Scene* corner;
-  const RiseFall* tr;
+  const sta::Scene* corner;
+  const sta::RiseFall* tr;
   sta_->checkCapacitance(prev_drvr_pin,
                          sta_->scenes(),
                          resizer_->max_,
@@ -181,9 +158,9 @@ bool UnbufferMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                          tr,
                          corner);
   if (max_cap > 0.0 && corner) {
-    GraphDelayCalc* dcalc = sta_->graphDelayCalc();
+    sta::GraphDelayCalc* dcalc = sta_->graphDelayCalc();
     float drvr_cap = dcalc->loadCap(drvr_pin, corner, resizer_->max_);
-    LibertyPort *buffer_input_port, *buffer_output_port;
+    sta::LibertyPort *buffer_input_port, *buffer_output_port;
     drvr_cell->bufferPorts(buffer_input_port, buffer_output_port);
     float new_cap
         = cap + drvr_cap - resizer_->portCapacitance(buffer_input_port, corner);
@@ -240,7 +217,7 @@ bool UnbufferMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
   return removeBuffer(drvr);
 }
 
-bool UnbufferMove::removeBufferIfPossible(Instance* buffer,
+bool UnbufferMove::removeBufferIfPossible(sta::Instance* buffer,
                                           bool honorDontTouchFixed)
 {
   if (canRemoveBuffer(buffer, honorDontTouchFixed)) {
@@ -249,15 +226,15 @@ bool UnbufferMove::removeBufferIfPossible(Instance* buffer,
   return false;
 }
 
-bool UnbufferMove::bufferBetweenPorts(Instance* buffer)
+bool UnbufferMove::bufferBetweenPorts(sta::Instance* buffer)
 {
-  LibertyCell* lib_cell = network_->libertyCell(buffer);
-  LibertyPort *in_port, *out_port;
+  sta::LibertyCell* lib_cell = network_->libertyCell(buffer);
+  sta::LibertyPort *in_port, *out_port;
   lib_cell->bufferPorts(in_port, out_port);
-  Pin* in_pin = db_network_->findPin(buffer, in_port);
-  Pin* out_pin = db_network_->findPin(buffer, out_port);
-  Net* in_net = db_network_->net(in_pin);
-  Net* out_net = db_network_->net(out_pin);
+  sta::Pin* in_pin = db_network_->findPin(buffer, in_port);
+  sta::Pin* out_pin = db_network_->findPin(buffer, out_port);
+  sta::Net* in_net = db_network_->net(in_pin);
+  sta::Net* out_net = db_network_->net(out_pin);
   return db_network_->hasPort(in_net) && db_network_->hasPort(out_net);
 }
 
@@ -268,15 +245,16 @@ bool UnbufferMove::bufferBetweenPorts(Instance* buffer)
 // 2) manual mode: this happens during manual buffer removal during ECO
 //      This ignores dont-touch and fixed cell (boundary buffer constraints are
 //      still honored)
-bool UnbufferMove::canRemoveBuffer(Instance* buffer, bool honorDontTouchFixed)
+bool UnbufferMove::canRemoveBuffer(sta::Instance* buffer,
+                                   bool honorDontTouchFixed)
 {
-  LibertyCell* lib_cell = network_->libertyCell(buffer);
+  sta::LibertyCell* lib_cell = network_->libertyCell(buffer);
   if (!lib_cell || !resizer_->isLogicStdCell(buffer) || !lib_cell->isBuffer()) {
     return false;
   }
 
-  Pin* buffer_ip_pin;
-  Pin* buffer_op_pin;
+  sta::Pin* buffer_ip_pin;
+  sta::Pin* buffer_op_pin;
   getBufferPins(buffer, buffer_ip_pin, buffer_op_pin);
 
   dbInst* db_inst = db_network_->staToDb(buffer);
@@ -294,12 +272,12 @@ bool UnbufferMove::canRemoveBuffer(Instance* buffer, bool honorDontTouchFixed)
     // change FIXED to PLACED just in case
     db_inst->setPlacementStatus(odb::dbPlacementStatus::PLACED);
   }
-  LibertyPort *in_port, *out_port;
+  sta::LibertyPort *in_port, *out_port;
   lib_cell->bufferPorts(in_port, out_port);
-  Pin* in_pin = db_network_->findPin(buffer, in_port);
-  Pin* out_pin = db_network_->findPin(buffer, out_port);
-  Net* in_net = db_network_->net(in_pin);
-  Net* out_net = db_network_->net(out_pin);
+  sta::Pin* in_pin = db_network_->findPin(buffer, in_port);
+  sta::Pin* out_pin = db_network_->findPin(buffer, out_port);
+  sta::Net* in_net = db_network_->net(in_pin);
+  sta::Net* out_net = db_network_->net(out_pin);
   odb::dbNet* in_db_net = db_network_->findFlatDbNet(in_net);
   odb::dbNet* out_db_net = db_network_->findFlatDbNet(out_net);
   // honor net dont-touch on input net or output net
@@ -317,7 +295,7 @@ bool UnbufferMove::canRemoveBuffer(Instance* buffer, bool honorDontTouchFixed)
     }
   }
   bool out_net_ports = db_network_->hasPort(out_net);
-  Net* removed = nullptr;
+  sta::Net* removed = nullptr;
   odb::dbNet* db_net_survivor = nullptr;
   odb::dbNet* db_net_removed = nullptr;
   if (out_net_ports) {
@@ -333,7 +311,7 @@ bool UnbufferMove::canRemoveBuffer(Instance* buffer, bool honorDontTouchFixed)
     db_net_removed = out_db_net;
   }
 
-  Sdc* sdc = sta_->cmdMode()->sdc();
+  sta::Sdc* sdc = sta_->cmdMode()->sdc();
 
   if (!sdc->isConstrained(in_pin) && !sdc->isConstrained(out_pin)
       && (!removed || !sdc->isConstrained(removed))
@@ -345,9 +323,9 @@ bool UnbufferMove::canRemoveBuffer(Instance* buffer, bool honorDontTouchFixed)
   return false;
 }
 
-bool UnbufferMove::removeBuffer(Instance* buffer)
+bool UnbufferMove::removeBuffer(sta::Instance* buffer)
 {
-  LibertyCell* lib_cell = network_->libertyCell(buffer);
+  sta::LibertyCell* lib_cell = network_->libertyCell(buffer);
   debugPrint(logger_,
              RSZ,
              "unbuffer_move",
@@ -356,11 +334,11 @@ bool UnbufferMove::removeBuffer(Instance* buffer)
              network_->pathName(buffer),
              lib_cell->name());
 
-  LibertyPort *in_port, *out_port;
+  sta::LibertyPort *in_port, *out_port;
   lib_cell->bufferPorts(in_port, out_port);
 
-  Pin* in_pin = db_network_->findPin(buffer, in_port);
-  Pin* out_pin = db_network_->findPin(buffer, out_port);
+  sta::Pin* in_pin = db_network_->findPin(buffer, in_port);
+  sta::Pin* out_pin = db_network_->findPin(buffer, out_port);
 
   odb::dbNet* in_db_net = db_network_->flatNet(in_pin);
   odb::dbNet* out_db_net = db_network_->flatNet(out_pin);
@@ -385,12 +363,12 @@ bool UnbufferMove::removeBuffer(Instance* buffer)
   }
 
   // in_net and out_net are flat nets.
-  Net* in_net = db_network_->dbToSta(in_db_net);
-  Net* out_net = db_network_->dbToSta(out_db_net);
+  sta::Net* in_net = db_network_->dbToSta(in_db_net);
+  sta::Net* out_net = db_network_->dbToSta(out_db_net);
 
   // Decide survivor net when two nets are merged
-  Net* survivor = in_net;  // buffer input net is the default survivor
-  Net* removed = out_net;
+  sta::Net* survivor = in_net;  // buffer input net is the default survivor
+  sta::Net* removed = out_net;
   odb::dbModNet* op_modnet = db_network_->hierNet(out_pin);
   odb::dbModNet* ip_modnet = db_network_->hierNet(in_pin);
   odb::dbModNet* survivor_modnet = ip_modnet;

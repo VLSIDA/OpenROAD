@@ -4,9 +4,6 @@
 #include <cmath>
 
 #include "BaseMove.hh"
-#include "sta/Delay.hh"
-#include "sta/Path.hh"
-#include "sta/PathExpanded.hh"
 
 namespace rsz {
 

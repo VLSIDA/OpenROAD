@@ -3,7 +3,6 @@
 
 #include "BaseMove.hh"
 #include "rsz/Resizer.hh"
-#include "sta/Delay.hh"
 #include "sta/NetworkClass.hh"
 #include "sta/Path.hh"
 #include "sta/PathExpanded.hh"

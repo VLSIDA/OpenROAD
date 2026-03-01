@@ -2,9 +2,6 @@
 // Copyright (c) 2025-2025, The OpenROAD Authors
 
 #include "BaseMove.hh"
-#include "sta/Delay.hh"
-#include "sta/Path.hh"
-#include "sta/PathExpanded.hh"
 
 namespace rsz {
 

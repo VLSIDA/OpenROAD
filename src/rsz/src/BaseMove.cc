@@ -48,8 +48,6 @@ using odb::dbMaster;
 using odb::dbMaster;
 using odb::Point;
 
-using sta::ArcDcalcResult;
-
 using utl::RSZ;
 
 using InputSlews = std::array<sta::Slew, sta::RiseFall::index_count>;

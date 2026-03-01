@@ -9,12 +9,9 @@
 #include "BaseMove.hh"
 #include "CloneMove.hh"
 #include "sta/ArcDelayCalc.hh"
-#include "sta/Delay.hh"
 #include "sta/Graph.hh"
 #include "sta/Liberty.hh"
 #include "sta/NetworkClass.hh"
-#include "sta/Path.hh"
-#include "sta/PathExpanded.hh"
 #include "utl/Logger.h"
 
 namespace rsz {
@@ -23,23 +20,9 @@ using std::string;
 
 using utl::RSZ;
 
-using sta::ArcDelay;
-using sta::Instance;
-using sta::InstancePinIterator;
-using sta::LibertyCell;
-using sta::LibertyPort;
-using sta::LoadPinIndexMap;
-using sta::NetConnectedPinIterator;
-using sta::Path;
-using sta::PathExpanded;
-using sta::Pin;
-using sta::Slack;
-using sta::Slew;
-using sta::VertexOutEdgeIterator;
-
-bool SizeUpMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
+bool SizeUpMove::doMove(const sta::Pin* drvr_pin, float setup_slack_margin)
 {
-  Instance* drvr = network_->instance(drvr_pin);
+  sta::Instance* drvr = network_->instance(drvr_pin);
 
   if (resizer_->dontTouch(drvr)) {
     debugPrint(logger_,
@@ -63,15 +46,15 @@ bool SizeUpMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
     return false;
   }
 
-  Pin* prev_drvr_pin;
-  Pin* drvr_input_pin;
-  Pin* load_pin;
+  sta::Pin* prev_drvr_pin;
+  sta::Pin* drvr_input_pin;
+  sta::Pin* load_pin;
   getPrevNextPins(drvr_pin, prev_drvr_pin, drvr_input_pin, load_pin);
 
   float prev_drive;
   if (prev_drvr_pin) {
     prev_drive = 0.0;
-    LibertyPort* prev_drvr_port = network_->libertyPort(prev_drvr_pin);
+    sta::LibertyPort* prev_drvr_port = network_->libertyPort(prev_drvr_pin);
     if (prev_drvr_port) {
       prev_drive = prev_drvr_port->driveResistance();
     }
@@ -84,9 +67,9 @@ bool SizeUpMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
   const sta::MinMax* min_max;
   getWorstCornerTransitionMinMax(drvr_pin, scene, rf, min_max);
   const float load_cap = graph_delay_calc_->loadCap(drvr_pin, scene, min_max);
-  LibertyPort* in_port = network_->libertyPort(drvr_input_pin);
-  LibertyPort* drvr_port = network_->libertyPort(drvr_pin);
-  LibertyCell* upsize
+  sta::LibertyPort* in_port = network_->libertyPort(drvr_input_pin);
+  sta::LibertyPort* drvr_port = network_->libertyPort(drvr_pin);
+  sta::LibertyCell* upsize
       = upsizeCell(in_port, drvr_port, load_cap, prev_drive, scene, min_max);
 
   if (!upsize) {
@@ -127,11 +110,11 @@ bool SizeUpMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
 // Compare drive strength with previous stage
 // and match if needed
 // For example, if BUFX16 drives BUFX1, replace BUFX1 with BUFX16
-bool SizeUpMatchMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
+bool SizeUpMatchMove::doMove(const sta::Pin* drvr_pin, float setup_slack_margin)
 {
-  Pin* prev_drvr_pin;
-  Pin* drvr_input_pin;
-  Pin* load_pin;
+  sta::Pin* prev_drvr_pin;
+  sta::Pin* drvr_input_pin;
+  sta::Pin* load_pin;
   getPrevNextPins(drvr_pin, prev_drvr_pin, drvr_input_pin, load_pin);
 
   if (prev_drvr_pin == nullptr) {
@@ -154,7 +137,7 @@ bool SizeUpMatchMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
     return false;
   }
 
-  Instance* drvr = network_->instance(drvr_pin);
+  sta::Instance* drvr = network_->instance(drvr_pin);
 
   if (drvr == nullptr) {
     debugPrint(logger_,
@@ -188,8 +171,9 @@ bool SizeUpMatchMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
     return false;
   }
 
-  LibertyPort* drvr_port = network_->libertyPort(drvr_pin);
-  const LibertyCell* drvr_cell = drvr_port ? drvr_port->libertyCell() : nullptr;
+  sta::LibertyPort* drvr_port = network_->libertyPort(drvr_pin);
+  const sta::LibertyCell* drvr_cell
+      = drvr_port ? drvr_port->libertyCell() : nullptr;
 
   if (drvr_cell == nullptr) {
     debugPrint(logger_,
@@ -226,7 +210,7 @@ bool SizeUpMatchMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
     return false;
   }
 
-  Instance* prev_drvr = network_->instance(prev_drvr_pin);
+  sta::Instance* prev_drvr = network_->instance(prev_drvr_pin);
 
   if (prev_drvr == nullptr) {
     debugPrint(logger_,
@@ -238,8 +222,8 @@ bool SizeUpMatchMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
     return false;
   }
 
-  LibertyPort* prev_drvr_port = network_->libertyPort(prev_drvr_pin);
-  const LibertyCell* prev_cell
+  sta::LibertyPort* prev_drvr_port = network_->libertyPort(prev_drvr_pin);
+  const sta::LibertyCell* prev_cell
       = prev_drvr_port ? prev_drvr_port->libertyCell() : nullptr;
 
   if (prev_cell == nullptr) {

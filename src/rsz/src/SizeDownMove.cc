@@ -20,8 +20,6 @@
 #include "sta/LibertyClass.hh"
 #include "sta/MinMax.hh"
 #include "sta/NetworkClass.hh"
-#include "sta/Path.hh"
-#include "sta/PathExpanded.hh"
 #include "utl/Logger.h"
 
 namespace rsz {

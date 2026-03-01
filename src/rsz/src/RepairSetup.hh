@@ -16,7 +16,6 @@
 #include "db_sta/dbSta.hh"
 #include "rsz/Resizer.hh"
 #include "sta/Delay.hh"
-#include "sta/FuncExpr.hh"
 #include "sta/Graph.hh"
 #include "sta/Liberty.hh"
 #include "sta/LibertyClass.hh"
@@ -119,10 +118,12 @@ class RepairSetup : public sta::dbStaState
                   sta::Slack path_slack,
                   float setup_slack_margin);
   bool repairPins(
-      const std::vector<const Pin*>& pins,
+      const std::vector<const sta::Pin*>& pins,
       float setup_slack_margin,
-      const std::map<const Pin*, std::set<BaseMove*>>* rejected_moves = nullptr,
-      std::vector<std::pair<const Pin*, BaseMove*>>* chosen_moves = nullptr);
+      const std::map<const sta::Pin*, std::set<BaseMove*>>* rejected_moves
+      = nullptr,
+      std::vector<std::pair<const sta::Pin*, BaseMove*>>* chosen_moves
+      = nullptr);
   int fanout(sta::Vertex* vertex);
   bool hasTopLevelOutputPort(sta::Net* net);
 
@@ -219,11 +220,11 @@ class RepairSetup : public sta::dbStaState
   std::vector<BaseMove*> move_sequence_;
 
   // WNS Phase tracking: WNS-focused optimization
-  std::map<const Pin*, int> endpoint_pass_counts_phase1_;
+  std::map<const sta::Pin*, int> endpoint_pass_counts_phase1_;
   int wns_no_progress_count_ = 0;
   // Track which (pin, move) combinations have been tried and rejected for
   // current endpoint
-  std::map<const Pin*, std::set<BaseMove*>>
+  std::map<const sta::Pin*, std::set<BaseMove*>>
       rejected_pin_moves_current_endpoint_;
 
   // TNS Phase tracking: TNS-focused optimization

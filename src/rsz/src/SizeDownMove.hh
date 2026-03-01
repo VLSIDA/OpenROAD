@@ -3,12 +3,9 @@
 
 #include "BaseMove.hh"
 #include "sta/ArcDelayCalc.hh"
-#include "sta/Delay.hh"
 #include "sta/Liberty.hh"
 #include "sta/MinMax.hh"
 #include "sta/NetworkClass.hh"
-#include "sta/Path.hh"
-#include "sta/PathExpanded.hh"
 
 namespace rsz {
 

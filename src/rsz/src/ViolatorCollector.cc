@@ -49,22 +49,6 @@ using std::set;
 using std::string;
 using utl::RSZ;
 
-using sta::Edge;
-using sta::fuzzyGreaterEqual;
-using sta::fuzzyLess;
-using sta::InstancePinIterator;
-using sta::InstanceSeq;
-using sta::LibertyCell;
-using sta::LibertyPort;
-using sta::NetConnectedPinIterator;
-using sta::Pin;
-using sta::Slew;
-using sta::TimingArc;
-using sta::TimingArcSet;
-using sta::VertexInEdgeIterator;
-using sta::VertexIterator;
-using sta::VertexOutEdgeIterator;
-
 const char* ViolatorCollector::getEnumString(ViolatorSortType sort_type)
 {
   switch (sort_type) {
@@ -99,18 +83,18 @@ void ViolatorCollector::printViolators(int numPrint = 0) const
              "============= Found {} violating pins. =================",
              violating_pins_.size());
   int count = 0;
-  for (const Pin* pin : violating_pins_) {
+  for (const sta::Pin* pin : violating_pins_) {
     if (count++ >= numPrint && numPrint > 0) {
       break;
     }
-    LibertyPort* port = network_->libertyPort(pin);
-    LibertyCell* cell = port->libertyCell();
+    sta::LibertyPort* port = network_->libertyPort(pin);
+    sta::LibertyCell* cell = port->libertyCell();
     float slack = pin_data_.at(pin).slack;
     float tns = pin_data_.at(pin).tns;
     float load_delay = pin_data_.at(pin).load_delay;
     float intrinsic_delay = pin_data_.at(pin).intrinsic_delay;
     float total_delay = load_delay + intrinsic_delay;
-    Vertex* vertex = graph_->pinDrvrVertex(pin);
+    sta::Vertex* vertex = graph_->pinDrvrVertex(pin);
     debugPrint(logger_,
                RSZ,
                "violator_collector",
@@ -146,7 +130,7 @@ void ViolatorCollector::printHistogram(int numBins) const
   // Dynamically determine the bucket size
   float min_slack = std::numeric_limits<float>::max();
   float max_slack = std::numeric_limits<float>::lowest();
-  for (const Pin* pin : violating_pins_) {
+  for (const sta::Pin* pin : violating_pins_) {
     float slack = sta_->slack(
         pin, sta::RiseFall::rise()->asRiseFallBoth(), sta_->scenes(), max_);
     min_slack = std::min(min_slack, slack);
@@ -171,7 +155,7 @@ void ViolatorCollector::printHistogram(int numBins) const
   }
 
   // Track the slack counts in each bin
-  for (const Pin* pin : violating_pins_) {
+  for (const sta::Pin* pin : violating_pins_) {
     float slack = sta_->slack(
         pin, sta::RiseFall::rise()->asRiseFallBoth(), sta_->scenes(), max_);
     int slack_bucket = static_cast<int>(std::floor(slack / bucket_size));
@@ -235,22 +219,22 @@ void ViolatorCollector::collectBySlack()
 {
   violating_pins_.clear();
 
-  InstanceSeq insts = network_->leafInstances();
+  sta::InstanceSeq insts = network_->leafInstances();
   for (auto inst : insts) {
-    auto pin_iter
-        = std::unique_ptr<InstancePinIterator>(network_->pinIterator(inst));
+    auto pin_iter = std::unique_ptr<sta::InstancePinIterator>(
+        network_->pinIterator(inst));
     while (pin_iter->hasNext()) {
-      const Pin* pin = pin_iter->next();
+      const sta::Pin* pin = pin_iter->next();
       if (!network_->direction(pin)->isOutput() || network_->isTopLevelPort(pin)
           || sta_->isClock(pin, sta_->cmdMode())) {
         continue;
       }
-      Vertex* vertex = graph_->pinDrvrVertex(pin);
+      sta::Vertex* vertex = graph_->pinDrvrVertex(pin);
       float slack = sta_->slack(
           pin, sta::RiseFall::rise()->asRiseFallBoth(), sta_->scenes(), max_);
-      if (fuzzyLess(slack, slack_margin_)) {
-        LibertyPort* port = network_->libertyPort(pin);
-        LibertyCell* cell = port->libertyCell();
+      if (sta::fuzzyLess(slack, slack_margin_)) {
+        sta::LibertyPort* port = network_->libertyPort(pin);
+        sta::LibertyCell* cell = port->libertyCell();
         debugPrint(logger_,
                    RSZ,
                    "violator_collector",
@@ -273,21 +257,22 @@ void ViolatorCollector::collectBySlack()
              violating_pins_.size());
 }
 
-std::pair<Delay, Delay> ViolatorCollector::getEffortDelays(const Pin* pin)
+std::pair<sta::Delay, sta::Delay> ViolatorCollector::getEffortDelays(
+    const sta::Pin* pin)
 {
-  Vertex* path_vertex = graph_->pinDrvrVertex(pin);
-  Delay selected_load_delay = -sta::INF;
-  Delay selected_intrinsic_delay = -sta::INF;
-  Slack worst_slack = sta::INF;
+  sta::Vertex* path_vertex = graph_->pinDrvrVertex(pin);
+  sta::Delay selected_load_delay = -sta::INF;
+  sta::Delay selected_intrinsic_delay = -sta::INF;
+  sta::Slack worst_slack = sta::INF;
 
   // Find the arc (specific edge + rise/fall) with worst slack
-  VertexInEdgeIterator edge_iter(path_vertex, graph_);
+  sta::VertexInEdgeIterator edge_iter(path_vertex, graph_);
   while (edge_iter.hasNext()) {
-    Edge* prev_edge = edge_iter.next();
-    Vertex* from_vertex = prev_edge->from(graph_);
+    sta::Edge* prev_edge = edge_iter.next();
+    sta::Vertex* from_vertex = prev_edge->from(graph_);
 
     // Ignore output-to-output timing arcs (e.g., in asap7 multi-output gates)
-    const Pin* from_pin = from_vertex->pin();
+    const sta::Pin* from_pin = from_vertex->pin();
     if (!from_pin) {
       continue;
     }
@@ -295,7 +280,7 @@ std::pair<Delay, Delay> ViolatorCollector::getEffortDelays(const Pin* pin)
       continue;
     }
 
-    const TimingArcSet* arc_set = prev_edge->timingArcSet();
+    const sta::TimingArcSet* arc_set = prev_edge->timingArcSet();
     for (const sta::RiseFall* rf : sta::RiseFall::range()) {
       sta::TimingArc* prev_arc = arc_set->arcTo(rf);
       // This can happen for flops with only one transition type arc.
@@ -308,12 +293,12 @@ std::pair<Delay, Delay> ViolatorCollector::getEffortDelays(const Pin* pin)
       const sta::RiseFall* from_rf = from_trans->asRiseFall();
 
       // Get slack for the input transition
-      Slack from_slack = sta_->slack(from_vertex, from_rf, max_);
+      sta::Slack from_slack = sta_->slack(from_vertex, from_rf, max_);
 
-      const TimingArc* corner_arc = prev_arc->sceneArc(lib_ap_);
-      const Delay intrinsic_delay = corner_arc->intrinsicDelay();
-      const Delay delay = graph_->arcDelay(prev_edge, prev_arc, dcalc_ap_);
-      const Delay load_delay = delay - intrinsic_delay;
+      const sta::TimingArc* corner_arc = prev_arc->sceneArc(lib_ap_);
+      const sta::Delay intrinsic_delay = corner_arc->intrinsicDelay();
+      const sta::Delay delay = graph_->arcDelay(prev_edge, prev_arc, dcalc_ap_);
+      const sta::Delay load_delay = delay - intrinsic_delay;
 
       debugPrint(logger_,
                  RSZ,
@@ -343,7 +328,7 @@ std::pair<Delay, Delay> ViolatorCollector::getEffortDelays(const Pin* pin)
   return {selected_load_delay, selected_intrinsic_delay};
 }
 
-void ViolatorCollector::updatePinData(const Pin* pin, pinData& pd)
+void ViolatorCollector::updatePinData(const sta::Pin* pin, pinData& pd)
 {
   pd.name = network_->pathName(pin);
 
@@ -351,7 +336,7 @@ void ViolatorCollector::updatePinData(const Pin* pin, pinData& pd)
   pd.load_delay = load_delay;
   pd.intrinsic_delay = intrinsic_delay;
 
-  Vertex* vertex = graph_->pinDrvrVertex(pin);
+  sta::Vertex* vertex = graph_->pinDrvrVertex(pin);
   pd.level = vertex->level();
   pd.slack = sta_->slack(
       pin, sta::RiseFall::rise()->asRiseFallBoth(), sta_->scenes(), max_);
@@ -360,14 +345,14 @@ void ViolatorCollector::updatePinData(const Pin* pin, pinData& pd)
 
 int ViolatorCollector::repairsPerPass(int max_repairs_per_pass)
 {
-  Slack min_viol_ = -sta::INF;
-  Slack max_viol_ = 0;
+  sta::Slack min_viol_ = -sta::INF;
+  sta::Slack max_viol_ = 0;
   if (!violating_endpoints_.empty()) {
     min_viol_ = -violating_endpoints_.back().second;
     max_viol_ = -violating_endpoints_.front().second;
   }
 
-  Slack path_slack = getCurrentEndpointSlack();
+  sta::Slack path_slack = getCurrentEndpointSlack();
   int repairs_per_pass = 1;
   if (max_viol_ - min_viol_ != 0.0) {
     repairs_per_pass
@@ -380,34 +365,35 @@ int ViolatorCollector::repairsPerPass(int max_repairs_per_pass)
 
 void ViolatorCollector::sortByLoadDelay(float load_delay_threshold)
 {
-  std::ranges::sort(violating_pins_, [this](const Pin* a, const Pin* b) {
-    Delay load_delay1 = pin_data_[a].load_delay;
-    Delay load_delay2 = pin_data_[b].load_delay;
-    float tns1 = pin_data_[a].tns;
-    float tns2 = pin_data_[b].tns;
+  std::ranges::sort(violating_pins_,
+                    [this](const sta::Pin* a, const sta::Pin* b) {
+                      sta::Delay load_delay1 = pin_data_[a].load_delay;
+                      sta::Delay load_delay2 = pin_data_[b].load_delay;
+                      float tns1 = pin_data_[a].tns;
+                      float tns2 = pin_data_[b].tns;
 
-    return load_delay1 > load_delay2
-           || (load_delay1 == load_delay2 && tns1 < tns2)
-           || (load_delay1 == load_delay2 && tns1 == tns2
-               && network_->pathNameLess(a, b));
-  });
+                      return load_delay1 > load_delay2
+                             || (load_delay1 == load_delay2 && tns1 < tns2)
+                             || (load_delay1 == load_delay2 && tns1 == tns2
+                                 && network_->pathNameLess(a, b));
+                    });
 
   // Filter: only keep pins where load_delay > load_delay_threshold *
   // intrinsic_delay If threshold is 0.0 or negative, skip filtering
   if (load_delay_threshold > 0.0) {
     auto it = std::ranges::remove_if(
-        violating_pins_, [this, load_delay_threshold](const Pin* pin) {
-          Delay load_delay = pin_data_[pin].load_delay;
-          Delay intrinsic_delay = pin_data_[pin].intrinsic_delay;
+        violating_pins_, [this, load_delay_threshold](const sta::Pin* pin) {
+          sta::Delay load_delay = pin_data_[pin].load_delay;
+          sta::Delay intrinsic_delay = pin_data_[pin].intrinsic_delay;
           return load_delay <= load_delay_threshold * intrinsic_delay;
         });
     violating_pins_.erase(it.begin(), violating_pins_.end());
   }
 
   for (auto pin : violating_pins_) {
-    Delay worst_load_delay = pin_data_[pin].load_delay;
-    Delay worst_intrinsic_delay = pin_data_[pin].intrinsic_delay;
-    Vertex* vertex = graph_->pinDrvrVertex(pin);
+    sta::Delay worst_load_delay = pin_data_[pin].load_delay;
+    sta::Delay worst_intrinsic_delay = pin_data_[pin].intrinsic_delay;
+    sta::Vertex* vertex = graph_->pinDrvrVertex(pin);
 
     debugPrint(logger_,
                RSZ,
@@ -421,8 +407,8 @@ void ViolatorCollector::sortByLoadDelay(float load_delay_threshold)
 }
 
 // Helper to get the slack of a specific path (by index) for an endpoint
-Slack ViolatorCollector::getPathSlackByIndex(const Pin* endpoint_pin,
-                                             int path_index)
+sta::Slack ViolatorCollector::getPathSlackByIndex(const sta::Pin* endpoint_pin,
+                                                  int path_index)
 {
   // Create ExceptionTo for this endpoint
   sta::PinSet* to_pins = new sta::PinSet(network_);
@@ -467,17 +453,17 @@ Slack ViolatorCollector::getPathSlackByIndex(const Pin* endpoint_pin,
   return sta::INF;
 }
 
-vector<const Pin*> ViolatorCollector::collectViolators(
+vector<const sta::Pin*> ViolatorCollector::collectViolators(
     int numPathsPerEndpoint,
     int numPins,
     ViolatorSortType sort_type)
 {
   violating_pins_.clear();
-  set<const Pin*> collected_pins;
+  set<const sta::Pin*> collected_pins;
 
   // If current_endpoint_ is set, collect only from that endpoint
   if (current_endpoint_) {
-    const Pin* endpoint_pin = current_endpoint_->pin();
+    const sta::Pin* endpoint_pin = current_endpoint_->pin();
     debugPrint(logger_,
                RSZ,
                "violator_collector",
@@ -487,7 +473,7 @@ vector<const Pin*> ViolatorCollector::collectViolators(
                numPathsPerEndpoint);
 
     // Collect pins from the specified number of paths for this endpoint
-    set<const Pin*> new_pins
+    set<const sta::Pin*> new_pins
         = collectPinsByPathEndpoint(endpoint_pin, numPathsPerEndpoint);
     collected_pins.insert(new_pins.begin(), new_pins.end());
 
@@ -514,7 +500,7 @@ vector<const Pin*> ViolatorCollector::collectViolators(
                violating_endpoints_.size());
 
     // Track which endpoints we've already processed and how many paths
-    map<const Pin*, int> endpoint_paths_used;
+    map<const sta::Pin*, int> endpoint_paths_used;
 
     // Collect pins by comparing actual path slacks across all endpoints
     // If numPins is -1, collect all pins without limiting
@@ -522,8 +508,8 @@ vector<const Pin*> ViolatorCollector::collectViolators(
         (numPins == -1 || collected_pins.size() < static_cast<size_t>(numPins))
         && !violating_endpoints_.empty()) {
       // Find the worst actual path slack among all available paths
-      const Pin* best_endpoint = nullptr;
-      Slack best_slack = sta::INF;
+      const sta::Pin* best_endpoint = nullptr;
+      sta::Slack best_slack = sta::INF;
       int best_path_num = 0;
 
       // Check each violating endpoint
@@ -547,10 +533,10 @@ vector<const Pin*> ViolatorCollector::collectViolators(
         // If we haven't used all paths for this endpoint yet
         if (paths_used < numPathsPerEndpoint) {
           // Get the actual slack of the next available path for this endpoint
-          Slack path_slack = getPathSlackByIndex(endpoint_pin, paths_used);
+          sta::Slack path_slack = getPathSlackByIndex(endpoint_pin, paths_used);
 
           // Skip if no path is available (shouldn't happen, but be defensive)
-          if (fuzzyGreaterEqual(path_slack, slack_margin_)) {
+          if (sta::fuzzyGreaterEqual(path_slack, slack_margin_)) {
             continue;
           }
 
@@ -569,7 +555,8 @@ vector<const Pin*> ViolatorCollector::collectViolators(
       }
 
       // Collect pins from the selected endpoint/path
-      set<const Pin*> new_pins = collectPinsByPathEndpoint(best_endpoint, 1);
+      set<const sta::Pin*> new_pins
+          = collectPinsByPathEndpoint(best_endpoint, 1);
 
       size_t before_size = collected_pins.size();
       collected_pins.insert(new_pins.begin(), new_pins.end());
@@ -615,7 +602,7 @@ vector<const Pin*> ViolatorCollector::collectViolators(
   sortPins(numPins, sort_type);
 
   // Mark all collected pins as considered for Slack phase tracking
-  for (const Pin* pin : violating_pins_) {
+  for (const sta::Pin* pin : violating_pins_) {
     markPinConsidered(pin);
   }
 
@@ -695,35 +682,36 @@ void ViolatorCollector::sortPins(int numPins, ViolatorSortType sort_type)
 
 void ViolatorCollector::sortByWNS()
 {
-  std::ranges::sort(violating_pins_, [this](const Pin* a, const Pin* b) {
-    float slack1 = pin_data_[a].slack;
-    float slack2 = pin_data_[b].slack;
-    int level1 = pin_data_[a].level;
-    int level2 = pin_data_[b].level;
+  std::ranges::sort(
+      violating_pins_, [this](const sta::Pin* a, const sta::Pin* b) {
+        float slack1 = pin_data_[a].slack;
+        float slack2 = pin_data_[b].slack;
+        int level1 = pin_data_[a].level;
+        int level2 = pin_data_[b].level;
 
-    return slack1 < slack2 || (slack1 == slack2 && level1 > level2)
-           || (slack1 == slack2 && level1 == level2
-               && network_->pathNameLess(a, b));
-  });
+        return slack1 < slack2 || (slack1 == slack2 && level1 > level2)
+               || (slack1 == slack2 && level1 == level2
+                   && network_->pathNameLess(a, b));
+      });
 }
 
-Delay ViolatorCollector::getLocalPinTNS(const Pin* pin) const
+sta::Delay ViolatorCollector::getLocalPinTNS(const sta::Pin* pin) const
 {
-  Delay tns = 0;
-  Vertex* drvr_vertex = graph_->pinDrvrVertex(pin);
+  sta::Delay tns = 0;
+  sta::Vertex* drvr_vertex = graph_->pinDrvrVertex(pin);
   sta::VertexOutEdgeIterator edge_iter(drvr_vertex, graph_);
   while (edge_iter.hasNext()) {
-    Edge* edge = edge_iter.next();
-    Vertex* fanout_vertex = edge->to(graph_);
+    sta::Edge* edge = edge_iter.next();
+    sta::Vertex* fanout_vertex = edge->to(graph_);
     // Watch out for problematic asap7 output->output timing arcs.
-    const Pin* fanout_pin = fanout_vertex->pin();
+    const sta::Pin* fanout_pin = fanout_vertex->pin();
     if (!fanout_pin) {
       continue;
     }
     if (network_->direction(fanout_pin)->isOutput()) {
       continue;
     }
-    const Slack fanout_slack = sta_->slack(fanout_vertex, resizer_->max_);
+    const sta::Slack fanout_slack = sta_->slack(fanout_vertex, resizer_->max_);
     if (fanout_slack < 0) {
       tns += fanout_slack;
     }
@@ -740,9 +728,9 @@ Delay ViolatorCollector::getLocalPinTNS(const Pin* pin) const
   return tns;
 }
 
-map<const Pin*, Delay> ViolatorCollector::getLocalTNS() const
+map<const sta::Pin*, sta::Delay> ViolatorCollector::getLocalTNS() const
 {
-  map<const Pin*, Delay> local_tns;
+  map<const sta::Pin*, sta::Delay> local_tns;
   for (auto pin : violating_pins_) {
     local_tns[pin] = getLocalPinTNS(pin);
   }
@@ -751,40 +739,42 @@ map<const Pin*, Delay> ViolatorCollector::getLocalTNS() const
 
 void ViolatorCollector::sortByLocalTNS()
 {
-  std::ranges::sort(violating_pins_, [this](const Pin* a, const Pin* b) {
-    float tns1 = pin_data_[a].tns;
-    float tns2 = pin_data_[b].tns;
-    Delay load_delay1 = pin_data_[a].load_delay;
-    Delay load_delay2 = pin_data_[b].load_delay;
-    return tns1 < tns2 || (tns1 == tns2 && load_delay1 > load_delay2)
-           || (tns1 == tns2 && load_delay1 == load_delay2
-               && network_->pathNameLess(a, b));
-  });
+  std::ranges::sort(
+      violating_pins_, [this](const sta::Pin* a, const sta::Pin* b) {
+        float tns1 = pin_data_[a].tns;
+        float tns2 = pin_data_[b].tns;
+        sta::Delay load_delay1 = pin_data_[a].load_delay;
+        sta::Delay load_delay2 = pin_data_[b].load_delay;
+        return tns1 < tns2 || (tns1 == tns2 && load_delay1 > load_delay2)
+               || (tns1 == tns2 && load_delay1 == load_delay2
+                   && network_->pathNameLess(a, b));
+      });
 }
 
 void ViolatorCollector::sortByHeuristic(float load_delay_threshold)
 {
-  std::ranges::sort(violating_pins_, [this](const Pin* a, const Pin* b) {
-    // Heuristic: 0.5 * |slack| + 0.5 * load_delay
-    Slack slack_a = pin_data_[a].slack;
-    Slack slack_b = pin_data_[b].slack;
-    Delay load_delay_a = pin_data_[a].load_delay;
-    Delay load_delay_b = pin_data_[b].load_delay;
+  std::ranges::sort(
+      violating_pins_, [this](const sta::Pin* a, const sta::Pin* b) {
+        // Heuristic: 0.5 * |slack| + 0.5 * load_delay
+        sta::Slack slack_a = pin_data_[a].slack;
+        sta::Slack slack_b = pin_data_[b].slack;
+        sta::Delay load_delay_a = pin_data_[a].load_delay;
+        sta::Delay load_delay_b = pin_data_[b].load_delay;
 
-    float score_a = (0.5 * std::abs(slack_a)) + (0.5 * load_delay_a);
-    float score_b = (0.5 * std::abs(slack_b)) + (0.5 * load_delay_b);
+        float score_a = (0.5 * std::abs(slack_a)) + (0.5 * load_delay_a);
+        float score_b = (0.5 * std::abs(slack_b)) + (0.5 * load_delay_b);
 
-    return score_a > score_b
-           || (score_a == score_b && network_->pathNameLess(a, b));
-  });
+        return score_a > score_b
+               || (score_a == score_b && network_->pathNameLess(a, b));
+      });
 
   // Filter: only keep pins where load_delay > load_delay_threshold *
   // intrinsic_delay If threshold is 0.0 or negative, skip filtering
   if (load_delay_threshold > 0.0) {
     auto it = std::ranges::remove_if(
-        violating_pins_, [this, load_delay_threshold](const Pin* pin) {
-          Delay load_delay = pin_data_[pin].load_delay;
-          Delay intrinsic_delay = pin_data_[pin].intrinsic_delay;
+        violating_pins_, [this, load_delay_threshold](const sta::Pin* pin) {
+          sta::Delay load_delay = pin_data_[pin].load_delay;
+          sta::Delay intrinsic_delay = pin_data_[pin].intrinsic_delay;
           return load_delay <= load_delay_threshold * intrinsic_delay;
         });
     violating_pins_.erase(it.begin(), violating_pins_.end());
@@ -795,10 +785,10 @@ void ViolatorCollector::collectViolatingEndpoints()
 {
   violating_endpoints_.clear();
 
-  const VertexSet& endpoints = sta_->endpoints();
-  for (Vertex* end : endpoints) {
-    const Slack end_slack = sta_->slack(end, max_);
-    if (fuzzyLess(end_slack, slack_margin_)) {
+  const sta::VertexSet& endpoints = sta_->endpoints();
+  for (sta::Vertex* end : endpoints) {
+    const sta::Slack end_slack = sta_->slack(end, max_);
+    if (sta::fuzzyLess(end_slack, slack_margin_)) {
       violating_endpoints_.emplace_back(end->pin(), end_slack);
     }
   }
@@ -824,12 +814,12 @@ void ViolatorCollector::collectViolatingStartpoints()
 
   // Collect all startpoints (register outputs + primary inputs, excluding
   // clocks)
-  std::vector<std::pair<const Pin*, Slack>> all_startpoints;
+  std::vector<std::pair<const sta::Pin*, sta::Slack>> all_startpoints;
 
-  VertexIterator vertex_iter(graph_);
+  sta::VertexIterator vertex_iter(graph_);
   while (vertex_iter.hasNext()) {
-    Vertex* vertex = vertex_iter.next();
-    const Pin* pin = vertex->pin();
+    sta::Vertex* vertex = vertex_iter.next();
+    const sta::Pin* pin = vertex->pin();
 
     // Skip clock pins
     if (sta_->isClock(pin, sta_->cmdMode())) {
@@ -851,14 +841,14 @@ void ViolatorCollector::collectViolatingStartpoints()
     if (is_startpoint) {
       // Get worst slack for this startpoint across all paths originating from
       // it
-      const Slack start_slack = sta_->slack(vertex, max_);
+      const sta::Slack start_slack = sta_->slack(vertex, max_);
       all_startpoints.emplace_back(pin, start_slack);
     }
   }
 
   // Filter for violating startpoints and sort by slack
   for (const auto& start_pair : all_startpoints) {
-    if (fuzzyLess(start_pair.second, slack_margin_)) {
+    if (sta::fuzzyLess(start_pair.second, slack_margin_)) {
       violating_startpoints_.push_back(start_pair);
     }
   }
@@ -883,45 +873,47 @@ void ViolatorCollector::collectViolatingStartpoints()
                  : 0);
 }
 
-Slack ViolatorCollector::getStartpointWNS(const Pin* startpoint_pin) const
+sta::Slack ViolatorCollector::getStartpointWNS(
+    const sta::Pin* startpoint_pin) const
 {
   // Return worst negative slack for this startpoint
-  Vertex* vertex = graph_->pinLoadVertex(startpoint_pin);
+  sta::Vertex* vertex = graph_->pinLoadVertex(startpoint_pin);
   if (!vertex) {
     return 0.0;
   }
   return sta_->slack(vertex, max_);
 }
 
-Slack ViolatorCollector::getStartpointTNS(const Pin* startpoint_pin) const
+sta::Slack ViolatorCollector::getStartpointTNS(
+    const sta::Pin* startpoint_pin) const
 {
   // Calculate TNS (Total Negative Slack) for all paths from this startpoint
-  Vertex* vertex = graph_->pinLoadVertex(startpoint_pin);
+  sta::Vertex* vertex = graph_->pinLoadVertex(startpoint_pin);
   if (!vertex) {
     return 0.0;
   }
 
   // Sum up all negative slacks in fanout cone of this startpoint
-  Slack tns = 0.0;
-  std::set<Vertex*> visited;
-  std::queue<Vertex*> to_visit;
+  sta::Slack tns = 0.0;
+  std::set<sta::Vertex*> visited;
+  std::queue<sta::Vertex*> to_visit;
   to_visit.push(vertex);
   visited.insert(vertex);
 
   while (!to_visit.empty()) {
-    Vertex* v = to_visit.front();
+    sta::Vertex* v = to_visit.front();
     to_visit.pop();
 
-    Slack v_slack = sta_->slack(v, max_);
+    sta::Slack v_slack = sta_->slack(v, max_);
     if (v_slack < 0.0) {
       tns += v_slack;
     }
 
     // Traverse fanout
-    VertexOutEdgeIterator edge_iter(v, graph_);
+    sta::VertexOutEdgeIterator edge_iter(v, graph_);
     while (edge_iter.hasNext()) {
-      Edge* edge = edge_iter.next();
-      Vertex* to_vertex = edge->to(graph_);
+      sta::Edge* edge = edge_iter.next();
+      sta::Vertex* to_vertex = edge->to(graph_);
       if (visited.find(to_vertex) == visited.end()) {
         visited.insert(to_vertex);
         to_visit.push(to_vertex);
@@ -932,45 +924,45 @@ Slack ViolatorCollector::getStartpointTNS(const Pin* startpoint_pin) const
   return tns;
 }
 
-Slack ViolatorCollector::getEndpointWNS(const Pin* endpoint_pin) const
+sta::Slack ViolatorCollector::getEndpointWNS(const sta::Pin* endpoint_pin) const
 {
   // Return worst negative slack for this endpoint
-  Vertex* vertex = graph_->pinLoadVertex(endpoint_pin);
+  sta::Vertex* vertex = graph_->pinLoadVertex(endpoint_pin);
   if (vertex) {
     return sta_->slack(vertex, max_);
   }
   return 0.0;
 }
 
-Slack ViolatorCollector::getEndpointTNS(const Pin* endpoint_pin) const
+sta::Slack ViolatorCollector::getEndpointTNS(const sta::Pin* endpoint_pin) const
 {
   // Calculate TNS (Total Negative Slack) for all paths to this endpoint
-  Vertex* vertex = graph_->pinDrvrVertex(endpoint_pin);
+  sta::Vertex* vertex = graph_->pinDrvrVertex(endpoint_pin);
   if (!vertex) {
     return 0.0;
   }
 
   // Sum up all negative slacks in fanin cone of this endpoint
-  Slack tns = 0.0;
-  std::set<Vertex*> visited;
-  std::queue<Vertex*> to_visit;
+  sta::Slack tns = 0.0;
+  std::set<sta::Vertex*> visited;
+  std::queue<sta::Vertex*> to_visit;
   to_visit.push(vertex);
   visited.insert(vertex);
 
   while (!to_visit.empty()) {
-    Vertex* v = to_visit.front();
+    sta::Vertex* v = to_visit.front();
     to_visit.pop();
 
-    Slack v_slack = sta_->slack(v, max_);
+    sta::Slack v_slack = sta_->slack(v, max_);
     if (v_slack < 0.0) {
       tns += v_slack;
     }
 
     // Traverse fanin
-    VertexInEdgeIterator edge_iter(v, graph_);
+    sta::VertexInEdgeIterator edge_iter(v, graph_);
     while (edge_iter.hasNext()) {
-      Edge* edge = edge_iter.next();
-      Vertex* from_vertex = edge->from(graph_);
+      sta::Edge* edge = edge_iter.next();
+      sta::Vertex* from_vertex = edge->from(graph_);
       if (visited.find(from_vertex) == visited.end()) {
         visited.insert(from_vertex);
         to_visit.push(from_vertex);
@@ -986,16 +978,16 @@ void ViolatorCollector::collectByPaths(int endPointIndex,
                                        int numPathsPerEndpoint)
 {
   // For skipping duplicates
-  set<const Pin*> viol_pins;
+  set<const sta::Pin*> viol_pins;
 
   size_t old_size = 0;
   int endpoint_count = 0;
   for (int i = endPointIndex; i < violating_endpoints_.size(); i++) {
     const auto end_original_slack = violating_endpoints_[i];
     // Only count the critical endpoints
-    if (fuzzyLess(end_original_slack.second, slack_margin_)) {
-      const Pin* endpoint_pin = end_original_slack.first;
-      set<const Pin*> end_pins
+    if (sta::fuzzyLess(end_original_slack.second, slack_margin_)) {
+      const sta::Pin* endpoint_pin = end_original_slack.first;
+      set<const sta::Pin*> end_pins
           = collectPinsByPathEndpoint(endpoint_pin, numPathsPerEndpoint);
       viol_pins.insert(end_pins.begin(), end_pins.end());
 
@@ -1022,13 +1014,13 @@ void ViolatorCollector::collectByPaths(int endPointIndex,
       violating_pins_.end(), viol_pins.begin(), viol_pins.end());
 }
 
-set<const Pin*> ViolatorCollector::collectPinsByPathEndpoint(
+set<const sta::Pin*> ViolatorCollector::collectPinsByPathEndpoint(
     const sta::Pin* endpoint_pin,
     size_t paths_per_endpoint)
 
 {
   // Create a set to remove duplciates
-  set<const Pin*> viol_pins;
+  set<const sta::Pin*> viol_pins;
 
   // This uses the old method for a single path at a time
   /*if (paths_per_endpoint == 1) {
@@ -1159,8 +1151,8 @@ set<const Pin*> ViolatorCollector::collectPinsByPathEndpoint(
   return viol_pins;
 }
 
-vector<const Pin*> ViolatorCollector::collectViolatorsFromEndpoints(
-    const vector<Vertex*>& endpoints,
+vector<const sta::Pin*> ViolatorCollector::collectViolatorsFromEndpoints(
+    const vector<sta::Vertex*>& endpoints,
     int numPathsPerEndpoint,
     int numPins,
     ViolatorSortType sort_type)
@@ -1179,8 +1171,8 @@ vector<const Pin*> ViolatorCollector::collectViolatorsFromEndpoints(
              getEnumString(sort_type));
 
   // Collect violating pins from the specified endpoints
-  for (Vertex* endpoint : endpoints) {
-    Pin* endpoint_pin = endpoint->pin();
+  for (sta::Vertex* endpoint : endpoints) {
+    sta::Pin* endpoint_pin = endpoint->pin();
 
     debugPrint(logger_,
                RSZ,
@@ -1191,10 +1183,10 @@ vector<const Pin*> ViolatorCollector::collectViolatorsFromEndpoints(
                delayAsString(sta_->slack(endpoint, max_), sta_, 3));
 
     // Collect pins from paths through this endpoint
-    set<const Pin*> endpoint_pins
+    set<const sta::Pin*> endpoint_pins
         = collectPinsByPathEndpoint(endpoint_pin, numPathsPerEndpoint);
 
-    for (const Pin* pin : endpoint_pins) {
+    for (const sta::Pin* pin : endpoint_pins) {
       violating_pins_.push_back(pin);
     }
   }
@@ -1211,14 +1203,14 @@ vector<const Pin*> ViolatorCollector::collectViolatorsFromEndpoints(
   sortPins(numPins, sort_type);
 
   // Mark all collected pins as considered for Slack phase tracking
-  for (const Pin* pin : violating_pins_) {
+  for (const sta::Pin* pin : violating_pins_) {
     markPinConsidered(pin);
   }
 
   return violating_pins_;
 }
 
-vector<const Pin*> ViolatorCollector::collectViolatorsByPin(
+vector<const sta::Pin*> ViolatorCollector::collectViolatorsByPin(
     int numPins,
     ViolatorSortType sort_type)
 {
@@ -1251,31 +1243,31 @@ vector<const Pin*> ViolatorCollector::collectViolatorsByPin(
              violating_pins_.size());
 
   // Mark all collected pins as considered for Slack phase tracking
-  for (const Pin* pin : violating_pins_) {
+  for (const sta::Pin* pin : violating_pins_) {
     markPinConsidered(pin);
   }
 
   return violating_pins_;
 }
 
-vector<const Pin*> ViolatorCollector::collectViolatorsBySlackMargin(
+vector<const sta::Pin*> ViolatorCollector::collectViolatorsBySlackMargin(
     float slack_margin)
 {
   // Use efficient fanin cone traversal instead of whole-design scan
   return collectViolatorsByFaninTraversal(slack_margin);
 }
 
-vector<const Pin*> ViolatorCollector::collectViolatorsByFaninTraversal(
+vector<const sta::Pin*> ViolatorCollector::collectViolatorsByFaninTraversal(
     float slack_margin,
     ViolatorSortType sort_type)
 {
   // Get worst endpoint slack as reference
-  Slack worst_slack;
-  Vertex* worst_vertex;
+  sta::Slack worst_slack;
+  sta::Vertex* worst_vertex;
   sta_->worstSlack(max_, worst_slack, worst_vertex);
 
   // Calculate threshold: pins with slack < worst_slack + slack_margin
-  Slack slack_threshold = worst_slack + slack_margin;
+  sta::Slack slack_threshold = worst_slack + slack_margin;
 
   debugPrint(logger_,
              RSZ,
@@ -1288,11 +1280,11 @@ vector<const Pin*> ViolatorCollector::collectViolatorsByFaninTraversal(
              slack_margin);
 
   // Find critical endpoints (within slack_margin of worst)
-  const VertexSet& all_endpoints = sta_->endpoints();
-  std::vector<Vertex*> critical_endpoints;
+  const sta::VertexSet& all_endpoints = sta_->endpoints();
+  std::vector<sta::Vertex*> critical_endpoints;
 
-  for (Vertex* endpoint : all_endpoints) {
-    Slack endpoint_slack = sta_->slack(endpoint, max_);
+  for (sta::Vertex* endpoint : all_endpoints) {
+    sta::Slack endpoint_slack = sta_->slack(endpoint, max_);
     if (endpoint_slack < slack_threshold) {
       critical_endpoints.push_back(endpoint);
     }
@@ -1307,12 +1299,12 @@ vector<const Pin*> ViolatorCollector::collectViolatorsByFaninTraversal(
              all_endpoints.size());
 
   // Traverse fanin cones and collect pins
-  std::set<Vertex*> visited_vertices;
-  std::set<const Pin*> collected_pins_set;  // Use set to avoid duplicates
-  std::queue<Vertex*> to_visit;
+  std::set<sta::Vertex*> visited_vertices;
+  std::set<const sta::Pin*> collected_pins_set;  // Use set to avoid duplicates
+  std::queue<sta::Vertex*> to_visit;
 
   // Initialize queue with critical endpoints
-  for (Vertex* endpoint : critical_endpoints) {
+  for (sta::Vertex* endpoint : critical_endpoints) {
     to_visit.push(endpoint);
     visited_vertices.insert(endpoint);
   }
@@ -1320,22 +1312,22 @@ vector<const Pin*> ViolatorCollector::collectViolatorsByFaninTraversal(
   int vertices_processed = 0;
 
   while (!to_visit.empty()) {
-    Vertex* current_vertex = to_visit.front();
+    sta::Vertex* current_vertex = to_visit.front();
     to_visit.pop();
     vertices_processed++;
 
     // Traverse input edges (fanin)
-    VertexInEdgeIterator edge_iter(current_vertex, graph_);
+    sta::VertexInEdgeIterator edge_iter(current_vertex, graph_);
     while (edge_iter.hasNext()) {
-      Edge* edge = edge_iter.next();
-      Vertex* from_vertex = edge->from(graph_);
+      sta::Edge* edge = edge_iter.next();
+      sta::Vertex* from_vertex = edge->from(graph_);
 
       // Skip if already visited
       if (visited_vertices.find(from_vertex) != visited_vertices.end()) {
         continue;
       }
 
-      const Pin* from_pin = from_vertex->pin();
+      const sta::Pin* from_pin = from_vertex->pin();
 
       // Safety check: skip if no pin
       if (!from_pin) {
@@ -1364,10 +1356,11 @@ vector<const Pin*> ViolatorCollector::collectViolatorsByFaninTraversal(
       // If this is an output pin, it's a candidate for collection
       if (network_->direction(from_pin)->isOutput()) {
         // Check slack criterion
-        Slack pin_slack = sta_->slack(from_pin,
-                                      sta::RiseFall::rise()->asRiseFallBoth(),
-                                      sta_->scenes(),
-                                      max_);
+        sta::Slack pin_slack
+            = sta_->slack(from_pin,
+                          sta::RiseFall::rise()->asRiseFallBoth(),
+                          sta_->scenes(),
+                          max_);
         if (pin_slack < slack_threshold) {
           // Add to collected pins
           collected_pins_set.insert(from_pin);
@@ -1400,7 +1393,7 @@ vector<const Pin*> ViolatorCollector::collectViolatorsByFaninTraversal(
 
   // Convert set to vector and populate pin_data
   violating_pins_.clear();
-  for (const Pin* pin : collected_pins_set) {
+  for (const sta::Pin* pin : collected_pins_set) {
     violating_pins_.push_back(pin);
 
     // Populate pin_data for sorting and filtering
@@ -1422,17 +1415,17 @@ vector<const Pin*> ViolatorCollector::collectViolatorsByFaninTraversal(
              pins_before_filter);
 
   // Mark all collected pins as considered for Slack phase tracking
-  for (const Pin* pin : violating_pins_) {
+  for (const sta::Pin* pin : violating_pins_) {
     markPinConsidered(pin);
   }
 
   return violating_pins_;
 }
 
-vector<const Pin*> ViolatorCollector::collectViolatorsByFanoutTraversal(
-    Vertex* startpoint,
+vector<const sta::Pin*> ViolatorCollector::collectViolatorsByFanoutTraversal(
+    sta::Vertex* startpoint,
     ViolatorSortType sort_type,
-    Slack slack_threshold)
+    sta::Slack slack_threshold)
 {
   debugPrint(logger_,
              RSZ,
@@ -1442,17 +1435,17 @@ vector<const Pin*> ViolatorCollector::collectViolatorsByFanoutTraversal(
              network_->pathName(startpoint->pin()));
 
   // Traverse fanout cone and collect pins
-  std::set<Vertex*> visited_vertices;
-  std::set<const Pin*> collected_pins_set;  // Use set to avoid duplicates
-  std::queue<Vertex*> to_visit;
+  std::set<sta::Vertex*> visited_vertices;
+  std::set<const sta::Pin*> collected_pins_set;  // Use set to avoid duplicates
+  std::queue<sta::Vertex*> to_visit;
 
   // Include the startpoint pin itself (e.g., flip-flop output)
-  const Pin* startpoint_pin = startpoint->pin();
+  const sta::Pin* startpoint_pin = startpoint->pin();
   if (startpoint_pin) {
-    Slack pin_slack = sta_->slack(startpoint_pin,
-                                  sta::RiseFall::rise()->asRiseFallBoth(),
-                                  sta_->scenes(),
-                                  max_);
+    sta::Slack pin_slack = sta_->slack(startpoint_pin,
+                                       sta::RiseFall::rise()->asRiseFallBoth(),
+                                       sta_->scenes(),
+                                       max_);
     if (pin_slack < slack_threshold) {
       collected_pins_set.insert(startpoint_pin);
       debugPrint(logger_,
@@ -1472,22 +1465,22 @@ vector<const Pin*> ViolatorCollector::collectViolatorsByFanoutTraversal(
   int vertices_processed = 0;
 
   while (!to_visit.empty()) {
-    Vertex* current_vertex = to_visit.front();
+    sta::Vertex* current_vertex = to_visit.front();
     to_visit.pop();
     vertices_processed++;
 
     // Traverse output edges (fanout)
-    VertexOutEdgeIterator edge_iter(current_vertex, graph_);
+    sta::VertexOutEdgeIterator edge_iter(current_vertex, graph_);
     while (edge_iter.hasNext()) {
-      Edge* edge = edge_iter.next();
-      Vertex* to_vertex = edge->to(graph_);
+      sta::Edge* edge = edge_iter.next();
+      sta::Vertex* to_vertex = edge->to(graph_);
 
       // Skip if already visited
       if (visited_vertices.find(to_vertex) != visited_vertices.end()) {
         continue;
       }
 
-      const Pin* to_pin = to_vertex->pin();
+      const sta::Pin* to_pin = to_vertex->pin();
 
       // Safety check: skip if no pin
       if (!to_pin) {
@@ -1508,14 +1501,14 @@ vector<const Pin*> ViolatorCollector::collectViolatorsByFanoutTraversal(
         sta::Instance* inst = network_->instance(to_pin);
         if (inst) {
           // Find the output pin of this instance
-          InstancePinIterator* pin_iter = network_->pinIterator(inst);
+          sta::InstancePinIterator* pin_iter = network_->pinIterator(inst);
           while (pin_iter->hasNext()) {
-            const Pin* inst_pin = pin_iter->next();
+            const sta::Pin* inst_pin = pin_iter->next();
             if (network_->direction(inst_pin)->isOutput()) {
-              Vertex* out_vertex = graph_->pinDrvrVertex(inst_pin);
+              sta::Vertex* out_vertex = graph_->pinDrvrVertex(inst_pin);
               if (out_vertex) {
                 // Check slack criterion
-                Slack pin_slack
+                sta::Slack pin_slack
                     = sta_->slack(inst_pin,
                                   sta::RiseFall::rise()->asRiseFallBoth(),
                                   sta_->scenes(),
@@ -1559,7 +1552,7 @@ vector<const Pin*> ViolatorCollector::collectViolatorsByFanoutTraversal(
 
   // Convert set to vector and populate pin_data
   violating_pins_.clear();
-  for (const Pin* pin : collected_pins_set) {
+  for (const sta::Pin* pin : collected_pins_set) {
     violating_pins_.push_back(pin);
 
     // Populate pin_data for sorting and filtering
@@ -1581,29 +1574,29 @@ vector<const Pin*> ViolatorCollector::collectViolatorsByFanoutTraversal(
              pins_before_filter);
 
   // Mark all collected pins as considered for Slack phase tracking
-  for (const Pin* pin : violating_pins_) {
+  for (const sta::Pin* pin : violating_pins_) {
     markPinConsidered(pin);
   }
 
   return violating_pins_;
 }
 
-vector<const Pin*>
+vector<const sta::Pin*>
 ViolatorCollector::collectViolatorsByFaninTraversalForEndpoint(
-    Vertex* endpoint,
+    sta::Vertex* endpoint,
     float slack_margin,
     ViolatorSortType sort_type)
 {
   // Get worst endpoint slack as reference
-  Slack worst_slack;
-  Vertex* worst_vertex;
+  sta::Slack worst_slack;
+  sta::Vertex* worst_vertex;
   sta_->worstSlack(max_, worst_slack, worst_vertex);
 
   // Calculate threshold: pins with slack < worst_slack + slack_margin
-  Slack slack_threshold = worst_slack + slack_margin;
+  sta::Slack slack_threshold = worst_slack + slack_margin;
 
-  const Pin* endpoint_pin = endpoint->pin();
-  Slack endpoint_slack = sta_->slack(endpoint, max_);
+  const sta::Pin* endpoint_pin = endpoint->pin();
+  sta::Slack endpoint_slack = sta_->slack(endpoint, max_);
 
   debugPrint(
       logger_,
@@ -1619,9 +1612,9 @@ ViolatorCollector::collectViolatorsByFaninTraversalForEndpoint(
       slack_margin);
 
   // Traverse fanin cone and collect pins
-  std::set<Vertex*> visited_vertices;
-  std::set<const Pin*> collected_pins_set;  // Use set to avoid duplicates
-  std::queue<Vertex*> to_visit;
+  std::set<sta::Vertex*> visited_vertices;
+  std::set<const sta::Pin*> collected_pins_set;  // Use set to avoid duplicates
+  std::queue<sta::Vertex*> to_visit;
 
   // Initialize queue with single endpoint
   to_visit.push(endpoint);
@@ -1630,22 +1623,22 @@ ViolatorCollector::collectViolatorsByFaninTraversalForEndpoint(
   int vertices_processed = 0;
 
   while (!to_visit.empty()) {
-    Vertex* current_vertex = to_visit.front();
+    sta::Vertex* current_vertex = to_visit.front();
     to_visit.pop();
     vertices_processed++;
 
     // Traverse input edges (fanin)
-    VertexInEdgeIterator edge_iter(current_vertex, graph_);
+    sta::VertexInEdgeIterator edge_iter(current_vertex, graph_);
     while (edge_iter.hasNext()) {
-      Edge* edge = edge_iter.next();
-      Vertex* from_vertex = edge->from(graph_);
+      sta::Edge* edge = edge_iter.next();
+      sta::Vertex* from_vertex = edge->from(graph_);
 
       // Skip if already visited
       if (visited_vertices.find(from_vertex) != visited_vertices.end()) {
         continue;
       }
 
-      const Pin* from_pin = from_vertex->pin();
+      const sta::Pin* from_pin = from_vertex->pin();
 
       // Safety check: skip if no pin
       if (!from_pin) {
@@ -1674,10 +1667,11 @@ ViolatorCollector::collectViolatorsByFaninTraversalForEndpoint(
       // If this is an output pin, it's a candidate for collection
       if (network_->direction(from_pin)->isOutput()) {
         // Check slack criterion
-        Slack pin_slack = sta_->slack(from_pin,
-                                      sta::RiseFall::rise()->asRiseFallBoth(),
-                                      sta_->scenes(),
-                                      max_);
+        sta::Slack pin_slack
+            = sta_->slack(from_pin,
+                          sta::RiseFall::rise()->asRiseFallBoth(),
+                          sta_->scenes(),
+                          max_);
         if (pin_slack < slack_threshold) {
           // Add to collected pins
           collected_pins_set.insert(from_pin);
@@ -1712,7 +1706,7 @@ ViolatorCollector::collectViolatorsByFaninTraversalForEndpoint(
 
   // Convert set to vector and populate pin_data
   violating_pins_.clear();
-  for (const Pin* pin : collected_pins_set) {
+  for (const sta::Pin* pin : collected_pins_set) {
     violating_pins_.push_back(pin);
 
     // Populate pin_data for sorting and filtering
@@ -1735,7 +1729,7 @@ ViolatorCollector::collectViolatorsByFaninTraversalForEndpoint(
              pins_before_filter);
 
   // Mark all collected pins as considered for WNS phase tracking
-  for (const Pin* pin : violating_pins_) {
+  for (const sta::Pin* pin : violating_pins_) {
     markPinConsidered(pin);
   }
 
@@ -1745,30 +1739,30 @@ ViolatorCollector::collectViolatorsByFaninTraversalForEndpoint(
 // Helper function: BFS traversal of fanin cone to collect pins worse than
 // threshold
 void ViolatorCollector::traverseFaninCone(
-    Vertex* endpoint,
-    std::vector<std::pair<const Pin*, Slack>>& pins_with_slack,
-    Slack slack_threshold)
+    sta::Vertex* endpoint,
+    std::vector<std::pair<const sta::Pin*, sta::Slack>>& pins_with_slack,
+    sta::Slack slack_threshold)
 {
-  std::set<Vertex*> visited_vertices;
-  std::queue<Vertex*> to_visit;
+  std::set<sta::Vertex*> visited_vertices;
+  std::queue<sta::Vertex*> to_visit;
 
   to_visit.push(endpoint);
   visited_vertices.insert(endpoint);
 
   while (!to_visit.empty()) {
-    Vertex* current_vertex = to_visit.front();
+    sta::Vertex* current_vertex = to_visit.front();
     to_visit.pop();
 
-    VertexInEdgeIterator edge_iter(current_vertex, graph_);
+    sta::VertexInEdgeIterator edge_iter(current_vertex, graph_);
     while (edge_iter.hasNext()) {
-      Edge* edge = edge_iter.next();
-      Vertex* from_vertex = edge->from(graph_);
+      sta::Edge* edge = edge_iter.next();
+      sta::Vertex* from_vertex = edge->from(graph_);
 
       if (visited_vertices.find(from_vertex) != visited_vertices.end()) {
         continue;
       }
 
-      const Pin* from_pin = from_vertex->pin();
+      const sta::Pin* from_pin = from_vertex->pin();
       if (!from_pin) {
         continue;
       }
@@ -1791,10 +1785,11 @@ void ViolatorCollector::traverseFaninCone(
 
       // Only traverse through output pins
       if (network_->direction(from_pin)->isOutput()) {
-        Slack pin_slack = sta_->slack(from_pin,
-                                      sta::RiseFall::rise()->asRiseFallBoth(),
-                                      sta_->scenes(),
-                                      max_);
+        sta::Slack pin_slack
+            = sta_->slack(from_pin,
+                          sta::RiseFall::rise()->asRiseFallBoth(),
+                          sta_->scenes(),
+                          max_);
 
         debugPrint(logger_,
                    RSZ,
@@ -1841,11 +1836,11 @@ void ViolatorCollector::traverseFaninCone(
         // Get the instance and add all its input pin vertices to the queue
         sta::Instance* inst = network_->instance(from_pin);
         if (inst) {
-          InstancePinIterator* pin_iter = network_->pinIterator(inst);
+          sta::InstancePinIterator* pin_iter = network_->pinIterator(inst);
           while (pin_iter->hasNext()) {
-            Pin* inst_pin = pin_iter->next();
+            sta::Pin* inst_pin = pin_iter->next();
             if (network_->direction(inst_pin)->isInput()) {
-              Vertex* input_vertex = graph_->pinLoadVertex(inst_pin);
+              sta::Vertex* input_vertex = graph_->pinLoadVertex(inst_pin);
               if (input_vertex
                   && visited_vertices.find(input_vertex)
                          == visited_vertices.end()) {
@@ -1868,9 +1863,9 @@ void ViolatorCollector::traverseFaninCone(
 }
 
 // Helper function: Compute adaptive threshold using endpoint-relative margins
-Slack ViolatorCollector::computeAdaptiveThreshold(
-    const std::vector<std::pair<const Pin*, Slack>>& pins_with_slack,
-    Slack endpoint_slack,
+sta::Slack ViolatorCollector::computeAdaptiveThreshold(
+    const std::vector<std::pair<const sta::Pin*, sta::Slack>>& pins_with_slack,
+    sta::Slack endpoint_slack,
     int& pin_count)
 {
   const float margin_percentages[] = {0.10, 0.20, 0.30, 0.50};
@@ -1878,13 +1873,13 @@ Slack ViolatorCollector::computeAdaptiveThreshold(
   const int max_target_pins = 1000;
   int cone_size = pins_with_slack.size();
 
-  Slack chosen_threshold = endpoint_slack;
+  sta::Slack chosen_threshold = endpoint_slack;
   pin_count = 0;
 
   if (cone_size > 0) {
     for (float margin_pct : margin_percentages) {
-      Slack margin = std::abs(endpoint_slack) * margin_pct;
-      Slack threshold = endpoint_slack + margin;
+      sta::Slack margin = std::abs(endpoint_slack) * margin_pct;
+      sta::Slack threshold = endpoint_slack + margin;
 
       int count = 0;
       for (const auto& pin_slack_pair : pins_with_slack) {
@@ -1949,8 +1944,8 @@ Slack ViolatorCollector::computeAdaptiveThreshold(
 
 // Helper function: Collect pins with slack worse than threshold
 void ViolatorCollector::collectPinsWithThreshold(
-    const std::vector<std::pair<const Pin*, Slack>>& pins_with_slack,
-    Slack threshold)
+    const std::vector<std::pair<const sta::Pin*, sta::Slack>>& pins_with_slack,
+    sta::Slack threshold)
 {
   violating_pins_.clear();
   pin_data_.clear();
@@ -1966,17 +1961,17 @@ void ViolatorCollector::collectPinsWithThreshold(
   }
 }
 
-vector<const Pin*> ViolatorCollector::collectViolatorsByConeTraversal(
-    Vertex* endpoint,
+vector<const sta::Pin*> ViolatorCollector::collectViolatorsByConeTraversal(
+    sta::Vertex* endpoint,
     ViolatorSortType sort_type,
-    std::optional<Slack> explicit_threshold)
+    std::optional<sta::Slack> explicit_threshold)
 {
-  const Pin* endpoint_pin = endpoint->pin();
-  Slack endpoint_slack = sta_->slack(endpoint, max_);
+  const sta::Pin* endpoint_pin = endpoint->pin();
+  sta::Slack endpoint_slack = sta_->slack(endpoint, max_);
 
   // EXPLICIT THRESHOLD MODE: Use provided threshold directly
   if (explicit_threshold.has_value()) {
-    Slack threshold = explicit_threshold.value();
+    sta::Slack threshold = explicit_threshold.value();
 
     debugPrint(logger_,
                RSZ,
@@ -1987,7 +1982,7 @@ vector<const Pin*> ViolatorCollector::collectViolatorsByConeTraversal(
                network_->pathName(endpoint_pin));
 
     // Traverse fanin cone with explicit threshold
-    std::vector<std::pair<const Pin*, Slack>> cone_pins_with_slack;
+    std::vector<std::pair<const sta::Pin*, sta::Slack>> cone_pins_with_slack;
     traverseFaninCone(endpoint, cone_pins_with_slack, threshold);
     collectPinsWithThreshold(cone_pins_with_slack, threshold);
 
@@ -2014,9 +2009,9 @@ vector<const Pin*> ViolatorCollector::collectViolatorsByConeTraversal(
 
     // Step 1: Traverse fanin cone to collect all pins with negative slack
     // Start with 0.0 threshold to get all critical pins in the cone
-    Slack initial_threshold = 0.0;
+    sta::Slack initial_threshold = 0.0;
 
-    std::vector<std::pair<const Pin*, Slack>> cone_pins_with_slack;
+    std::vector<std::pair<const sta::Pin*, sta::Slack>> cone_pins_with_slack;
     traverseFaninCone(endpoint, cone_pins_with_slack, initial_threshold);
 
     // Sort by slack (worst first)
@@ -2047,7 +2042,7 @@ vector<const Pin*> ViolatorCollector::collectViolatorsByConeTraversal(
                network_->pathName(endpoint_pin));
 
     // Traverse fanin cone stopping at pins >= cached threshold
-    std::vector<std::pair<const Pin*, Slack>> cone_pins_with_slack;
+    std::vector<std::pair<const sta::Pin*, sta::Slack>> cone_pins_with_slack;
     traverseFaninCone(endpoint, cone_pins_with_slack, cached_cone_threshold_);
     collectPinsWithThreshold(cone_pins_with_slack, cached_cone_threshold_);
 
@@ -2096,7 +2091,7 @@ vector<const Pin*> ViolatorCollector::collectViolatorsByConeTraversal(
              pins_before_filter);
 
   // Mark all collected pins as considered for WNS phase tracking
-  for (const Pin* pin : violating_pins_) {
+  for (const sta::Pin* pin : violating_pins_) {
     markPinConsidered(pin);
   }
 
@@ -2173,7 +2168,7 @@ void ViolatorCollector::advanceToNextEndpoint()
   }
 }
 
-Slack ViolatorCollector::getCurrentEndpointSlack() const
+sta::Slack ViolatorCollector::getCurrentEndpointSlack() const
 {
   if (current_endpoint_) {
     return sta_->slack(current_endpoint_, max_);
@@ -2181,7 +2176,7 @@ Slack ViolatorCollector::getCurrentEndpointSlack() const
   return 0.0;
 }
 
-void ViolatorCollector::useWorstEndpoint(Vertex* end)
+void ViolatorCollector::useWorstEndpoint(sta::Vertex* end)
 {
   current_endpoint_ = end;
 }
@@ -2191,12 +2186,12 @@ int ViolatorCollector::getCurrentPass() const
   return current_pass_count_;
 }
 
-void ViolatorCollector::markEndpointVisitedInWNS(const Pin* endpoint)
+void ViolatorCollector::markEndpointVisitedInWNS(const sta::Pin* endpoint)
 {
   wns_visited_endpoints_.insert(endpoint);
 }
 
-bool ViolatorCollector::wasEndpointVisitedInWNS(const Pin* endpoint) const
+bool ViolatorCollector::wasEndpointVisitedInWNS(const sta::Pin* endpoint) const
 {
   return wns_visited_endpoints_.contains(endpoint);
 }
@@ -2206,12 +2201,12 @@ void ViolatorCollector::clearWNSVisitedEndpoints()
   wns_visited_endpoints_.clear();
 }
 
-void ViolatorCollector::markPinConsidered(const Pin* pin)
+void ViolatorCollector::markPinConsidered(const sta::Pin* pin)
 {
   considered_pins_.insert(pin);
 }
 
-bool ViolatorCollector::wasPinConsidered(const Pin* pin) const
+bool ViolatorCollector::wasPinConsidered(const sta::Pin* pin) const
 {
   return considered_pins_.contains(pin);
 }
@@ -2221,14 +2216,14 @@ void ViolatorCollector::clearConsideredPins()
   considered_pins_.clear();
 }
 
-const std::set<const Pin*>& ViolatorCollector::getConsideredPins() const
+const std::set<const sta::Pin*>& ViolatorCollector::getConsideredPins() const
 {
   return considered_pins_;
 }
 
-std::vector<const Pin*> ViolatorCollector::getCriticalPinsNeverConsidered()
+std::vector<const sta::Pin*> ViolatorCollector::getCriticalPinsNeverConsidered()
 {
-  std::vector<const Pin*> never_considered;
+  std::vector<const sta::Pin*> never_considered;
 
   // Iterate through all instances in the design
   sta::LeafInstanceIterator* inst_iter = network_->leafInstanceIterator();
@@ -2238,18 +2233,18 @@ std::vector<const Pin*> ViolatorCollector::getCriticalPinsNeverConsidered()
     // Check all output pins of this instance
     sta::InstancePinIterator* pin_iter = network_->pinIterator(inst);
     while (pin_iter->hasNext()) {
-      const Pin* pin = pin_iter->next();
+      const sta::Pin* pin = pin_iter->next();
 
       // Only check output (driver) pins
       if (network_->isDriver(pin)) {
         // Skip pins on clock networks
-        Vertex* vertex = graph_->pinDrvrVertex(pin);
+        sta::Vertex* vertex = graph_->pinDrvrVertex(pin);
         if (vertex && sta_->isClock(vertex->pin(), sta_->cmdMode())) {
           continue;
         }
 
         // Get setup slack for this pin
-        Slack slack = sta_->slack(
+        sta::Slack slack = sta_->slack(
             pin, sta::RiseFall::rise()->asRiseFallBoth(), sta_->scenes(), max_);
         float slack_ps = sta::delayAsFloat(slack) * 1e12;
 
@@ -2267,10 +2262,10 @@ std::vector<const Pin*> ViolatorCollector::getCriticalPinsNeverConsidered()
   std::ranges::sort(
       never_considered.begin(),
       never_considered.end(),
-      [this](const Pin* a, const Pin* b) {
-        Slack slack_a = sta_->slack(
+      [this](const sta::Pin* a, const sta::Pin* b) {
+        sta::Slack slack_a = sta_->slack(
             a, sta::RiseFall::rise()->asRiseFallBoth(), sta_->scenes(), max_);
-        Slack slack_b = sta_->slack(
+        sta::Slack slack_b = sta_->slack(
             b, sta::RiseFall::rise()->asRiseFallBoth(), sta_->scenes(), max_);
         return slack_a < slack_b;  // Most negative first
       });
@@ -2284,11 +2279,11 @@ std::vector<const Pin*> ViolatorCollector::getCriticalPinsNeverConsidered()
   // Now sort by load_delay (highest load delay first)
   std::ranges::sort(never_considered.begin(),
                     never_considered.end(),
-                    [this](const Pin* a, const Pin* b) {
+                    [this](const sta::Pin* a, const sta::Pin* b) {
                       auto delays_a = getEffortDelays(a);
                       auto delays_b = getEffortDelays(b);
-                      Delay load_delay_a = delays_a.first;
-                      Delay load_delay_b = delays_b.first;
+                      sta::Delay load_delay_a = delays_a.first;
+                      sta::Delay load_delay_b = delays_b.first;
                       return load_delay_a
                              > load_delay_b;  // Highest load delay first
                     });
@@ -2297,12 +2292,12 @@ std::vector<const Pin*> ViolatorCollector::getCriticalPinsNeverConsidered()
 }
 
 // Get overall startpoint WNS (worst slack across all start points)
-Slack ViolatorCollector::getOverallStartpointWNS() const
+sta::Slack ViolatorCollector::getOverallStartpointWNS() const
 {
-  Slack worst_slack = std::numeric_limits<float>::max();
+  sta::Slack worst_slack = std::numeric_limits<float>::max();
 
   for (const auto& [startpoint_pin, slack] : violating_startpoints_) {
-    Slack sp_wns = getStartpointWNS(startpoint_pin);
+    sta::Slack sp_wns = getStartpointWNS(startpoint_pin);
     worst_slack = std::min(sp_wns, worst_slack);
   }
 
@@ -2310,12 +2305,12 @@ Slack ViolatorCollector::getOverallStartpointWNS() const
 }
 
 // Get overall startpoint TNS (total negative slack across all startpoints)
-Slack ViolatorCollector::getOverallStartpointTNS(bool use_cone) const
+sta::Slack ViolatorCollector::getOverallStartpointTNS(bool use_cone) const
 {
-  Slack total_tns = 0.0;
+  sta::Slack total_tns = 0.0;
 
   for (const auto& [startpoint_pin, slack] : violating_startpoints_) {
-    Slack sp_tns;
+    sta::Slack sp_tns;
     if (use_cone) {
       sp_tns = getStartpointTNS(startpoint_pin);
     } else {
@@ -2329,28 +2324,28 @@ Slack ViolatorCollector::getOverallStartpointTNS(bool use_cone) const
   return total_tns;
 }
 
-Slack ViolatorCollector::getOverallEndpointWNS() const
+sta::Slack ViolatorCollector::getOverallEndpointWNS() const
 {
-  Slack worst_slack = std::numeric_limits<float>::max();
+  sta::Slack worst_slack = std::numeric_limits<float>::max();
 
   for (const auto& [endpoint_pin, slack] : violating_endpoints_) {
-    Slack sp_wns = getEndpointWNS(endpoint_pin);
+    sta::Slack sp_wns = getEndpointWNS(endpoint_pin);
     worst_slack = std::min(sp_wns, worst_slack);
   }
 
   return worst_slack == std::numeric_limits<float>::max() ? 0.0 : worst_slack;
 }
 
-Slack ViolatorCollector::getOverallEndpointTNS(bool use_cone) const
+sta::Slack ViolatorCollector::getOverallEndpointTNS(bool use_cone) const
 {
   if (!use_cone) {
     return sta_->totalNegativeSlack(max_);
   }
 
-  Slack total_tns = 0.0;
+  sta::Slack total_tns = 0.0;
 
   for (const auto& [endpoint_pin, slack] : violating_endpoints_) {
-    Slack sp_tns = getEndpointTNS(endpoint_pin);
+    sta::Slack sp_tns = getEndpointTNS(endpoint_pin);
     if (sp_tns < 0.0) {
       total_tns += sp_tns;
     }
@@ -2360,18 +2355,18 @@ Slack ViolatorCollector::getOverallEndpointTNS(bool use_cone) const
 }
 
 // Proxy method: return WNS (same for both startpoints and endpoints)
-Slack ViolatorCollector::getWNS() const
+sta::Slack ViolatorCollector::getWNS() const
 {
   // WNS is the same regardless of whether we look at startpoints or endpoints
   // because the critical path is always from a startpoint to an endpoint
-  Slack wns;
-  Vertex* worst_vertex = nullptr;
+  sta::Slack wns;
+  sta::Vertex* worst_vertex = nullptr;
   sta_->worstSlack(max_, wns, worst_vertex);
   return wns;
 }
 
 // Proxy method: return TNS based on whether we use startpoints or endpoints
-Slack ViolatorCollector::getTNS(bool use_startpoints, bool use_cone) const
+sta::Slack ViolatorCollector::getTNS(bool use_startpoints, bool use_cone) const
 {
   if (use_startpoints) {
     // For startpoints, sum TNS across all startpoints
@@ -2383,15 +2378,15 @@ Slack ViolatorCollector::getTNS(bool use_startpoints, bool use_cone) const
 
 // Proxy method: return worst pin based on whether we use startpoints or
 // endpoints
-const Pin* ViolatorCollector::getWorstPin(bool use_startpoints) const
+const sta::Pin* ViolatorCollector::getWorstPin(bool use_startpoints) const
 {
   if (use_startpoints) {
     // Find the startpoint with the worst WNS
-    const Pin* worst_pin = nullptr;
-    Slack worst_slack = std::numeric_limits<float>::max();
+    const sta::Pin* worst_pin = nullptr;
+    sta::Slack worst_slack = std::numeric_limits<float>::max();
 
     for (const auto& [startpoint_pin, slack] : violating_startpoints_) {
-      Slack sp_wns = getStartpointWNS(startpoint_pin);
+      sta::Slack sp_wns = getStartpointWNS(startpoint_pin);
       if (sp_wns < worst_slack) {
         worst_slack = sp_wns;
         worst_pin = startpoint_pin;
@@ -2401,8 +2396,8 @@ const Pin* ViolatorCollector::getWorstPin(bool use_startpoints) const
     return worst_pin;
   }
   // For endpoints, use STA's worstSlack to get the worst vertex
-  Slack wns;
-  Vertex* worst_vertex = nullptr;
+  sta::Slack wns;
+  sta::Vertex* worst_vertex = nullptr;
   sta_->worstSlack(max_, wns, worst_vertex);
   return worst_vertex ? worst_vertex->pin() : nullptr;
 }
@@ -2434,7 +2429,7 @@ void ViolatorCollector::setToPoint(int index, bool use_startpoints)
   }
 }
 
-Vertex* ViolatorCollector::getCurrentPoint(bool use_startpoints) const
+sta::Vertex* ViolatorCollector::getCurrentPoint(bool use_startpoints) const
 {
   if (use_startpoints) {
     return getCurrentStartpoint();
@@ -2442,9 +2437,10 @@ Vertex* ViolatorCollector::getCurrentPoint(bool use_startpoints) const
   return getCurrentEndpoint();
 }
 
-const Pin* ViolatorCollector::getCurrentPointPin(bool use_startpoints) const
+const sta::Pin* ViolatorCollector::getCurrentPointPin(
+    bool use_startpoints) const
 {
-  Vertex* point = getCurrentPoint(use_startpoints);
+  sta::Vertex* point = getCurrentPoint(use_startpoints);
   return point ? point->pin() : nullptr;
 }
 
@@ -2453,22 +2449,23 @@ const Pin* ViolatorCollector::getCurrentPointPin(bool use_startpoints) const
 // endpoint) then retrieves the vertex for the actual collection. This maintains
 // consistency between the ViolatorCollector's iteration state and the
 // collection being performed.
-vector<const Pin*> ViolatorCollector::collectViolatorsByDirectionalTraversal(
+vector<const sta::Pin*>
+ViolatorCollector::collectViolatorsByDirectionalTraversal(
     bool use_startpoints,
     int point_index,
-    Slack slack_threshold,
+    sta::Slack slack_threshold,
     ViolatorSortType sort_type)
 {
   if (use_startpoints) {
     // For startpoints, use fanout traversal
     setToStartpoint(point_index);
-    Vertex* startpoint = getCurrentStartpoint();
+    sta::Vertex* startpoint = getCurrentStartpoint();
     return collectViolatorsByFanoutTraversal(
         startpoint, sort_type, slack_threshold);
   }
   // For endpoints, use fanin (cone) traversal
   setToEndpoint(point_index);
-  Vertex* endpoint = getCurrentEndpoint();
+  sta::Vertex* endpoint = getCurrentEndpoint();
   return collectViolatorsByConeTraversal(endpoint, sort_type, slack_threshold);
 }
 

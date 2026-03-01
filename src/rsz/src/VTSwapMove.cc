@@ -8,30 +8,19 @@
 
 #include "BaseMove.hh"
 #include "odb/db.h"
-#include "sta/Delay.hh"
 #include "sta/Liberty.hh"
 #include "sta/LibertyClass.hh"
 #include "sta/NetworkClass.hh"
-#include "sta/Path.hh"
-#include "sta/PathExpanded.hh"
 #include "utl/Logger.h"
 
 namespace rsz {
 
 using utl::RSZ;
 
-using sta::Instance;
-using sta::LibertyCell;
-using sta::LibertyPort;
-using sta::Path;
-using sta::Pin;
-using sta::Slack;
-using sta::Slew;
-
-bool VTSwapSpeedMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
+bool VTSwapSpeedMove::doMove(const sta::Pin* drvr_pin, float setup_slack_margin)
 {
-  LibertyCell* drvr_cell;
-  LibertyCell* best_cell;
+  sta::LibertyCell* drvr_cell;
+  sta::LibertyCell* best_cell;
 
   if (!isSwappable(drvr_pin, drvr_cell, best_cell)) {
     debugPrint(logger_,
@@ -45,7 +34,7 @@ bool VTSwapSpeedMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
   }
 
   // TODO: Avoid swapping to the lowest VT by considering slack
-  Instance* drvr = network_->instance(drvr_pin);
+  sta::Instance* drvr = network_->instance(drvr_pin);
   if (!replaceCell(drvr, best_cell)) {
     debugPrint(logger_,
                RSZ,
@@ -71,10 +60,10 @@ bool VTSwapSpeedMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
 }
 
 // This is a special move used during separate critical cell VT swap routine
-bool VTSwapSpeedMove::doMove(Instance* drvr,
-                             std::unordered_set<Instance*>& notSwappable)
+bool VTSwapSpeedMove::doMove(sta::Instance* drvr,
+                             std::unordered_set<sta::Instance*>& notSwappable)
 {
-  LibertyCell* best_lib_cell;
+  sta::LibertyCell* best_lib_cell;
   if (resizer_->checkAndMarkVTSwappable(drvr, notSwappable, best_lib_cell)) {
     if (replaceCell(drvr, best_lib_cell)) {
       countMove(drvr);
@@ -101,9 +90,9 @@ bool VTSwapSpeedMove::doMove(Instance* drvr,
   return false;
 }
 
-bool VTSwapSpeedMove::isSwappable(const Pin*& drvr_pin,
-                                  LibertyCell*& drvr_cell,
-                                  LibertyCell*& best_cell)
+bool VTSwapSpeedMove::isSwappable(const sta::Pin*& drvr_pin,
+                                  sta::LibertyCell*& drvr_cell,
+                                  sta::LibertyCell*& best_cell)
 {
   drvr_cell = nullptr;
   best_cell = nullptr;
@@ -118,7 +107,7 @@ bool VTSwapSpeedMove::isSwappable(const Pin*& drvr_pin,
     return false;
   }
 
-  Instance* drvr = network_->instance(drvr_pin);
+  sta::Instance* drvr = network_->instance(drvr_pin);
   int num_vt = resizer_->lib_data_->sorted_vt_categories.size();
   if (num_vt < 2) {
     debugPrint(logger_,
@@ -158,7 +147,7 @@ bool VTSwapSpeedMove::isSwappable(const Pin*& drvr_pin,
                network_->pathName(drvr));
     return false;
   }
-  LibertyPort* drvr_port = network_->libertyPort(drvr_pin);
+  sta::LibertyPort* drvr_port = network_->libertyPort(drvr_pin);
   drvr_cell = drvr_port ? drvr_port->libertyCell() : nullptr;
   if (drvr_cell == nullptr) {
     debugPrint(logger_,

@@ -14,14 +14,10 @@
 #include "SplitLoadMove.hh"
 #include "odb/db.h"
 #include "odb/geom.h"
-#include "sta/ArcDelayCalc.hh"
 #include "sta/Delay.hh"
 #include "sta/Graph.hh"
 #include "sta/Liberty.hh"
 #include "sta/NetworkClass.hh"
-#include "sta/Path.hh"
-#include "sta/PathExpanded.hh"
-#include "sta/Transition.hh"
 #include "utl/Logger.h"
 
 namespace rsz {
@@ -33,25 +29,9 @@ using std::vector;
 
 using utl::RSZ;
 
-using sta::Edge;
-using sta::Instance;
-using sta::InstancePinIterator;
-using sta::LibertyCell;
-using sta::LoadPinIndexMap;
-using sta::Net;
-using sta::NetConnectedPinIterator;
-using sta::Path;
-using sta::PathExpanded;
-using sta::Pin;
-using sta::RiseFall;
-using sta::Slack;
-using sta::Slew;
-using sta::Vertex;
-using sta::VertexOutEdgeIterator;
-
 Point CloneMove::computeCloneGateLocation(
-    const Pin* drvr_pin,
-    const vector<pair<Vertex*, Slack>>& fanout_slacks)
+    const sta::Pin* drvr_pin,
+    const vector<pair<sta::Vertex*, sta::Slack>>& fanout_slacks)
 {
   int count(1);  // driver_pin counts as one
 
@@ -60,9 +40,9 @@ Point CloneMove::computeCloneGateLocation(
 
   const int split_index = fanout_slacks.size() / 2;
   for (int i = 0; i < split_index; i++) {
-    const pair<Vertex*, Slack>& fanout_slack = fanout_slacks[i];
-    const Vertex* load_vertex = fanout_slack.first;
-    const Pin* load_pin = load_vertex->pin();
+    const pair<sta::Vertex*, sta::Slack>& fanout_slack = fanout_slacks[i];
+    const sta::Vertex* load_vertex = fanout_slack.first;
+    const sta::Pin* load_pin = load_vertex->pin();
     centroid_x += db_network_->location(load_pin).getX();
     centroid_y += db_network_->location(load_pin).getY();
     ++count;
@@ -95,9 +75,9 @@ Point CloneMove::computeCloneGateLocation(
 // - No pending-move cell
 // - No multiple output cell
 //
-bool CloneMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
+bool CloneMove::doMove(const sta::Pin* drvr_pin, float setup_slack_margin)
 {
-  Vertex* drvr_vertex = graph_->pinDrvrVertex(drvr_pin);
+  sta::Vertex* drvr_vertex = graph_->pinDrvrVertex(drvr_pin);
 
   const int fanout = this->fanout(drvr_vertex);
   if (fanout <= split_load_min_fanout_) {
@@ -147,7 +127,7 @@ bool CloneMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
     return false;
   }
 
-  Instance* drvr_inst = db_network_->instance(drvr_pin);
+  sta::Instance* drvr_inst = db_network_->instance(drvr_pin);
   if (!resizer_->isSingleOutputCombinational(drvr_inst)) {
     debugPrint(logger_,
                RSZ,
@@ -160,14 +140,14 @@ bool CloneMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
 
   // Sort fanouts of the drvr on the critical path by slack margin
   // wrt the critical path slack.
-  const Slack drvr_slack = sta_->slack(drvr_vertex, resizer_->max_);
-  vector<pair<Vertex*, Slack>> fanout_slacks;
-  VertexOutEdgeIterator edge_iter(drvr_vertex, graph_);
+  const sta::Slack drvr_slack = sta_->slack(drvr_vertex, resizer_->max_);
+  vector<pair<sta::Vertex*, sta::Slack>> fanout_slacks;
+  sta::VertexOutEdgeIterator edge_iter(drvr_vertex, graph_);
   while (edge_iter.hasNext()) {
-    Edge* edge = edge_iter.next();
-    Vertex* fanout_vertex = edge->to(graph_);
-    const Slack fanout_slack = sta_->slack(fanout_vertex, resizer_->max_);
-    const Slack slack_margin = fanout_slack - drvr_slack;
+    sta::Edge* edge = edge_iter.next();
+    sta::Vertex* fanout_vertex = edge->to(graph_);
+    const sta::Slack fanout_slack = sta_->slack(fanout_vertex, resizer_->max_);
+    const sta::Slack slack_margin = fanout_slack - drvr_slack;
     debugPrint(logger_,
                RSZ,
                "clone_move",
@@ -180,8 +160,8 @@ bool CloneMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
   }
 
   std::ranges::sort(fanout_slacks,
-                    [this](const pair<Vertex*, Slack>& pair1,
-                           const pair<Vertex*, Slack>& pair2) {
+                    [this](const pair<sta::Vertex*, sta::Slack>& pair1,
+                           const pair<sta::Vertex*, sta::Slack>& pair2) {
                       return (pair1.second > pair2.second
                               || (pair1.second == pair2.second
                                   && network_->pathNameLess(
@@ -189,22 +169,23 @@ bool CloneMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
                     });
 
   // Hierarchy fix
-  Instance* parent = db_network_->getOwningInstanceParent(drvr_vertex->pin());
+  sta::Instance* parent
+      = db_network_->getOwningInstanceParent(drvr_vertex->pin());
 
   // This is the meat of the gate cloning code.
   // We need to downsize the current driver AND we need to insert another
   // drive that splits the load For now we will defer the downsize to a later
   // juncture.
 
-  LibertyCell* original_cell = network_->libertyCell(drvr_inst);
-  LibertyCell* clone_cell = resizer_->halfDrivingPowerCell(original_cell);
+  sta::LibertyCell* original_cell = network_->libertyCell(drvr_inst);
+  sta::LibertyCell* clone_cell = resizer_->halfDrivingPowerCell(original_cell);
 
   if (clone_cell == nullptr) {
     clone_cell = original_cell;  // no clone available use original
   }
 
   Point drvr_loc = computeCloneGateLocation(drvr_pin, fanout_slacks);
-  Instance* clone_inst
+  sta::Instance* clone_inst
       = resizer_->makeInstance(clone_cell, "clone", parent, drvr_loc);
 
   debugPrint(logger_,
@@ -222,13 +203,13 @@ bool CloneMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
   countMove(drvr_inst, 0);
 
   // Hierarchy fix, make out_net in parent.
-  Net* out_net = db_network_->makeNet(parent);
+  sta::Net* out_net = db_network_->makeNet(parent);
 
-  std::unique_ptr<InstancePinIterator> inst_pin_iter{
+  std::unique_ptr<sta::InstancePinIterator> inst_pin_iter{
       network_->pinIterator(drvr_inst)};
 
   while (inst_pin_iter->hasNext()) {
-    Pin* pin = inst_pin_iter->next();
+    sta::Pin* pin = inst_pin_iter->next();
     if (network_->direction(pin)->isInput()) {
       // Connect to all the inputs of the original cell.
       auto libPort = network_->libertyPort(
@@ -237,7 +218,7 @@ bool CloneMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
       odb::dbNet* dbnet = db_network_->flatNet(pin);
       odb::dbModNet* modnet = db_network_->hierNet(pin);
       // get the iterm
-      Pin* clone_pin = db_network_->findPin(clone_inst, libPort->name());
+      sta::Pin* clone_pin = db_network_->findPin(clone_inst, libPort->name());
       odb::dbITerm* iterm = db_network_->flatPin(clone_pin);
 
       sta_->connectPin(
@@ -254,11 +235,11 @@ bool CloneMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
   }
 
   // Get the output pin
-  Pin* clone_output_pin = nullptr;
-  std::unique_ptr<InstancePinIterator> clone_pin_iter{
+  sta::Pin* clone_output_pin = nullptr;
+  std::unique_ptr<sta::InstancePinIterator> clone_pin_iter{
       network_->pinIterator(clone_inst)};
   while (clone_pin_iter->hasNext()) {
-    Pin* pin = clone_pin_iter->next();
+    sta::Pin* pin = clone_pin_iter->next();
     // If output pin then cache for later use.
     if (network_->direction(pin)->isOutput()) {
       clone_output_pin = pin;
@@ -287,17 +268,17 @@ bool CloneMove::doMove(const Pin* drvr_pin, float setup_slack_margin)
   // created as part of gate cloning. Skip ports connected to the original net
   int split_index = fanout_slacks.size() / 2;
   for (int i = 0; i < split_index; i++) {
-    pair<Vertex*, Slack> fanout_slack = fanout_slacks[i];
-    Vertex* load_vertex = fanout_slack.first;
-    Pin* load_pin = load_vertex->pin();
+    pair<sta::Vertex*, sta::Slack> fanout_slack = fanout_slacks[i];
+    sta::Vertex* load_vertex = fanout_slack.first;
+    sta::Pin* load_pin = load_vertex->pin();
     odb::dbITerm* load_iterm = db_network_->flatPin(load_pin);
 
     // Leave top level ports connected to original net so verilog port names are
     // preserved.
     if (!network_->isTopLevelPort(load_pin)) {
       auto* load_port = network_->port(load_pin);
-      Instance* load = network_->instance(load_pin);
-      Instance* load_parent_inst
+      sta::Instance* load = network_->instance(load_pin);
+      sta::Instance* load_parent_inst
           = db_network_->getOwningInstanceParent(load_pin);
 
       // disconnects everything
