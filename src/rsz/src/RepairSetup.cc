@@ -57,7 +57,6 @@
 #include "utl/mem_stats.h"
 
 namespace rsz {
-using namespace sta;  // NOLINT
 
 using std::max;
 using std::pair;
@@ -224,7 +223,7 @@ bool RepairSetup::repairSetup(const float setup_slack_margin,
                     skip_vt_swap);
 
   // ViolatorCollector has already collected and sorted violating endpoints
-  const VertexSet& endpoints = sta_->endpoints();
+  const sta::VertexSet& endpoints = sta_->endpoints();
   int num_viols = violator_collector_->getTotalViolations();
 
   if (num_viols > 0) {
@@ -536,7 +535,7 @@ bool RepairSetup::repairSetup(const float setup_slack_margin,
     logger_->info(RSZ, 49, "Cloned {} instances.", clone_moves_);
   }
   const sta::Slack worst_slack = sta_->worstSlack(max_);
-  if (fuzzyLess(worst_slack, setup_slack_margin)) {
+  if (sta::fuzzyLess(worst_slack, setup_slack_margin)) {
     repaired = true;
     logger_->warn(RSZ, 62, "Unable to repair all setup violations.");
   }
@@ -564,9 +563,9 @@ void RepairSetup::repairSetup(const sta::Pin* end_pin)
   init();
   max_repairs_per_pass_ = 1;
 
-  Vertex* vertex = graph_->pinLoadVertex(end_pin);
-  const Slack slack = sta_->slack(vertex, max_);
-  Path* path = sta_->vertexWorstSlackPath(vertex, max_);
+  sta::Vertex* vertex = graph_->pinLoadVertex(end_pin);
+  const sta::Slack slack = sta_->slack(vertex, max_);
+  sta::Path* path = sta_->vertexWorstSlackPath(vertex, max_);
 
   move_sequence_.clear();
   move_sequence_ = {resizer_->unbuffer_move_.get(),
@@ -612,9 +611,9 @@ void RepairSetup::repairSetup(const sta::Pin* end_pin)
 int RepairSetup::fanout(sta::Vertex* vertex)
 {
   int fanout = 0;
-  VertexOutEdgeIterator edge_iter(vertex, graph_);
+  sta::VertexOutEdgeIterator edge_iter(vertex, graph_);
   while (edge_iter.hasNext()) {
-    Edge* edge = edge_iter.next();
+    sta::Edge* edge = edge_iter.next();
     // Disregard output->output timing arcs
     if (edge->isWire()) {
       fanout++;
@@ -624,10 +623,10 @@ int RepairSetup::fanout(sta::Vertex* vertex)
 }
 
 bool RepairSetup::repairPins(
-    const std::vector<const Pin*>& pins,
+    const std::vector<const sta::Pin*>& pins,
     const float setup_slack_margin,
-    const std::map<const Pin*, std::set<BaseMove*>>* rejected_moves,
-    std::vector<std::pair<const Pin*, BaseMove*>>* chosen_moves)
+    const std::map<const sta::Pin*, std::set<BaseMove*>>* rejected_moves,
+    std::vector<std::pair<const sta::Pin*, BaseMove*>>* chosen_moves)
 {
   int changed = 0;
 
@@ -653,9 +652,10 @@ bool RepairSetup::repairPins(
       break;
     }
     // Track this pin as a violator before attempting moves
-    Vertex* drvr_vertex = graph_->pinDrvrVertex(drvr_pin);
-    LibertyPort* drvr_port = network_->libertyPort(drvr_pin);
-    LibertyCell* drvr_cell = drvr_port ? drvr_port->libertyCell() : nullptr;
+    sta::Vertex* drvr_vertex = graph_->pinDrvrVertex(drvr_pin);
+    sta::LibertyPort* drvr_port = network_->libertyPort(drvr_pin);
+    sta::LibertyCell* drvr_cell
+        = drvr_port ? drvr_port->libertyCell() : nullptr;
 
     // Get detailed information for MoveTracker reporting
     string gate_type = drvr_cell ? drvr_cell->name() : "unknown";
@@ -671,8 +671,8 @@ bool RepairSetup::repairPins(
       intrinsic_delay = intrinsic;
     }
 
-    Slack pin_slack = sta_->slack(drvr_vertex, max_);
-    Slack endpoint_slack = violator_collector_->getCurrentEndpointSlack();
+    sta::Slack pin_slack = sta_->slack(drvr_vertex, max_);
+    sta::Slack endpoint_slack = violator_collector_->getCurrentEndpointSlack();
 
     if (move_tracker_) {
       move_tracker_->trackViolatorWithInfo(drvr_pin,
@@ -762,14 +762,14 @@ bool RepairSetup::repairPath(sta::Path* path,
                              const sta::Slack path_slack,
                              const float setup_slack_margin)
 {
-  PathExpanded expanded(path, sta_);
+  sta::PathExpanded expanded(path, sta_);
   int changed = 0;
 
   if (expanded.size() > 1) {
     const int path_length = expanded.size();
     vector<pair<int, sta::Delay>> load_delays;
     const int start_index = expanded.startIndex();
-    const Scene* corner = path->scene(sta_);
+    const sta::Scene* corner = path->scene(sta_);
     if (path->minMax(sta_) != resizer_->max_) {
       logger_->error(RSZ, 500, "repairSetup expects max delay path");
       return false;
@@ -782,10 +782,10 @@ bool RepairSetup::repairPath(sta::Path* path,
       const sta::Pin* path_pin = path->pin(sta_);
       if (i > 0 && path_vertex->isDriver(network_)
           && !network_->isTopLevelPort(path_pin)) {
-        const TimingArc* prev_arc = path->prevArc(sta_);
-        const TimingArc* corner_arc = prev_arc->sceneArc(lib_ap);
-        Edge* prev_edge = path->prevEdge(sta_);
-        const Delay load_delay
+        const sta::TimingArc* prev_arc = path->prevArc(sta_);
+        const sta::TimingArc* corner_arc = prev_arc->sceneArc(lib_ap);
+        sta::Edge* prev_edge = path->prevEdge(sta_);
+        const sta::Delay load_delay
             = graph_->arcDelay(
                   prev_edge, prev_arc, corner->dcalcAnalysisPtIndex(max_))
               // Remove intrinsic delay to find load dependent delay.
@@ -917,9 +917,9 @@ void RepairSetup::printProgress(const int iteration,
       violator_collector_->collectViolatingStartpoints();
     }
     // Always calculate both startpoint and endpoint metrics for display
-    Slack wns = violator_collector_->getWNS();          // WNS is same for both
-    Slack st_tns = violator_collector_->getTNS(true);   // Startpoint TNS
-    Slack en_tns = violator_collector_->getTNS(false);  // Endpoint TNS
+    sta::Slack wns = violator_collector_->getWNS();  // WNS is same for both
+    sta::Slack st_tns = violator_collector_->getTNS(true);   // Startpoint TNS
+    sta::Slack en_tns = violator_collector_->getTNS(false);  // Endpoint TNS
     const sta::Pin* worst_pin
         = violator_collector_->getWorstPin(use_startpoint_metrics);
 
@@ -1080,13 +1080,13 @@ void RepairSetup::repairSetup_Legacy(const float setup_slack_margin,
   while (violator_collector_->hasMoreEndpoints()) {
     fallback_ = false;
     violator_collector_->advanceToNextEndpoint();
-    Vertex* end = violator_collector_->getCurrentEndpoint();
+    sta::Vertex* end = violator_collector_->getCurrentEndpoint();
     if (!end) {
       continue;
     }
-    Slack end_slack = sta_->slack(end, max_);
-    Slack worst_slack;
-    Vertex* worst_vertex;
+    sta::Slack end_slack = sta_->slack(end, max_);
+    sta::Slack worst_slack;
+    sta::Vertex* worst_vertex;
     sta_->worstSlack(max_, worst_slack, worst_vertex);
     end_index++;
     debugPrint(logger_,
@@ -1112,8 +1112,8 @@ void RepairSetup::repairSetup_Legacy(const float setup_slack_margin,
                  max_end_repairs_);
       break;
     }
-    Slack prev_end_slack = end_slack;
-    Slack prev_worst_slack = worst_slack;
+    sta::Slack prev_end_slack = end_slack;
+    sta::Slack prev_worst_slack = worst_slack;
     int pass = 1;
     int decreasing_slack_passes = 0;
     resizer_->journalBegin();
@@ -1156,7 +1156,7 @@ void RepairSetup::repairSetup_Legacy(const float setup_slack_margin,
         prev_termination = false;
       }
 
-      if (fuzzyGreaterEqual(end_slack, setup_slack_margin)) {
+      if (sta::fuzzyGreaterEqual(end_slack, setup_slack_margin)) {
         if (pass != 1) {
           debugPrint(logger_,
                      RSZ,
@@ -1184,7 +1184,7 @@ void RepairSetup::repairSetup_Legacy(const float setup_slack_margin,
         break;
       }
 
-      Path* end_path = sta_->vertexWorstSlackPath(end, max_);
+      sta::Path* end_path = sta_->vertexWorstSlackPath(end, max_);
       float prev_tns_local = sta_->totalNegativeSlack(max_);
 
       const bool changed = repairPath(end_path, end_slack, setup_slack_margin);
@@ -1227,11 +1227,12 @@ void RepairSetup::repairSetup_Legacy(const float setup_slack_margin,
       sta_->findRequireds();
       end_slack = sta_->slack(end, max_);
       sta_->worstSlack(max_, worst_slack, worst_vertex);
-      Slack new_tns = sta_->totalNegativeSlack(max_);
+      sta::Slack new_tns = sta_->totalNegativeSlack(max_);
       const bool better
-          = (fuzzyGreater(worst_slack, prev_worst_slack)
-             || (end_index != 1 && fuzzyEqual(worst_slack, prev_worst_slack)
-                 && fuzzyGreater(end_slack, prev_end_slack)));
+          = (sta::fuzzyGreater(worst_slack, prev_worst_slack)
+             || (end_index != 1
+                 && sta::fuzzyEqual(worst_slack, prev_worst_slack)
+                 && sta::fuzzyGreater(end_slack, prev_end_slack)));
 
       debugPrint(logger_,
                  RSZ,
@@ -1345,8 +1346,8 @@ void RepairSetup::repairSetup_Legacy(const float setup_slack_margin,
 
   printProgress(opto_iteration, true, false, phase_marker);
 
-  Slack final_wns;
-  Vertex* final_worst;
+  sta::Slack final_wns;
+  sta::Vertex* final_worst;
   sta_->worstSlack(max_, final_wns, final_worst);
   float final_tns = sta_->totalNegativeSlack(max_);
 
@@ -1393,26 +1394,26 @@ void RepairSetup::repairSetup_WNS(const float setup_slack_margin,
 
   // WNS Phase: Track passes for endpoints that have been the worst (WNS)
   // endpoint
-  std::map<const Pin*, int> wns_endpoint_pass_counts_;
+  std::map<const sta::Pin*, int> wns_endpoint_pass_counts_;
 
   // Round-robin tracking
-  std::set<const Pin*> endpoints_visited_this_round;
+  std::set<const sta::Pin*> endpoints_visited_this_round;
   bool any_improvement_this_round = false;
   int round_number = 0;
 
   // Per-endpoint "stuck" tracking (consecutive passes without improvement)
-  Slack target_end_slack = 0;
-  Slack target_worst_slack = 0;
-  Slack target_tns_local = 0;
+  sta::Slack target_end_slack = 0;
+  sta::Slack target_worst_slack = 0;
+  sta::Slack target_tns_local = 0;
   int total_decreasing_slack_passes = 0;
-  std::set<const Pin*> decreasing_slack_endpoints;
-  std::map<const Pin*, int> decreasing_slack_counts;
-  std::map<const Pin*, int> endpoint_pass_limits;
-  std::map<const Pin*, Slack> endpoint_prev_slack;
+  std::set<const sta::Pin*> decreasing_slack_endpoints;
+  std::map<const sta::Pin*, int> decreasing_slack_counts;
+  std::map<const sta::Pin*, int> endpoint_pass_limits;
+  std::map<const sta::Pin*, sta::Slack> endpoint_prev_slack;
 
   // Get initial worst endpoint
-  Slack worst_slack;
-  Vertex* worst_endpoint;
+  sta::Slack worst_slack;
+  sta::Vertex* worst_endpoint;
   sta_->worstSlack(max_, worst_slack, worst_endpoint);
 
   if (!worst_endpoint) {
@@ -1436,12 +1437,12 @@ void RepairSetup::repairSetup_WNS(const float setup_slack_margin,
   printProgress(opto_iteration, false, false, phase_marker);
 
   // Initialize the violator collector with the actual worst endpoint
-  Vertex* current_endpoint = worst_endpoint;
+  sta::Vertex* current_endpoint = worst_endpoint;
   violator_collector_->useWorstEndpoint(worst_endpoint);
   violator_collector_->markEndpointVisitedInWNS(worst_endpoint->pin());
 
   // Initialize tracking for the initial endpoint
-  const Pin* initial_pin = worst_endpoint->pin();
+  const sta::Pin* initial_pin = worst_endpoint->pin();
   endpoint_pass_limits[initial_pin] = initial_decreasing_slack_max_passes_;
   decreasing_slack_counts[initial_pin] = 0;
 
@@ -1471,7 +1472,7 @@ void RepairSetup::repairSetup_WNS(const float setup_slack_margin,
       break;
     }
 
-    const Pin* worst_pin = worst_endpoint->pin();
+    const sta::Pin* worst_pin = worst_endpoint->pin();
 
     // Check if worst endpoint has already been visited this round
     if (endpoints_visited_this_round.contains(worst_pin)) {
@@ -1508,7 +1509,7 @@ void RepairSetup::repairSetup_WNS(const float setup_slack_margin,
     // 1. Not set yet (first iteration)
     // 2. "Stuck" (hit decreasing slack limit)
     // 3. Different from worst and current is already visited this round
-    const Pin* current_pin
+    const sta::Pin* current_pin
         = current_endpoint ? current_endpoint->pin() : nullptr;
     bool should_switch = false;
 
@@ -1576,7 +1577,7 @@ void RepairSetup::repairSetup_WNS(const float setup_slack_margin,
       }
     }
 
-    const Pin* endpoint_pin = current_endpoint->pin();
+    const sta::Pin* endpoint_pin = current_endpoint->pin();
 
     // Ensure this endpoint is tracked (initialize to 0 if new)
     if (wns_endpoint_pass_counts_.find(endpoint_pin)
@@ -1624,7 +1625,7 @@ void RepairSetup::repairSetup_WNS(const float setup_slack_margin,
     }
 
     // Check WNS termination
-    if (fuzzyGreaterEqual(worst_slack, setup_slack_margin)) {
+    if (sta::fuzzyGreaterEqual(worst_slack, setup_slack_margin)) {
       debugPrint(logger_,
                  RSZ,
                  "repair_setup",
@@ -1663,9 +1664,9 @@ void RepairSetup::repairSetup_WNS(const float setup_slack_margin,
       overall_no_progress_count_ = 0;
     }
 
-    Slack prev_end_slack;
-    Slack prev_worst_slack;
-    Slack prev_tns_local;
+    sta::Slack prev_end_slack;
+    sta::Slack prev_worst_slack;
+    sta::Slack prev_tns_local;
     // Fresh start if the last repair attempt was successful
     // (i.e. we're not trying to get out of local minima)
     if (total_decreasing_slack_passes == 0) {
@@ -1690,7 +1691,7 @@ void RepairSetup::repairSetup_WNS(const float setup_slack_margin,
     }
 
     // Collect violators based on collection mode
-    vector<const Pin*> viol_pins;
+    vector<const sta::Pin*> viol_pins;
     if (use_cone_collection) {
       // Cone-based collection with adaptive threshold
       viol_pins = violator_collector_->collectViolatorsByConeTraversal(
@@ -1709,8 +1710,9 @@ void RepairSetup::repairSetup_WNS(const float setup_slack_margin,
       if (logger_->debugCheck(RSZ, "repair_setup", 3)) {
         debugPrint(logger_, RSZ, "repair_setup", 3, "Cone-collected pins:");
         for (size_t i = 0; i < std::min(viol_pins.size(), size_t(20)); i++) {
-          Vertex* pin_vertex = graph_->pinDrvrVertex(viol_pins[i]);
-          Slack pin_slack = pin_vertex ? sta_->slack(pin_vertex, max_) : 0.0;
+          sta::Vertex* pin_vertex = graph_->pinDrvrVertex(viol_pins[i]);
+          sta::Slack pin_slack
+              = pin_vertex ? sta_->slack(pin_vertex, max_) : 0.0;
           debugPrint(logger_,
                      RSZ,
                      "repair_setup",
@@ -1737,8 +1739,9 @@ void RepairSetup::repairSetup_WNS(const float setup_slack_margin,
       if (logger_->debugCheck(RSZ, "repair_setup", 3)) {
         debugPrint(logger_, RSZ, "repair_setup", 3, "Path-collected pins:");
         for (size_t i = 0; i < std::min(viol_pins.size(), size_t(20)); i++) {
-          Vertex* pin_vertex = graph_->pinDrvrVertex(viol_pins[i]);
-          Slack pin_slack = pin_vertex ? sta_->slack(pin_vertex, max_) : 0.0;
+          sta::Vertex* pin_vertex = graph_->pinDrvrVertex(viol_pins[i]);
+          sta::Slack pin_slack
+              = pin_vertex ? sta_->slack(pin_vertex, max_) : 0.0;
           debugPrint(logger_,
                      RSZ,
                      "repair_setup",
@@ -1773,7 +1776,7 @@ void RepairSetup::repairSetup_WNS(const float setup_slack_margin,
     }
 
     // Track which (pin, move) combinations succeeded
-    vector<std::pair<const Pin*, BaseMove*>> chosen_moves;
+    vector<std::pair<const sta::Pin*, BaseMove*>> chosen_moves;
 
     // Temporarily override max_repairs_per_pass_
     int saved_max_repairs = max_repairs_per_pass_;
@@ -1835,18 +1838,18 @@ void RepairSetup::repairSetup_WNS(const float setup_slack_margin,
     estimate_parasitics_->updateParasitics();
     sta_->findRequireds();
 
-    Slack end_slack = violator_collector_->getCurrentEndpointSlack();
-    Slack new_wns;
-    Vertex* new_worst_vertex;
+    sta::Slack end_slack = violator_collector_->getCurrentEndpointSlack();
+    sta::Slack new_wns;
+    sta::Vertex* new_worst_vertex;
     sta_->worstSlack(max_, new_wns, new_worst_vertex);
     float new_tns = sta_->totalNegativeSlack(max_);
 
     // Accept if WNS improved OR (WNS same AND (endpoint improved OR TNS
     // improved))
-    const bool wns_improved = fuzzyGreater(new_wns, prev_worst_slack);
-    const bool wns_same = fuzzyEqual(new_wns, prev_worst_slack);
-    const bool endpoint_improved = fuzzyGreater(end_slack, prev_end_slack);
-    const bool tns_improved = fuzzyGreater(new_tns, prev_tns_local);
+    const bool wns_improved = sta::fuzzyGreater(new_wns, prev_worst_slack);
+    const bool wns_same = sta::fuzzyEqual(new_wns, prev_worst_slack);
+    const bool endpoint_improved = sta::fuzzyGreater(end_slack, prev_end_slack);
+    const bool tns_improved = sta::fuzzyGreater(new_tns, prev_tns_local);
     const bool better
         = wns_improved || (wns_same && (endpoint_improved || tns_improved));
 
@@ -1995,8 +1998,8 @@ void RepairSetup::repairSetup_WNS(const float setup_slack_margin,
   // Print phase completion
   printProgress(opto_iteration, true, false, phase_marker);
 
-  Slack final_wns;
-  Vertex* final_worst;
+  sta::Slack final_wns;
+  sta::Vertex* final_worst;
   sta_->worstSlack(max_, final_wns, final_worst);
   float final_tns = sta_->totalNegativeSlack(max_);
 
@@ -2054,13 +2057,13 @@ void RepairSetup::repairSetup_TNS(const float setup_slack_margin,
   printProgress(opto_iteration, false, false, phase_marker);
 
   // Track global WNS at start of TNS phase - must not degrade below this
-  Slack initial_tns_phase_wns;
-  Vertex* initial_tns_phase_worst;
+  sta::Slack initial_tns_phase_wns;
+  sta::Vertex* initial_tns_phase_worst;
   sta_->worstSlack(max_, initial_tns_phase_wns, initial_tns_phase_worst);
-  Slack prev_global_wns = initial_tns_phase_wns;
+  sta::Slack prev_global_wns = initial_tns_phase_wns;
 
   // Track TNS at the start of TNS phase
-  Slack prev_tns_local = sta_->totalNegativeSlack(max_);
+  sta::Slack prev_tns_local = sta_->totalNegativeSlack(max_);
 
   // Collect all violating endpoints once at the start
   violator_collector_->collectViolatingEndpoints();
@@ -2086,7 +2089,7 @@ void RepairSetup::repairSetup_TNS(const float setup_slack_margin,
              max_endpoint_count);
 
   // Track adaptive pass limits per endpoint
-  std::map<const Pin*, int> endpoint_pass_limits;
+  std::map<const sta::Pin*, int> endpoint_pass_limits;
 
   // Process each endpoint sequentially, starting from index 1 to skip worst
   // endpoint
@@ -2106,16 +2109,16 @@ void RepairSetup::repairSetup_TNS(const float setup_slack_margin,
     }
 
     violator_collector_->setToEndpoint(endpoint_index);
-    Vertex* endpoint = violator_collector_->getCurrentEndpoint();
+    sta::Vertex* endpoint = violator_collector_->getCurrentEndpoint();
 
     if (!endpoint) {
       continue;
     }
 
-    const Pin* endpoint_pin = endpoint->pin();
-    Slack endpoint_slack = sta_->slack(endpoint, max_);
+    const sta::Pin* endpoint_pin = endpoint->pin();
+    sta::Slack endpoint_slack = sta_->slack(endpoint, max_);
 
-    if (fuzzyGreaterEqual(endpoint_slack, setup_slack_margin)) {
+    if (sta::fuzzyGreaterEqual(endpoint_slack, setup_slack_margin)) {
       debugPrint(logger_,
                  RSZ,
                  "repair_setup",
@@ -2167,13 +2170,13 @@ void RepairSetup::repairSetup_TNS(const float setup_slack_margin,
     int pass = 1;
     int decreasing_slack_passes = 0;
     int successful_passes = 0;  // Track number of accepted moves
-    Slack prev_endpoint_slack = endpoint_slack;
+    sta::Slack prev_endpoint_slack = endpoint_slack;
 
     resizer_->journalBegin();
     bool journal_open = true;
     while (pass <= max_passes_per_endpoint) {
       // Collect violating pins from this endpoint's critical path
-      vector<const Pin*> viol_pins
+      vector<const sta::Pin*> viol_pins
           = violator_collector_->collectViolators(1, -1, sort_type);
 
       if (viol_pins.empty()) {
@@ -2230,17 +2233,17 @@ void RepairSetup::repairSetup_TNS(const float setup_slack_margin,
       sta_->findRequireds();
 
       endpoint_slack = sta_->slack(endpoint, max_);
-      Slack global_wns;
-      Vertex* global_wns_vertex;
+      sta::Slack global_wns;
+      sta::Vertex* global_wns_vertex;
       sta_->worstSlack(max_, global_wns, global_wns_vertex);
-      Slack new_tns = sta_->totalNegativeSlack(max_);
+      sta::Slack new_tns = sta_->totalNegativeSlack(max_);
 
       // Accept if WNS improves OR (WNS same AND endpoint improves)
       // Always compare against initial TNS phase WNS to prevent drift
-      const bool wns_improved = fuzzyGreater(global_wns, prev_global_wns);
-      const bool wns_same = fuzzyEqual(global_wns, prev_global_wns);
+      const bool wns_improved = sta::fuzzyGreater(global_wns, prev_global_wns);
+      const bool wns_same = sta::fuzzyEqual(global_wns, prev_global_wns);
       const bool endpoint_improved
-          = fuzzyGreater(endpoint_slack, prev_endpoint_slack);
+          = sta::fuzzyGreater(endpoint_slack, prev_endpoint_slack);
       const bool better = wns_improved || (wns_same && endpoint_improved);
 
       if (better) {
@@ -2261,7 +2264,7 @@ void RepairSetup::repairSetup_TNS(const float setup_slack_margin,
                    delayAsString(endpoint_slack, sta_, digits));
         prev_global_wns = global_wns;
         prev_tns_local = new_tns;
-        if (fuzzyGreaterEqual(endpoint_slack, setup_slack_margin)) {
+        if (sta::fuzzyGreaterEqual(endpoint_slack, setup_slack_margin)) {
           debugPrint(logger_,
                      RSZ,
                      "repair_setup",
@@ -2376,8 +2379,8 @@ void RepairSetup::repairSetup_TNS(const float setup_slack_margin,
   // Print phase completion
   printProgress(opto_iteration, true, false, phase_marker);
 
-  Slack final_wns;
-  Vertex* final_worst;
+  sta::Slack final_wns;
+  sta::Vertex* final_worst;
   sta_->worstSlack(max_, final_wns, final_worst);
   float final_tns = sta_->totalNegativeSlack(max_);
 
@@ -2454,7 +2457,7 @@ void RepairSetup::repairSetup_Directional(const bool use_startpoints,
 
   // Diminishing returns threshold: stop if improvement < 10ps
   // Increased from 1ps to 10ps to reduce iterations with minimal improvement
-  constexpr Slack diminishing_returns_threshold = 1e-11;  // 10 picoseconds
+  constexpr sta::Slack diminishing_returns_threshold = 1e-11;  // 10 picoseconds
 
   const char* phase_name = use_startpoints ? "SP_FO" : "EP_FI";
   const char* point_type = use_startpoints ? "startpoint" : "endpoint";
@@ -2516,18 +2519,18 @@ void RepairSetup::repairSetup_Directional(const bool use_startpoints,
     }
 
     violator_collector_->setToPoint(point_index, use_startpoints);
-    Vertex* point = violator_collector_->getCurrentPoint(use_startpoints);
+    sta::Vertex* point = violator_collector_->getCurrentPoint(use_startpoints);
 
     if (!point) {
       continue;
     }
 
-    const Pin* point_pin
+    const sta::Pin* point_pin
         = violator_collector_->getCurrentPointPin(use_startpoints);
-    Slack point_slack = sta_->slack(point, max_);
+    sta::Slack point_slack = sta_->slack(point, max_);
 
     // Check if point already meets timing
-    if (fuzzyGreaterEqual(point_slack, setup_slack_margin)) {
+    if (sta::fuzzyGreaterEqual(point_slack, setup_slack_margin)) {
       debugPrint(logger_,
                  RSZ,
                  "repair_setup",
@@ -2557,7 +2560,7 @@ void RepairSetup::repairSetup_Directional(const bool use_startpoints,
     rejected_pin_moves_current_endpoint_.clear();
 
     int point_pass_count = 0;
-    Slack prev_point_slack = point_slack;
+    sta::Slack prev_point_slack = point_slack;
     bool journal_open = false;
 
     // Try progressively tighter thresholds for this point
@@ -2583,7 +2586,7 @@ void RepairSetup::repairSetup_Directional(const bool use_startpoints,
       point_slack = sta_->slack(point, max_);
 
       // Check if point now meets timing
-      if (fuzzyGreaterEqual(point_slack, setup_slack_margin)) {
+      if (sta::fuzzyGreaterEqual(point_slack, setup_slack_margin)) {
         debugPrint(logger_,
                    RSZ,
                    "repair_setup",
@@ -2598,8 +2601,8 @@ void RepairSetup::repairSetup_Directional(const bool use_startpoints,
       }
 
       float margin_pct = margin_percentages[threshold_idx];
-      Slack margin = std::abs(point_slack) * margin_pct;
-      Slack threshold = point_slack + margin;
+      sta::Slack margin = std::abs(point_slack) * margin_pct;
+      sta::Slack threshold = point_slack + margin;
 
       debugPrint(logger_,
                  RSZ,
@@ -2615,10 +2618,10 @@ void RepairSetup::repairSetup_Directional(const bool use_startpoints,
                  delayAsString(threshold, sta_, digits));
 
       // Save state before repair attempt
-      Slack prev_wns = violator_collector_->getWNS();
-      Slack prev_endpoint_tns
+      sta::Slack prev_wns = violator_collector_->getWNS();
+      sta::Slack prev_endpoint_tns
           = violator_collector_->getTNS(false);  // Endpoint TNS
-      Slack prev_startpoint_tns
+      sta::Slack prev_startpoint_tns
           = violator_collector_->getTNS(true);  // Startpoint TNS
 
       // Collect violators with explicit threshold
@@ -2632,7 +2635,7 @@ void RepairSetup::repairSetup_Directional(const bool use_startpoints,
             opto_iteration, false, false, phase_marker, use_startpoints);
       }
 
-      vector<const Pin*> viol_pins
+      vector<const sta::Pin*> viol_pins
           = violator_collector_->collectViolatorsByDirectionalTraversal(
               use_startpoints,
               point_index,
@@ -2668,7 +2671,7 @@ void RepairSetup::repairSetup_Directional(const bool use_startpoints,
       int saved_max_repairs_member = max_repairs_per_pass_;
       max_repairs_per_pass_ = viol_pins.size();  // Process entire cone
 
-      vector<std::pair<const Pin*, BaseMove*>> chosen_moves;
+      vector<std::pair<const sta::Pin*, BaseMove*>> chosen_moves;
       const bool changed = repairPins(viol_pins,
                                       setup_slack_margin,
                                       &rejected_pin_moves_current_endpoint_,
@@ -2694,25 +2697,25 @@ void RepairSetup::repairSetup_Directional(const bool use_startpoints,
       sta_->findRequireds();
 
       // Check improvement
-      Slack new_point_slack = sta_->slack(point, max_);
-      Slack new_wns = violator_collector_->getWNS();
-      Slack new_endpoint_tns
+      sta::Slack new_point_slack = sta_->slack(point, max_);
+      sta::Slack new_wns = violator_collector_->getWNS();
+      sta::Slack new_endpoint_tns
           = violator_collector_->getTNS(false);  // Endpoint TNS
-      Slack new_startpoint_tns
+      sta::Slack new_startpoint_tns
           = violator_collector_->getTNS(true);  // Startpoint TNS
 
-      const bool wns_improved = fuzzyGreater(new_wns, prev_wns);
-      const bool wns_same = fuzzyEqual(new_wns, prev_wns);
+      const bool wns_improved = sta::fuzzyGreater(new_wns, prev_wns);
+      const bool wns_same = sta::fuzzyEqual(new_wns, prev_wns);
       const bool point_improved
-          = fuzzyGreater(new_point_slack, prev_point_slack);
+          = sta::fuzzyGreater(new_point_slack, prev_point_slack);
       const bool endpoint_tns_improved
-          = fuzzyGreater(new_endpoint_tns, prev_endpoint_tns);
+          = sta::fuzzyGreater(new_endpoint_tns, prev_endpoint_tns);
       const bool startpoint_tns_improved
-          = fuzzyGreater(new_startpoint_tns, prev_startpoint_tns);
+          = sta::fuzzyGreater(new_startpoint_tns, prev_startpoint_tns);
       const bool endpoint_tns_same
-          = fuzzyEqual(new_endpoint_tns, prev_endpoint_tns);
+          = sta::fuzzyEqual(new_endpoint_tns, prev_endpoint_tns);
       const bool startpoint_tns_same
-          = fuzzyEqual(new_startpoint_tns, prev_startpoint_tns);
+          = sta::fuzzyEqual(new_startpoint_tns, prev_startpoint_tns);
 
       // Accept if:
       // 1. WNS improved (always accept), OR
@@ -2728,7 +2731,7 @@ void RepairSetup::repairSetup_Directional(const bool use_startpoints,
             || (wns_same && (point_improved || focused_tns_improved)
                 && both_tns_ok);
 
-      Slack improvement = new_point_slack - prev_point_slack;
+      sta::Slack improvement = new_point_slack - prev_point_slack;
 
       debugPrint(logger_,
                  RSZ,
@@ -2833,8 +2836,8 @@ void RepairSetup::repairSetup_Directional(const bool use_startpoints,
                            .count();
 
   // Get final metrics using proxy methods
-  Slack final_wns = violator_collector_->getWNS();
-  Slack final_tns = violator_collector_->getTNS(use_startpoints);
+  sta::Slack final_wns = violator_collector_->getWNS();
+  sta::Slack final_tns = violator_collector_->getTNS(use_startpoints);
 
   debugPrint(logger_,
              RSZ,
@@ -2874,7 +2877,7 @@ void RepairSetup::repairSetup_LastGasp(const OptoParams& params,
   violator_collector_->init(params.setup_slack_margin);
 
   float curr_tns = sta_->totalNegativeSlack(max_);
-  if (fuzzyGreaterEqual(curr_tns, 0)) {
+  if (sta::fuzzyGreaterEqual(curr_tns, 0)) {
     debugPrint(logger_,
                RSZ,
                "repair_setup",
@@ -2908,8 +2911,8 @@ void RepairSetup::repairSetup_LastGasp(const OptoParams& params,
   printProgress(opto_iteration, false, false, phase_marker);
 
   float prev_tns = curr_tns;
-  Slack curr_worst_slack = violator_collector_->getWNS();
-  Slack prev_worst_slack = curr_worst_slack;
+  sta::Slack curr_worst_slack = violator_collector_->getWNS();
+  sta::Slack prev_worst_slack = curr_worst_slack;
   bool prev_termination = false;
   bool two_cons_terminations = false;
   float fix_rate_threshold = inc_fix_rate_threshold_;
@@ -2921,10 +2924,10 @@ void RepairSetup::repairSetup_LastGasp(const OptoParams& params,
 
     fallback_ = false;
     violator_collector_->advanceToNextEndpoint();
-    Vertex* end = violator_collector_->getCurrentEndpoint();
-    Slack end_slack = sta_->slack(end, max_);
-    Slack worst_slack;
-    Vertex* worst_vertex;
+    sta::Vertex* end = violator_collector_->getCurrentEndpoint();
+    sta::Slack end_slack = sta_->slack(end, max_);
+    sta::Slack worst_slack;
+    sta::Vertex* worst_vertex;
     sta_->worstSlack(max_, worst_slack, worst_vertex);
     end_index++;
     debugPrint(logger_,
@@ -2978,7 +2981,7 @@ void RepairSetup::repairSetup_LastGasp(const OptoParams& params,
       if (params.verbose || opto_iteration == 1) {
         printProgress(opto_iteration, false, false, phase_marker);
       }
-      if (fuzzyGreaterEqual(end_slack, params.setup_slack_margin)) {
+      if (sta::fuzzyGreaterEqual(end_slack, params.setup_slack_margin)) {
         --num_viols;
         resizer_->journalEnd();
         journal_open = false;
@@ -3005,8 +3008,8 @@ void RepairSetup::repairSetup_LastGasp(const OptoParams& params,
       curr_tns = sta_->totalNegativeSlack(max_);
 
       const bool wns_improved
-          = fuzzyGreaterEqual(curr_worst_slack, prev_worst_slack);
-      const bool tns_improved = fuzzyGreaterEqual(curr_tns, prev_tns);
+          = sta::fuzzyGreaterEqual(curr_worst_slack, prev_worst_slack);
+      const bool tns_improved = sta::fuzzyGreaterEqual(curr_tns, prev_tns);
 
       // Accept only moves that improve both WNS and TNS
       if (wns_improved && tns_improved) {
@@ -3025,7 +3028,7 @@ void RepairSetup::repairSetup_LastGasp(const OptoParams& params,
                    delayAsString(curr_tns, sta_, 1));
         prev_worst_slack = curr_worst_slack;
         prev_tns = curr_tns;
-        if (fuzzyGreaterEqual(end_slack, params.setup_slack_margin)) {
+        if (sta::fuzzyGreaterEqual(end_slack, params.setup_slack_margin)) {
           --num_viols;
         }
         resizer_->journalEnd();
@@ -3089,8 +3092,8 @@ void RepairSetup::repairSetup_LastGasp(const OptoParams& params,
     }
   }  // for each violating endpoint
 
-  Slack final_wns;
-  Vertex* final_worst;
+  sta::Slack final_wns;
+  sta::Vertex* final_worst;
   sta_->worstSlack(max_, final_wns, final_worst);
   float final_tns = sta_->totalNegativeSlack(max_);
 
@@ -3115,11 +3118,11 @@ bool RepairSetup::swapVTCritCells(const OptoParams& params, int& num_viols)
   bool changed = false;
 
   // Start with sorted violating endpoints
-  const VertexSet& endpoints = sta_->endpoints();
-  vector<pair<Vertex*, Slack>> violating_ends;
-  for (Vertex* end : endpoints) {
-    const Slack end_slack = sta_->slack(end, max_);
-    if (fuzzyLess(end_slack, params.setup_slack_margin)) {
+  const sta::VertexSet& endpoints = sta_->endpoints();
+  vector<pair<sta::Vertex*, sta::Slack>> violating_ends;
+  for (sta::Vertex* end : endpoints) {
+    const sta::Slack end_slack = sta_->slack(end, max_);
+    if (sta::fuzzyLess(end_slack, params.setup_slack_margin)) {
       violating_ends.emplace_back(end, end_slack);
     }
   }
@@ -3167,9 +3170,9 @@ bool RepairSetup::swapVTCritCells(const OptoParams& params, int& num_viols)
     estimate_parasitics_->updateParasitics();
     sta_->findRequireds();
     violating_ends.clear();
-    for (Vertex* end : endpoints) {
-      const Slack end_slack = sta_->slack(end, max_);
-      if (fuzzyLess(end_slack, params.setup_slack_margin)) {
+    for (sta::Vertex* end : endpoints) {
+      const sta::Slack end_slack = sta_->slack(end, max_);
+      if (sta::fuzzyLess(end_slack, params.setup_slack_margin)) {
         violating_ends.emplace_back(end, end_slack);
       }
     }
@@ -3218,8 +3221,8 @@ void RepairSetup::traverseFaninCone(
       if (resizer_->checkAndMarkVTSwappable(
               inst, notSwappable, best_lib_cell)) {
         // Check if this instance has negative slack
-        const Slack inst_slack = getInstanceSlack(inst);
-        if (fuzzyLess(inst_slack, params.setup_slack_margin)) {
+        const sta::Slack inst_slack = getInstanceSlack(inst);
+        if (sta::fuzzyLess(inst_slack, params.setup_slack_margin)) {
           // Update worst slack for this instance
           auto it = crit_insts.find(inst);
           if (it == crit_insts.end()) {
@@ -3238,9 +3241,9 @@ void RepairSetup::traverseFaninCone(
     }
 
     // Traverse fanin edges
-    VertexInEdgeIterator edge_iter(current, graph_);
+    sta::VertexInEdgeIterator edge_iter(current, graph_);
     while (edge_iter.hasNext()) {
-      Edge* edge = edge_iter.next();
+      sta::Edge* edge = edge_iter.next();
       sta::Vertex* fanin_vertex = edge->from(graph_);
       if (fanin_vertex->isRegClk()) {
         continue;
@@ -3248,8 +3251,8 @@ void RepairSetup::traverseFaninCone(
 
       // Only traverse if we haven't visited and the fanin has negative slack
       if (visited.find(fanin_vertex) == visited.end()) {
-        const Slack fanin_slack = sta_->slack(fanin_vertex, max_);
-        if (fuzzyLess(fanin_slack, params.setup_slack_margin)) {
+        const sta::Slack fanin_slack = sta_->slack(fanin_vertex, max_);
+        if (sta::fuzzyLess(fanin_slack, params.setup_slack_margin)) {
           queue.push(fanin_vertex);
           visited.insert(fanin_vertex);
         }
@@ -3276,13 +3279,13 @@ sta::Slack RepairSetup::getInstanceSlack(sta::Instance* inst)
   sta::Slack worst_slack = std::numeric_limits<float>::max();
 
   // Check all output pins of the instance
-  InstancePinIterator* pin_iter = network_->pinIterator(inst);
+  sta::InstancePinIterator* pin_iter = network_->pinIterator(inst);
   while (pin_iter->hasNext()) {
     sta::Pin* pin = pin_iter->next();
     if (network_->direction(pin)->isAnyOutput()) {
       sta::Vertex* vertex = graph_->pinDrvrVertex(pin);
       if (vertex) {
-        const Slack pin_slack = sta_->slack(vertex, max_);
+        const sta::Slack pin_slack = sta_->slack(vertex, max_);
         worst_slack = std::min(worst_slack, pin_slack);
       }
     }
