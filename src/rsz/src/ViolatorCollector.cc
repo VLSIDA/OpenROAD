@@ -16,7 +16,6 @@
 #include <utility>
 #include <vector>
 
-#include "BaseMove.hh"
 #include "BufferMove.hh"
 #include "CloneMove.hh"
 #include "Rebuffer.hh"
@@ -26,6 +25,7 @@
 #include "sta/ExceptionPath.hh"
 #include "sta/Fuzzy.hh"
 #include "sta/Graph.hh"
+#include "sta/GraphClass.hh"
 #include "sta/Liberty.hh"
 #include "sta/MinMax.hh"
 #include "sta/Mode.hh"

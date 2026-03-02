@@ -31,6 +31,7 @@
 #include "sta/LibertyClass.hh"
 #include "sta/MinMax.hh"
 #include "sta/NetworkClass.hh"
+#include "sta/Path.hh"
 #include "sta/PortDirection.hh"
 #include "sta/Scene.hh"
 #include "sta/TimingArc.hh"

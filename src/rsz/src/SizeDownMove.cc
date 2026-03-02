@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "BaseMove.hh"
+#include "db_sta/dbSta.hh"
 #include "sta/ContainerHelpers.hh"
 #include "sta/Delay.hh"
 #include "sta/DelayFloat.hh"

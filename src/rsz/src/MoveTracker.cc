@@ -17,6 +17,7 @@
 #include "sta/Delay.hh"
 #include "sta/ExceptionPath.hh"
 #include "sta/Graph.hh"
+#include "sta/GraphClass.hh"
 #include "sta/Liberty.hh"
 #include "sta/MinMax.hh"
 #include "sta/Network.hh"
@@ -2214,7 +2215,6 @@ MoveTracker::enumerateEndpointPaths(const sta::Pin* endpoint_pin, int max_paths)
   sta::Network* network = sta_->network();
   sta::Sdc* sdc = sta_->cmdScene()->sdc();
   sta::Search* search = sta_->search();
-  sta::Scene* scene = sta_->cmdScene();
 
   sta::PinSet* to_pins = new sta::PinSet(network);
   to_pins->insert(endpoint_pin);

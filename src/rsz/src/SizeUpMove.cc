@@ -12,6 +12,7 @@
 #include "sta/Graph.hh"
 #include "sta/Liberty.hh"
 #include "sta/NetworkClass.hh"
+#include "sta/Transition.hh"
 #include "utl/Logger.h"
 
 namespace rsz {

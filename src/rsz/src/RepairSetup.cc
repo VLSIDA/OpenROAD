@@ -2351,7 +2351,6 @@ void RepairSetup::repairSetup_TNS(const float setup_slack_margin,
                    "TNS{} Phase: Over max area, exiting",
                    phase_marker);
         resizer_->journalEnd();
-        journal_open = false;
         printProgress(opto_iteration, true, true, phase_marker);
         printProgressFooter();
         return;
@@ -2556,7 +2555,6 @@ void RepairSetup::repairSetup_Directional(const bool use_startpoints,
 
     int point_pass_count = 0;
     sta::Slack prev_point_slack = point_slack;
-    bool journal_open = false;
 
     // Try progressively tighter thresholds for this point
     for (int threshold_idx = 0; threshold_idx < num_thresholds;
@@ -2621,7 +2619,6 @@ void RepairSetup::repairSetup_Directional(const bool use_startpoints,
 
       // Collect violators with explicit threshold
       resizer_->journalBegin();
-      journal_open = true;
       point_pass_count++;
       opto_iteration++;
 
@@ -2656,7 +2653,6 @@ void RepairSetup::repairSetup_Directional(const bool use_startpoints,
                    phase_name,
                    phase_marker);
         resizer_->journalEnd();
-        journal_open = false;
         continue;
       }
 
@@ -2683,7 +2679,6 @@ void RepairSetup::repairSetup_Directional(const bool use_startpoints,
                    phase_name,
                    phase_marker);
         resizer_->journalEnd();
-        journal_open = false;
         continue;
       }
 
@@ -2775,7 +2770,6 @@ void RepairSetup::repairSetup_Directional(const bool use_startpoints,
           move_tracker_->commitMoves();
         }
         resizer_->journalEnd();
-        journal_open = false;
         prev_point_slack = new_point_slack;
 
         // Check for diminishing returns
@@ -2799,7 +2793,6 @@ void RepairSetup::repairSetup_Directional(const bool use_startpoints,
           move_tracker_->rejectMoves();
         }
         resizer_->journalRestore();
-        journal_open = false;
 
         // Mark the chosen (pin, move) combinations as rejected
         for (const auto& [pin, move] : chosen_moves) {
@@ -2814,9 +2807,6 @@ void RepairSetup::repairSetup_Directional(const bool use_startpoints,
                    phase_name,
                    phase_marker);
       }
-    }
-    if (journal_open) {
-      resizer_->journalEnd();
     }
 
     points_processed++;
