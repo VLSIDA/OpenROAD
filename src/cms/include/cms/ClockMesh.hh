@@ -5,9 +5,14 @@
 #include <map>
 #include <set>
 #include <string>
+#include <tuple>
 #include <vector>
 
 #include "odb/db.h"
+
+namespace odb {
+class dbWireEncoder;
+}
 
 namespace utl {
 class Logger;
@@ -90,6 +95,15 @@ class ClockMesh
   void setupProxyBTerms(const std::string& clock_name,
                         odb::dbTechLayer* proxy_layer);
   void connectProxyBTermsToMesh(const std::string& clock_name);
+  void captureLeafArrivals(const std::string& clock_name);
+  void mergeNetsToMesh(const std::string& clock_name);
+  void convertSWireToWire(const std::string& clock_name);
+  void writeMeshSpice(const std::string& clock_name,
+                      const std::string& spice_file,
+                      float vdd_voltage = 0.0,
+                      float rise_time_ns = 0.0,
+                      float fall_time_ns = 0.0,
+                      const std::vector<std::string>& spice_models = {});
   void writeMeshVerilog(const std::string& clock_name,
                         const std::string& input_filename,
                         const std::string& output_filename);
@@ -133,7 +147,10 @@ class ClockMesh
                                         odb::dbTechLayer* proxy_layer);
   odb::dbITerm* getBufferOutputPin(odb::dbInst* buffer);
   odb::dbITerm* getBufferInputPin(odb::dbInst* buffer);
-  void buildCtsTreeToBuffers(const std::string& clock_net_name);
+  void buildCtsTreeToBuffers(const std::string& clock_net_name,
+                             const std::vector<std::string>& buffer_list);
+  void reencodeWireToMesh(odb::dbWire* src_wire,
+                          odb::dbWireEncoder& encoder);
 
   ord::OpenRoad* openroad_ = nullptr;
   bool mesh_generated_ = false;
@@ -156,6 +173,14 @@ class ClockMesh
   std::vector<GridIntersection> grid_intersections_;
   std::string mesh_net_name_;
   int sink_bterm_counter_ = 0;
+
+  // Connection points where routed wires meet mesh grid wires (x, y, routing_level)
+  // Used by convertSWireToWire to break mesh segments at these points
+  std::set<std::tuple<int,int,int>> mesh_connection_points_;
+
+  // Cached CTS leaf net arrival times (seconds → nanoseconds)
+  // Populated by captureLeafArrivals() before merge, used by writeMeshSpice()
+  std::map<std::string, float> leaf_arrivals_ns_;
 };
 
 void initClockMesh(ord::OpenRoad* openroad);

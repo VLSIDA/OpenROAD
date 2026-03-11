@@ -13,9 +13,13 @@
 #include "db_sta/dbSta.hh"
 #include "odb/db.h"
 #include "odb/dbShape.h"
+#include "odb/dbWireCodec.h"
 #include "ord/OpenRoad.hh"
 #include "sta/Liberty.hh"
+#include "sta/MinMax.hh"
 #include "sta/Sdc.hh"
+#include "sta/Sta.hh"
+#include "sta/Transition.hh"
 #include "utl/Logger.h"
 
 namespace cms {
@@ -159,8 +163,7 @@ bool ClockMesh::separateSinks(odb::dbNet* net, std::vector<ClockSink>& sinks)
     if (iterm->isInputSignal() && inst->isPlaced()) {
       odb::dbMTerm* mterm = iterm->getMTerm();
       if (isSink(iterm)) {
-        std::string name = std::string(inst->getConstName()) + "/" +
-                          std::string(mterm->getConstName());
+        std::string name = std::string(inst->getConstName()) + "/" + std::string(mterm->getConstName());
         int x, y;
         computeITermPosition(iterm, x, y);
         bool isMacro = inst->isBlock();
@@ -289,20 +292,34 @@ odb::dbNet* ClockMesh::getOrCreateClockNet(const std::string& clock_name)
     return nullptr;
   }
 
+  // Find the root clock net name from SDC and use it as base for everything
   if (mesh_net_name_.empty()) {
-    if (clockToSinks_.find(clock_name) != clockToSinks_.end()) {
-      const auto& sinks = clockToSinks_[clock_name];
-      if (!sinks.empty() && sinks[0].iterm) {
-        odb::dbNet* orig_net = sinks[0].iterm->getNet();
-        if (orig_net) {
-          mesh_net_name_ = orig_net->getName();
+    sta::Sdc* sdc = sta_->sdc();
+    if (sdc) {
+      for (auto clk : *sdc->clocks()) {
+        if (std::string(clk->name()) == clock_name) {
+          for (const sta::Pin* pin : clk->pins()) {
+            odb::dbITerm* iterm;
+            odb::dbBTerm* bterm;
+            odb::dbModITerm* moditerm;
+            network_->staToDb(pin, iterm, bterm, moditerm);
+            odb::dbNet* net = bterm ? bterm->getNet()
+                            : (iterm ? iterm->getNet() : nullptr);
+            if (net) {
+              mesh_net_name_ = net->getName();
+              break;
+            }
+          }
+          break;
         }
       }
     }
+    if (mesh_net_name_.empty()) {
+      mesh_net_name_ = clock_name;
+    }
   }
 
-  std::string mesh_net_name = mesh_net_name_.empty() ? clock_name : mesh_net_name_;
-  mesh_net_name += "_mesh";
+  std::string mesh_net_name = mesh_net_name_ + "_mesh";
 
   odb::dbNet* mesh_net = block_->findNet(mesh_net_name.c_str());
   if (!mesh_net) {
@@ -429,28 +446,44 @@ void ClockMesh::createMeshGrid(const std::string& clock_name, odb::dbTechLayer* 
   int bterm_level = std::max(h_level, v_level) + 1;
 
   odb::dbTechLayer* bterm_layer = tech->findRoutingLayer(bterm_level);
-  if (!bterm_layer) {
-    logger_->error(CMS, 210, "No routing layer at level {} for BTERMs", bterm_level);
-    return;
+  if (bterm_layer) {
+    bterm_layer_ = bterm_layer;
   }
-  bterm_layer_ = bterm_layer;
-  odb::dbTrackGrid* track_grid = block_->findTrackGrid(bterm_layer);
-  int track_pitch_x = 0, track_pitch_y = 0;
-  int track_offset_x = 0, track_offset_y = 0;
-  if (track_grid) {
-    std::vector<int> x_tracks, y_tracks;
-    track_grid->getGridX(x_tracks);
-    track_grid->getGridY(y_tracks);
-    if (x_tracks.size() >= 2) {
-      track_pitch_x = x_tracks[1] - x_tracks[0];
-      track_offset_x = x_tracks[0];
+
+  // Align grid to the actual mesh layer tracks (generalized for any tech).
+  // Horizontal wires on h_layer: y-positions must align with h_layer tracks.
+  // Vertical wires on v_layer: x-positions must align with v_layer tracks.
+  int h_track_pitch = 0, h_track_offset = 0;
+  int v_track_pitch = 0, v_track_offset = 0;
+
+  if (h_layer) {
+    odb::dbTrackGrid* h_tracks = block_->findTrackGrid(h_layer);
+    if (h_tracks) {
+      std::vector<int> y_tracks;
+      h_tracks->getGridY(y_tracks);
+      if (y_tracks.size() >= 2) {
+        h_track_pitch = y_tracks[1] - y_tracks[0];
+        h_track_offset = y_tracks[0];
+      }
     }
-    if (y_tracks.size() >= 2) {
-      track_pitch_y = y_tracks[1] - y_tracks[0];
-      track_offset_y = y_tracks[0];
+    if (h_track_pitch == 0) {
+      logger_->warn(CMS, 211, "No y-tracks found for horizontal mesh layer {}", h_layer->getName());
     }
-  } else {
-    logger_->warn(CMS, 211, "No track grid found for BTERM layer {}", bterm_layer->getName());
+  }
+
+  if (v_layer) {
+    odb::dbTrackGrid* v_tracks = block_->findTrackGrid(v_layer);
+    if (v_tracks) {
+      std::vector<int> x_tracks;
+      v_tracks->getGridX(x_tracks);
+      if (x_tracks.size() >= 2) {
+        v_track_pitch = x_tracks[1] - x_tracks[0];
+        v_track_offset = x_tracks[0];
+      }
+    }
+    if (v_track_pitch == 0) {
+      logger_->warn(CMS, 212, "No x-tracks found for vertical mesh layer {}", v_layer->getName());
+    }
   }
 
   if (clockToSinks_.find(clock_name) == clockToSinks_.end()) {
@@ -468,23 +501,27 @@ void ClockMesh::createMeshGrid(const std::string& clock_name, odb::dbTechLayer* 
     return;
   }
 
+  // Align pitch to the coarser of the two layer track pitches
   int aligned_pitch = pitch;
-  if (track_pitch_x > 0 && track_pitch_y > 0) {
-    int track_pitch = std::max(track_pitch_x, track_pitch_y);
-    aligned_pitch = ((pitch + track_pitch / 2) / track_pitch) * track_pitch;
-    if (aligned_pitch < track_pitch) {
-      aligned_pitch = track_pitch;
+  int max_track_pitch = std::max(h_track_pitch, v_track_pitch);
+  if (max_track_pitch > 0) {
+    aligned_pitch = ((pitch + max_track_pitch / 2) / max_track_pitch) * max_track_pitch;
+    if (aligned_pitch < max_track_pitch) {
+      aligned_pitch = max_track_pitch;
     }
   }
+
+  // Align x-start to v_layer tracks (vertical wire x-positions)
   int aligned_x_start = bbox.xMin();
-  int aligned_y_start = bbox.yMin();
-  if (track_pitch_x > 0) {
-    int idx = (bbox.xMin() - track_offset_x + track_pitch_x / 2) / track_pitch_x;
-    aligned_x_start = track_offset_x + idx * track_pitch_x;
+  if (v_track_pitch > 0) {
+    int idx = (bbox.xMin() - v_track_offset + v_track_pitch / 2) / v_track_pitch;
+    aligned_x_start = v_track_offset + idx * v_track_pitch;
   }
-  if (track_pitch_y > 0) {
-    int idx = (bbox.yMin() - track_offset_y + track_pitch_y / 2) / track_pitch_y;
-    aligned_y_start = track_offset_y + idx * track_pitch_y;
+  // Align y-start to h_layer tracks (horizontal wire y-positions)
+  int aligned_y_start = bbox.yMin();
+  if (h_track_pitch > 0) {
+    int idx = (bbox.yMin() - h_track_offset + h_track_pitch / 2) / h_track_pitch;
+    aligned_y_start = h_track_offset + idx * h_track_pitch;
   }
   odb::Rect aligned_bbox(aligned_x_start, aligned_y_start, bbox.xMax(), bbox.yMax());
 
@@ -527,6 +564,16 @@ void ClockMesh::createMeshGrid(const std::string& clock_name, odb::dbTechLayer* 
         int v_x = (v_wire.rect.xMin() + v_wire.rect.xMax()) / 2;
         odb::dbTechLayer* buf_layer = selectBufferLayer(h_wire.layer, v_wire.layer);
         grid_intersections_.emplace_back(v_x, h_y, buf_layer);
+        // Store intersection as connection point on both mesh layers
+        // so convertSWireToWire breaks mesh wires at via locations
+        if (h_wire.layer) {
+          mesh_connection_points_.insert(
+              std::make_tuple(v_x, h_y, h_wire.layer->getRoutingLevel()));
+        }
+        if (v_wire.layer) {
+          mesh_connection_points_.insert(
+              std::make_tuple(v_x, h_y, v_wire.layer->getRoutingLevel()));
+        }
       }
     }
   }
@@ -541,8 +588,9 @@ void ClockMesh::createMeshGrid(const std::string& clock_name, odb::dbTechLayer* 
     connectBuffersToNets(mesh_net, clock_name);
     buffers_placed = grid_intersections_.size();
 
-    std::string cts_net_name = mesh_net_name_.empty() ? clock_name : mesh_net_name_;
-    buildCtsTreeToBuffers(cts_net_name);
+    std::string cts_net_name = mesh_net_name_.empty() ? clock_name
+                                                      : mesh_net_name_;
+    buildCtsTreeToBuffers(cts_net_name, buffer_list);
   }
 
   mesh_generated_ = true;
@@ -587,9 +635,6 @@ void ClockMesh::connectSinksViaRouter(const std::string& clock_name, odb::dbTech
 
   const std::vector<ClockSink>& sinks = clockToSinks_[clock_name];
 
-  std::map<std::pair<int, int>, int> gridpoint_bterm_count;
-  int min_width = proxy_layer->getWidth();
-  int half_width = min_width / 2;
   int bterms_created = 0;
 
   for (const auto& sink : sinks) {
@@ -608,38 +653,26 @@ void ClockMesh::connectSinksViaRouter(const std::string& clock_name, odb::dbTech
       continue;
     }
 
+    // Place BTERM on the mesh grid layer for direct connectivity
+    int min_width = grid_layer->getWidth();
+    int half_width = min_width / 2;
+
     int grid_x = grid_point.x();
     int grid_y = grid_point.y();
 
-    for (const GridIntersection& inter : grid_intersections_) {
-      if (inter.x == grid_x && inter.y == grid_y && inter.has_buffer && inter.proxy_bterm) {
-        int offset = min_width + half_width;
-        if (sink_x != grid_x) {
-          grid_x += (sink_x > grid_x) ? offset : -offset;
-        } else if (sink_y != grid_y) {
-          grid_y += (sink_y > grid_y) ? offset : -offset;
-        } else {
-          grid_x += offset;
-        }
-        break;
-      }
-    }
-
-    auto grid_key = std::make_pair(grid_x, grid_y);
-    auto it = gridpoint_bterm_count.find(grid_key);
-    if (it != gridpoint_bterm_count.end()) {
-      int offset_multiplier = it->second;
-      int offset = (min_width + half_width) * offset_multiplier;
-      if (sink_x != grid_x) {
-        grid_x += (sink_x > grid_x) ? offset : -offset;
-      } else if (sink_y != grid_y) {
-        grid_y += (sink_y > grid_y) ? offset : -offset;
+    // If another pin already exists at this position, offset along the wire
+    bool is_h_wire = (grid_layer == mesh_h_layer_);
+    auto pos_key = std::make_tuple(grid_x, grid_y, grid_layer->getRoutingLevel());
+    int count = 0;
+    while (mesh_connection_points_.count(pos_key)) {
+      count++;
+      int offset = min_width * count;
+      if (is_h_wire) {
+        grid_x = grid_point.x() + ((count % 2 == 0) ? offset : -offset);
       } else {
-        grid_x += (offset_multiplier % 2 == 0) ? offset : -offset;
+        grid_y = grid_point.y() + ((count % 2 == 0) ? offset : -offset);
       }
-      it->second++;
-    } else {
-      gridpoint_bterm_count[grid_key] = 1;
+      pos_key = std::make_tuple(grid_x, grid_y, grid_layer->getRoutingLevel());
     }
 
     sink_bterm_counter_++;
@@ -662,11 +695,15 @@ void ClockMesh::connectSinksViaRouter(const std::string& clock_name, odb::dbTech
 
     odb::dbBPin* bpin = odb::dbBPin::create(bterm);
     if (bpin) {
-      odb::dbBox::create(bpin, proxy_layer,
+      odb::dbBox::create(bpin, grid_layer,
                          grid_x - half_width, grid_y - half_width,
                          grid_x + half_width, grid_y + half_width);
       bpin->setPlacementStatus(odb::dbPlacementStatus::PLACED);
     }
+
+    // Store connection point so convertSWireToWire can break mesh wire here
+    mesh_connection_points_.insert(
+        std::make_tuple(grid_x, grid_y, grid_layer->getRoutingLevel()));
 
     sink.iterm->disconnect();
     sink.iterm->connect(sink_net);
@@ -888,12 +925,19 @@ void ClockMesh::setupProxyBTerms(const std::string& clock_name, odb::dbTechLayer
 }
 
 // Creates separate nets and BTerm pins for each buffer at intersections
-int ClockMesh::createProxyBTermsWithSeparateNets(odb::dbNet* mesh_net, odb::dbTechLayer* proxy_layer)
+int ClockMesh::createProxyBTermsWithSeparateNets(odb::dbNet* mesh_net, odb::dbTechLayer* /* proxy_layer */)
 {
-  if (!mesh_net || !proxy_layer) {
+  if (!mesh_net) {
     return 0;
   }
-  int min_width = proxy_layer->getWidth();
+  // Place buffer BTERMs on the bottom mesh layer for direct connectivity
+  int h_level = mesh_h_layer_ ? mesh_h_layer_->getRoutingLevel() : 0;
+  int v_level = mesh_v_layer_ ? mesh_v_layer_->getRoutingLevel() : 0;
+  odb::dbTechLayer* buf_bterm_layer = (h_level <= v_level) ? mesh_h_layer_ : mesh_v_layer_;
+  if (!buf_bterm_layer) {
+    return 0;
+  }
+  int min_width = buf_bterm_layer->getWidth();
   int half_width = min_width / 2;
   int created_count = 0;
   std::string base_name = mesh_net_name_.empty() ? "clk" : mesh_net_name_;
@@ -926,9 +970,13 @@ int ClockMesh::createProxyBTermsWithSeparateNets(odb::dbNet* mesh_net, odb::dbTe
 
     odb::dbBPin* bpin = odb::dbBPin::create(bterm);
     if (bpin) {
-      odb::dbBox::create(bpin, proxy_layer, inter.x - half_width, inter.y - half_width, inter.x + half_width, inter.y + half_width);
+      odb::dbBox::create(bpin, buf_bterm_layer, inter.x - half_width, inter.y - half_width, inter.x + half_width, inter.y + half_width);
       bpin->setPlacementStatus(odb::dbPlacementStatus::PLACED);
     }
+
+    // Store connection point so convertSWireToWire can break mesh wire here
+    mesh_connection_points_.insert(
+        std::make_tuple(inter.x, inter.y, buf_bterm_layer->getRoutingLevel()));
 
     inter.proxy_bterm = bterm;
     created_count++;
@@ -936,85 +984,31 @@ int ClockMesh::createProxyBTermsWithSeparateNets(odb::dbNet* mesh_net, odb::dbTe
   return created_count;
 }
 
-// Connects proxy BTerm locations to mesh with via stacks after routing
+// BTERMs are placed directly on mesh layers — no via stacks needed
 void ClockMesh::connectProxyBTermsToMesh(const std::string& clock_name)
 {
-  if (!proxy_layer_) {
-    logger_->error(CMS, 620, "Proxy layer not set. Call setup_proxy_bterms first.");
-    return;
-  }
-
-  odb::dbNet* mesh_net = getOrCreateClockNet(clock_name);
-  if (!mesh_net) {
-    logger_->error(CMS, 621, "Could not find mesh net for clock '{}'", clock_name);
-    return;
-  }
-
-  int proxy_level = proxy_layer_->getRoutingLevel();
-  int h_level = mesh_h_layer_ ? mesh_h_layer_->getRoutingLevel() : 0;
-  int v_level = mesh_v_layer_ ? mesh_v_layer_->getRoutingLevel() : 0;
-  odb::dbTechLayer* top_mesh_layer = (h_level >= v_level) ? mesh_h_layer_ : mesh_v_layer_;
-  int top_level = top_mesh_layer ? top_mesh_layer->getRoutingLevel() : 0;
-
-  std::set<std::pair<int, int>> connected_locations;
-  int buffer_bterms_connected = 0;
-
+  int buffer_bterms = 0;
   for (const GridIntersection& inter : grid_intersections_) {
-    if (!inter.has_buffer || !inter.proxy_bterm) {
-      continue;
+    if (inter.has_buffer && inter.proxy_bterm) {
+      buffer_bterms++;
     }
-    odb::Point target(inter.x, inter.y);
-    if (top_mesh_layer && proxy_level > top_level) {
-      createViaStackAtPoint(target, top_mesh_layer, proxy_layer_, mesh_net);
-    }
-    connected_locations.insert({inter.x, inter.y});
-    buffer_bterms_connected++;
   }
 
-  int sink_bterms_connected = 0;
+  int sink_bterms = 0;
   for (odb::dbNet* net : block_->getNets()) {
     std::string net_name = net->getName();
-    if (net_name.rfind("sink_", 0) != 0) {
-      continue;
-    }
-
-    odb::dbBTerm* bterm = net->get1stBTerm();
-    if (!bterm) {
-      continue;
-    }
-
-    for (odb::dbBPin* bpin : bterm->getBPins()) {
-      for (odb::dbBox* box : bpin->getBoxes()) {
-        int bterm_x = (box->xMin() + box->xMax()) / 2;
-        int bterm_y = (box->yMin() + box->yMax()) / 2;
-
-        if (connected_locations.count({bterm_x, bterm_y})) {
-          continue;
-        }
-
-        odb::Point target(bterm_x, bterm_y);
-        if (top_mesh_layer && proxy_level > top_level) {
-          createViaStackAtPoint(target, top_mesh_layer, proxy_layer_, mesh_net);
-        }
-        connected_locations.insert({bterm_x, bterm_y});
-        sink_bterms_connected++;
-        break;
-      }
-      break;
+    if (net_name.rfind("sink_", 0) == 0) {
+      sink_bterms++;
     }
   }
 
-  if (!connection_vias_.empty()) {
-    writeViasToDb(connection_vias_);
-    connection_vias_.clear();
-  }
-
-  logger_->info(CMS, 625, "Connected {} buffer and {} sink BTERMs to mesh",
-                buffer_bterms_connected, sink_bterms_connected);
+  logger_->info(CMS, 625, "BTERMs on mesh layers: {} buffer, {} sink (no via stacks needed)", buffer_bterms, sink_bterms);
 }
 
 // Runs TritonCTS to build clock tree to buffer inputs
-void ClockMesh::buildCtsTreeToBuffers(const std::string& tree_net_name)
+void ClockMesh::buildCtsTreeToBuffers(
+    const std::string& tree_net_name,
+    const std::vector<std::string>& buffer_list)
 {
   cts::TritonCTS* triton_cts = openroad_->getTritonCts();
   if (!triton_cts) {
@@ -1024,39 +1018,787 @@ void ClockMesh::buildCtsTreeToBuffers(const std::string& tree_net_name)
 
   int result = triton_cts->setClockNets(tree_net_name.c_str());
   if (result != 0) {
-    logger_->warn(CMS, 401, "Failed to set clock net '{}' for CTS", tree_net_name);
+    logger_->warn(CMS, 401, "Failed to set clock net '{}' for CTS",
+                  tree_net_name);
     return;
   }
 
+  // Use the user-specified buffer list first, fall back to auto-detect
   std::string clkbuf_list;
-  for (odb::dbLib* lib : db_->getLibs()) {
-    for (odb::dbMaster* master : lib->getMasters()) {
-      std::string name = master->getName();
-      if (name.find("clkbuf_") != std::string::npos) {
-        if (!clkbuf_list.empty()) {
-          clkbuf_list += " ";
+  if (!buffer_list.empty()) {
+    for (const auto& buf : buffer_list) {
+      if (!clkbuf_list.empty()) {
+        clkbuf_list += " ";
+      }
+      clkbuf_list += buf;
+    }
+  } else {
+    // Auto-detect: search for cells with "clkbuf" or "BUF" in name
+    for (odb::dbLib* lib : db_->getLibs()) {
+      for (odb::dbMaster* master : lib->getMasters()) {
+        std::string name = master->getName();
+        if (name.find("clkbuf_") != std::string::npos
+            || name.find("CLKBUF") != std::string::npos) {
+          if (!clkbuf_list.empty()) {
+            clkbuf_list += " ";
+          }
+          clkbuf_list += name;
         }
-        clkbuf_list += name;
       }
     }
   }
+
   if (!clkbuf_list.empty()) {
     triton_cts->setBufferList(clkbuf_list.c_str());
   } else {
-    logger_->warn(CMS, 402, "No clock buffers found in library");
+    logger_->error(CMS, 402, "No clock buffers found. " "Specify buffers with -buffers option");
+    return;
   }
 
   triton_cts->runTritonCts();
 }
 
-// Writes Verilog with mesh nets merged back to clock net name
+// Re-encodes wire segments from source net onto the mesh net's wire
+void ClockMesh::reencodeWireToMesh(odb::dbWire* src_wire, odb::dbWireEncoder& encoder)
+{
+  odb::dbWireDecoder decoder;
+  decoder.begin(src_wire);
+  std::map<int, int> jct_map;
+
+  odb::dbWireDecoder::OpCode opcode;
+  while ((opcode = decoder.next()) != odb::dbWireDecoder::END_DECODE) {
+    switch (opcode) {
+      case odb::dbWireDecoder::PATH: {
+        odb::dbTechLayer* layer = decoder.getLayer();
+        odb::dbWireType wire_type = decoder.getWireType();
+        if (decoder.peek() == odb::dbWireDecoder::RULE) {
+          decoder.next();
+          encoder.newPath(layer, wire_type, decoder.getRule());
+        } else {
+          encoder.newPath(layer, wire_type);
+        }
+        break;
+      }
+      case odb::dbWireDecoder::JUNCTION: {
+        int src_jct = decoder.getJunctionValue();
+        odb::dbWireType wire_type = decoder.getWireType();
+        auto it = jct_map.find(src_jct);
+        if (it != jct_map.end()) {
+          if (decoder.peek() == odb::dbWireDecoder::RULE) {
+            decoder.next();
+            encoder.newPath(it->second, wire_type, decoder.getRule());
+          } else {
+            encoder.newPath(it->second, wire_type);
+          }
+        } else {
+          odb::dbTechLayer* layer = decoder.getLayer();
+          logger_->warn(CMS, 873, "Junction ID {} not found in source wire, " "starting disjoint path on layer {}", src_jct, layer->getName());
+          encoder.newPath(layer, wire_type);
+        }
+        break;
+      }
+      case odb::dbWireDecoder::SHORT: {
+        int src_jct = decoder.getJunctionValue();
+        odb::dbTechLayer* layer = decoder.getLayer();
+        odb::dbWireType wire_type = decoder.getWireType();
+        auto it = jct_map.find(src_jct);
+        if (it != jct_map.end()) {
+          if (decoder.peek() == odb::dbWireDecoder::RULE) {
+            decoder.next();
+            encoder.newPathShort(
+                it->second, layer, wire_type, decoder.getRule());
+          } else {
+            encoder.newPathShort(it->second, layer, wire_type);
+          }
+        } else {
+          logger_->warn(CMS, 874, "Short junction ID {} not found, " "starting disjoint path on layer {}", src_jct, layer->getName());
+          encoder.newPath(layer, wire_type);
+        }
+        break;
+      }
+      case odb::dbWireDecoder::VWIRE: {
+        int src_jct = decoder.getJunctionValue();
+        odb::dbTechLayer* layer = decoder.getLayer();
+        odb::dbWireType wire_type = decoder.getWireType();
+        auto it = jct_map.find(src_jct);
+        if (it != jct_map.end()) {
+          encoder.newPathVirtualWire(it->second, layer, wire_type);
+        } else {
+          logger_->warn(CMS, 875, "VWire junction ID {} not found, " "starting disjoint path on layer {}", src_jct, layer->getName());
+          encoder.newPath(layer, wire_type);
+        }
+        break;
+      }
+      case odb::dbWireDecoder::POINT: {
+        int x, y;
+        decoder.getPoint(x, y);
+        int new_jct = encoder.addPoint(x, y);
+        jct_map[decoder.getJunctionId()] = new_jct;
+        break;
+      }
+      case odb::dbWireDecoder::POINT_EXT: {
+        int x, y, ext;
+        decoder.getPoint(x, y, ext);
+        int new_jct = encoder.addPoint(x, y, ext);
+        jct_map[decoder.getJunctionId()] = new_jct;
+        break;
+      }
+      case odb::dbWireDecoder::VIA: {
+        odb::dbVia* via = decoder.getVia();
+        int new_jct = encoder.addVia(via);
+        jct_map[decoder.getJunctionId()] = new_jct;
+        break;
+      }
+      case odb::dbWireDecoder::TECH_VIA: {
+        odb::dbTechVia* via = decoder.getTechVia();
+        int new_jct = encoder.addTechVia(via);
+        jct_map[decoder.getJunctionId()] = new_jct;
+        break;
+      }
+      case odb::dbWireDecoder::RECT: {
+        int dx1, dy1, dx2, dy2;
+        decoder.getRect(dx1, dy1, dx2, dy2);
+        encoder.addRect(dx1, dy1, dx2, dy2);
+        break;
+      }
+      case odb::dbWireDecoder::RULE:
+        break;
+      case odb::dbWireDecoder::ITERM:
+      case odb::dbWireDecoder::BTERM:
+        break;
+      default:
+        break;
+    }
+  }
+}
+
+// Converts mesh grid SWires to regular dbWire so OpenRCX can extract parasitics
+void ClockMesh::convertSWireToWire(const std::string& clock_name)
+{
+  std::string base_name = mesh_net_name_.empty() ? clock_name : mesh_net_name_;
+  std::string mesh_net_name = base_name + "_mesh";
+
+  odb::dbNet* mesh_net = block_->findNet(mesh_net_name.c_str());
+  if (!mesh_net) {
+    logger_->error(CMS, 850, "Mesh net '{}' not found", mesh_net_name);
+    return;
+  }
+
+  auto swires = mesh_net->getSWires();
+  if (swires.empty()) {
+    logger_->warn(CMS, 851, "No SWires found on net '{}'", mesh_net_name);
+    return;
+  }
+
+  // Collect wire rectangles and vias from SBoxes
+  struct WireRect {
+    odb::dbTechLayer* layer;
+    odb::Rect rect;
+    bool is_horizontal;
+  };
+  struct ViaEntry {
+    odb::dbTechVia* tech_via;
+    int x;
+    int y;
+  };
+
+  std::vector<WireRect> wire_rects;
+  std::vector<ViaEntry> via_entries;
+
+  for (odb::dbSWire* swire : swires) {
+    for (odb::dbSBox* sbox : swire->getWires()) {
+      if (sbox->isVia()) {
+        odb::dbTechVia* tv = sbox->getTechVia();
+        if (tv) {
+          int cx = (sbox->xMin() + sbox->xMax()) / 2;
+          int cy = (sbox->yMin() + sbox->yMax()) / 2;
+          via_entries.push_back({tv, cx, cy});
+        }
+      } else {
+        odb::dbTechLayer* layer = sbox->getTechLayer();
+        if (!layer) {
+          continue;
+        }
+        odb::Rect rect(sbox->xMin(), sbox->yMin(),
+                       sbox->xMax(), sbox->yMax());
+        bool is_horiz = (rect.dx() > rect.dy());
+        wire_rects.push_back({layer, rect, is_horiz});
+      }
+    }
+  }
+
+  // Append grid geometry to the existing dbWire (which has merged routing)
+  odb::dbWire* wire = mesh_net->getWire();
+  if (!wire) {
+    wire = odb::dbWire::create(mesh_net);
+  }
+
+  odb::dbWireEncoder encoder;
+  encoder.append(wire);
+
+  // Encode each wire segment, breaking at connection points so OpenRCX creates explicit nodes where routed wires meet mesh wires
+  for (const auto& wr : wire_rects) {
+    int cx_start, cy_start, cx_end, cy_end;
+    if (wr.is_horizontal) {
+      int cy = (wr.rect.yMin() + wr.rect.yMax()) / 2;
+      cx_start = wr.rect.xMin();
+      cx_end = wr.rect.xMax();
+      cy_start = cy;
+      cy_end = cy;
+    } else {
+      int cx = (wr.rect.xMin() + wr.rect.xMax()) / 2;
+      cx_start = cx;
+      cx_end = cx;
+      cy_start = wr.rect.yMin();
+      cy_end = wr.rect.yMax();
+    }
+
+    // Find connection points that fall on this wire segment
+    int layer_level = wr.layer->getRoutingLevel();
+    std::vector<int> break_coords;
+    for (const auto& [px, py, plevel] : mesh_connection_points_) {
+      if (plevel != layer_level) continue;
+      if (wr.is_horizontal) {
+        if (py == cy_start && px > cx_start && px < cx_end) {
+          break_coords.push_back(px);
+        }
+      } else {
+        if (px == cx_start && py > cy_start && py < cy_end) {
+          break_coords.push_back(py);
+        }
+      }
+    }
+
+    encoder.newPath(wr.layer, odb::dbWireType::ROUTED);
+    if (break_coords.empty()) {
+      encoder.addPoint(cx_start, cy_start);
+      encoder.addPoint(cx_end, cy_end);
+    } else {
+      // Sort and insert intermediate points at connection locations
+      std::sort(break_coords.begin(), break_coords.end());
+      encoder.addPoint(cx_start, cy_start);
+      for (int coord : break_coords) {
+        if (wr.is_horizontal) {
+          encoder.addPoint(coord, cy_start);
+        } else {
+          encoder.addPoint(cx_start, coord);
+        }
+      }
+      encoder.addPoint(cx_end, cy_end);
+    }
+  }
+
+  // Encode each via
+  for (const auto& ve : via_entries) {
+    odb::dbTechLayer* bot_layer = ve.tech_via->getBottomLayer();
+    encoder.newPath(bot_layer, odb::dbWireType::ROUTED);
+    encoder.addPoint(ve.x, ve.y);
+    encoder.addTechVia(ve.tech_via);
+  }
+
+  encoder.end();
+
+  // Delete the SWires after conversion
+  std::vector<odb::dbSWire*> swires_to_delete;
+  for (odb::dbSWire* swire : mesh_net->getSWires()) {
+    swires_to_delete.push_back(swire);
+  }
+  for (odb::dbSWire* swire : swires_to_delete) {
+    odb::dbSWire::destroy(swire);
+  }
+
+  // Clear the special flag so OpenRCX treats it as a regular net
+  mesh_net->clearSpecial();
+
+  logger_->info(CMS, 852, "Converted {} wire segments and {} vias from SWire to Wire on '{}'", wire_rects.size(), via_entries.size(), mesh_net_name);
+}
+
+
+void ClockMesh::captureLeafArrivals(const std::string& clock_name)
+{
+  leaf_arrivals_ns_.clear();
+
+  for (const GridIntersection& inter : grid_intersections_) {
+    if (!inter.has_buffer || !inter.buffer_inst) {
+      continue;
+    }
+    odb::dbITerm* input_iterm = getBufferInputPin(inter.buffer_inst);
+    if (!input_iterm || !input_iterm->getNet()) {
+      continue;
+    }
+    std::string leaf_name = input_iterm->getNet()->getConstName();
+    if (leaf_arrivals_ns_.count(leaf_name)) {
+      continue;
+    }
+    sta::Pin* sta_pin = network_->dbToSta(input_iterm);
+    if (sta_pin) {
+      float arrival_sec = sta_->pinArrival(
+          sta_pin, sta::RiseFall::rise(), sta::MinMax::max());
+      leaf_arrivals_ns_[leaf_name] = arrival_sec * 1e9;
+    } else {
+      leaf_arrivals_ns_[leaf_name] = 0.0;
+    }
+  }
+
+  // float min_arr = std::numeric_limits<float>::max();
+  // float max_arr = std::numeric_limits<float>::lowest();
+  // for (const auto& [name, arr] : leaf_arrivals_ns_) {
+  //   min_arr = std::min(min_arr, arr);
+  //   max_arr = std::max(max_arr, arr);
+  // }
+  // if (!leaf_arrivals_ns_.empty()) {
+  //   logger_->info(CMS, 867,
+  //                 "Captured {} CTS leaf arrivals, range: [{:.4g}, {:.4g}] ns, "
+  //                 "CTS skew: {:.4g} ns",
+  //                 leaf_arrivals_ns_.size(), min_arr, max_arr,
+  //                 max_arr - min_arr);
+  // } else {
+  //   logger_->warn(CMS, 869, "No CTS leaf arrivals captured");
+  // }
+}
+
+// Reads extracted parasitics from DB and writes SPICE netlist
+void ClockMesh::writeMeshSpice(const std::string& clock_name, const std::string& spice_file, float vdd_voltage, float rise_time_ns, float fall_time_ns, const std::vector<std::string>& spice_models)
+{
+  std::string base_name = mesh_net_name_.empty() ? clock_name : mesh_net_name_;
+  std::string mesh_net_name = base_name + "_mesh";
+
+  odb::dbNet* mesh_net = block_->findNet(mesh_net_name.c_str());
+  if (!mesh_net) {
+    logger_->error(CMS, 860, "Mesh net '{}' not found", mesh_net_name);
+    return;
+  }
+
+  std::ofstream out(spice_file);
+  if (!out.is_open()) {
+    logger_->error(CMS, 861, "Cannot open SPICE file: {}", spice_file);
+    return;
+  }
+
+  // Auto-detect VDD voltage from Liberty operating conditions
+  float vdd = vdd_voltage;
+  if (vdd == 0.0) {
+    sta::LibertyLibrary* lib = network_->defaultLibertyLibrary();
+    if (lib) {
+      const sta::OperatingConditions* op_cond
+          = lib->defaultOperatingConditions();
+      if (op_cond) {
+        vdd = op_cond->voltage();
+      }
+    }
+    if (vdd == 0.0) {
+      vdd = 1.8;
+      logger_->warn(CMS, 865, "Could not detect VDD from Liberty, using default {}V", vdd);
+    }
+  }
+
+  // Get clock period from SDC (STA stores time in seconds)
+  float period_ns = 10.0;  // fallback default
+  sta::Sdc* sdc = sta_->sdc();
+  if (sdc) {
+    for (auto clk : *sdc->clocks()) {
+      if (std::string(clk->name()) == clock_name) {
+        period_ns = clk->period() * 1e9;  // seconds → nanoseconds
+        break;
+      }
+    }
+  }
+  float pw_ns = period_ns / 2.0;
+  float rise_ns = (rise_time_ns > 0.0) ? rise_time_ns : period_ns / 100.0;
+  float fall_ns = (fall_time_ns > 0.0) ? fall_time_ns : period_ns / 100.0;
+
+  logger_->info(CMS, 866,
+                "SPICE parameters: VDD={:.3g}V, period={:.4g}ns, "
+                "rise={:.4g}ns, fall={:.4g}ns",
+                vdd, period_ns, rise_ns, fall_ns);
+
+  // Characters like $, [, ], . are invalid in SPICE node names
+  auto sanitize = [](const std::string& name) -> std::string {
+    std::string s = name;
+    for (char& c : s) {
+      if (c == '$' || c == '[' || c == ']' || c == '.' || c == '/'
+          || c == '\\' || c == ' ') {
+        c = '_';
+      }
+    }
+    return s;
+  };
+
+  auto node_name = [&](odb::dbCapNode* cap_node) -> std::string {
+    if (cap_node->isITerm()) {
+      odb::dbITerm* iterm = odb::dbITerm::getITerm(block_, cap_node->getNode());
+      if (iterm) {
+        return sanitize(std::string(iterm->getInst()->getConstName()) + "_"
+             + std::string(iterm->getMTerm()->getConstName()));
+      }
+    }
+    if (cap_node->isBTerm()) {
+      odb::dbBTerm* bterm = odb::dbBTerm::getBTerm(block_, cap_node->getNode());
+      if (bterm) {
+        return sanitize(std::string(bterm->getConstName()));
+      }
+    }
+    uint32_t nid = cap_node->getNet()->getId();
+    return "n_" + std::to_string(nid) + "_"
+         + std::to_string(cap_node->getNode());
+  };
+
+  // Parse CDL/SPICE model files for subcircuit pin order
+  std::map<std::string, std::vector<std::string>> subckt_pins;
+  for (const auto& model_file : spice_models) {
+    std::ifstream model_in(model_file);
+    if (!model_in.is_open()) {
+      logger_->warn(CMS, 872, "Cannot open SPICE model file: {}", model_file);
+      continue;
+    }
+    std::string line;
+    while (std::getline(model_in, line)) {
+      // Match .SUBCKT or .subckt
+      if (line.size() > 7
+          && (line.compare(0, 7, ".SUBCKT") == 0
+              || line.compare(0, 7, ".subckt") == 0)) {
+        std::istringstream iss(line);
+        std::string token, subckt_name;
+        iss >> token >> subckt_name;  // skip ".SUBCKT", get name
+        std::vector<std::string> pins;
+        while (iss >> token) {
+          pins.push_back(token);
+        }
+        subckt_pins[subckt_name] = pins;
+      }
+    }
+    model_in.close();
+  }
+
+  // Header
+  out << "* SPICE netlist for clock mesh net: " << mesh_net_name << "\n";
+  out << "* Generated by OpenROAD ClockMesh (VLSIDA Lab UCSC) \n";
+  out << "*\n";
+
+  // Simulator options for convergence with extracted RC networks
+  out << ".option rshunt=1e12\n";  
+  out << ".option abstol=1e-10 reltol=0.003 vntol=1e-4\n";
+
+  // Disable Monte Carlo mismatch for deterministic simulation
+  if (!spice_models.empty()) {
+    out << ".param mc_mm_switch=0\n";
+    out << ".param mc_pr_switch=0\n";
+  }
+
+  // Include SPICE model/subcircuit files
+  for (const auto& model_file : spice_models) {
+    if (model_file.size() > 5
+        && model_file.compare(model_file.size() - 5, 5, ".osdi") == 0) {
+      out << ".pre_osdi " << model_file << "\n";
+    } else {
+      out << ".include " << model_file << "\n";
+    }
+  }
+
+  // Power supplies (GND = node 0, no separate Vgnd source needed)
+  out << "\n* Power supplies\n";
+  out << "Vvdd VDD 0 " << vdd << "\n";
+
+  // Use cached CTS leaf arrival times (captured before merge)
+  if (leaf_arrivals_ns_.empty()) {
+    logger_->warn(CMS, 870, "No cached CTS leaf arrivals. " "Call capture_mesh_arrivals before merge_mesh_nets " "for accurate skew analysis. Using zero delays.");
+    // Collect leaf net names with zero delay as fallback
+    for (const GridIntersection& inter : grid_intersections_) {
+      if (!inter.has_buffer || !inter.buffer_inst) {
+        continue;
+      }
+      odb::dbITerm* input_iterm = getBufferInputPin(inter.buffer_inst);
+      if (input_iterm && input_iterm->getNet()) {
+        std::string leaf_name = input_iterm->getNet()->getConstName();
+        if (!leaf_arrivals_ns_.count(leaf_name)) {
+          leaf_arrivals_ns_[leaf_name] = 0.0;
+        }
+      }
+    }
+  }
+
+  // Write per-leaf-net clock sources with STA arrival delay offsets
+  out << "\n* CTS leaf clock sources (with STA arrival delays)\n";
+  int vclk_count = 0;
+  for (const auto& [leaf_name, arrival] : leaf_arrivals_ns_) {
+    out << "Vclk_" << vclk_count << " " << leaf_name << " 0 PULSE(0 " << vdd
+        << " " << arrival << "n " << rise_ns << "n " << fall_ns << "n "
+        << pw_ns << "n " << period_ns << "n)"
+        << " $ arrival=" << arrival << "ns\n";
+    vclk_count++;
+  }
+
+  // Buffer instances
+  out << "\n* Buffer instances\n";
+  for (const GridIntersection& inter : grid_intersections_) {
+    if (!inter.has_buffer || !inter.buffer_inst) {
+      continue;
+    }
+    odb::dbInst* inst = inter.buffer_inst;
+    std::string inst_name = inst->getCosntName();
+    std::string master_name = inst->getMaster()->getConstName();
+    out << "X" << inst_name;
+
+    // Build a map of pin_name → ITerm for this instance
+    std::map<std::string, odb::dbITerm*> pin_to_iterm;
+    for (odb::dbITerm* iterm : inst->getITerms()) {
+      pin_to_iterm[iterm->getMTerm()->getConstName()] = iterm;
+    }
+
+    // Lambda to write a single pin's net connection
+    auto write_pin = [&](odb::dbITerm* iterm) {
+      odb::dbSigType sig_type = iterm->getSigType();
+      if (sig_type == odb::dbSigType::GROUND) {
+        out << " 0";
+        return;
+      }
+      if (sig_type == odb::dbSigType::POWER) {
+        out << " VDD";
+        return;
+      }
+      odb::dbNet* iterm_net = iterm->getNet();
+      std::string net_name_str;
+      if (iterm_net) {
+        bool found = false;
+        for (odb::dbCapNode* cn : mesh_net->getCapNodes()) {
+          if (cn->isITerm() && cn->getNode() == iterm->getId()) {
+            net_name_str = node_name(cn);
+            found = true;
+            break;
+          }
+        }
+        if (!found) {
+          net_name_str = iterm_net->getConstName();
+        }
+      } else {
+        net_name_str = iterm->getMTerm()->getConstName();
+      }
+      out << " " << net_name_str;
+    };
+
+    // Use CDL pin order if available, otherwise DB order
+    auto it = subckt_pins.find(master_name);
+    if (it != subckt_pins.end()) {
+      for (const std::string& cdl_pin : it->second) {
+        auto pit = pin_to_iterm.find(cdl_pin);
+        if (pit != pin_to_iterm.end()) {
+          write_pin(pit->second);
+        } else {
+          // Pin in CDL but not in DB — write name as-is
+          out << " " << cdl_pin;
+        }
+      }
+    } else {
+      // No CDL info — fall back to DB order
+      for (odb::dbITerm* iterm : inst->getITerms()) {
+        write_pin(iterm);
+      }
+    }
+    out << " " << master_name << "\n";
+  }
+
+  // Resistance segments
+  out << "\n* Resistance segments\n";
+  int r_count = 0;
+  for (odb::dbRSeg* rseg : mesh_net->getRSegs()) {
+    odb::dbCapNode* src_node = rseg->getSourceCapNode();
+    odb::dbCapNode* tgt_node = rseg->getTargetCapNode();
+    if (!src_node || !tgt_node) {
+      continue;
+    }
+    double res = rseg->getResistance(0);
+    out << "R" << r_count << " " << node_name(src_node)
+        << " " << node_name(tgt_node) << " " << res << "\n";
+    r_count++;
+  }
+
+  // Ground capacitances — try CapNode caps first (model-based extraction),
+  out << "\n* Ground capacitances\n";
+  int c_count = 0;
+  for (odb::dbCapNode* cap_node : mesh_net->getCapNodes()) {
+    double cap = cap_node->getCapacitance(0);
+    if (cap > 0.0) {
+      out << "C" << c_count << " " << node_name(cap_node)
+          << " 0 " << cap << "f\n";
+      c_count++;
+    }
+  }
+  if (c_count == 0) {
+    // Fallback: read cap from RSegs (LEF-RC mode stores cap here)
+    for (odb::dbRSeg* rseg : mesh_net->getRSegs()) {
+      double cap = rseg->getCapacitance(0);
+      if (cap > 0.0) {
+        odb::dbCapNode* tgt_node = rseg->getTargetCapNode();
+        if (!tgt_node) {
+          continue;
+        }
+        out << "C" << c_count << " " << node_name(tgt_node)
+            << " 0 " << cap << "f\n";
+        c_count++;
+      }
+    }
+  }
+
+  // Coupling capacitances
+  out << "\n* Coupling capacitances\n";
+  int cc_count = 0;
+  std::set<uint32_t> visited_cc;
+  for (odb::dbCapNode* cap_node : mesh_net->getCapNodes()) {
+    for (odb::dbCCSeg* cc : cap_node->getCCSegs()) {
+      if (visited_cc.count(cc->getId())) {
+        continue;
+      }
+      visited_cc.insert(cc->getId());
+      odb::dbCapNode* src = cc->getSourceCapNode();
+      odb::dbCapNode* tgt = cc->getTargetCapNode();
+      double cap = cc->getCapacitance(0);
+      if (cap > 0.0) {
+        out << "Cc" << cc_count << " " << node_name(src)
+            << " " << node_name(tgt) << " " << cap << "f\n";
+        cc_count++;
+      }
+    }
+  }
+
+  // Sink arrival time measurements
+  out << "\n* Sink arrival time measurements (50% VDD, 1st rising edge)\n";
+  out << "* Post-process: skew = max(t_sink_i) - min(t_sink_i)\n";
+  float half_vdd = vdd / 2.0;
+  int sink_count = 0;
+  for (odb::dbITerm* iterm : mesh_net->getITerms()) {
+    std::string inst_name = iterm->getInst()->getConstName();
+    // Skip mesh buffer ITerms — they are not sinks
+    if (inst_name.find("mesh_buf_") == 0) {
+      continue;
+    }
+    // Find the CapNode for this sink ITerm to get its SPICE node name
+    std::string sink_node;
+    for (odb::dbCapNode* cn : mesh_net->getCapNodes()) {
+      if (cn->isITerm() && cn->getNode() == iterm->getId()) {
+        sink_node = node_name(cn);
+        break;
+      }
+    }
+    if (sink_node.empty()) {
+      sink_node = sanitize(inst_name + "_"  + std::string(iterm->getMTerm()->getConstName()));
+    }
+    out << ".measure tran t_sink_" << sink_count
+        << " WHEN v(" << sink_node << ")=" << half_vdd
+        << " RISE=1"
+        << "\n* " << inst_name << "/" << iterm->getMTerm()->getConstName()
+        << "\n";
+    sink_count++;
+  }
+  logger_->info(CMS, 868,
+                "Added {} sink .measure statements for skew analysis",
+                sink_count);
+
+  // Simulation control — step = rise_time/10, duration = 3 periods
+  // 3 periods is enough for .measure RISE=2 to trigger
+  float tran_step = rise_ns / 10.0;
+  float tran_stop = period_ns * 3.0;
+  out << "\n* Simulation control\n";
+  out << ".tran " << tran_step << "n " << tran_stop << "n\n";
+  out << ".end\n";
+
+  out.close();
+
+  logger_->info(CMS, 862,"Wrote SPICE netlist: {} ({} R, {} C, {} Cc, {} sinks)", spice_file, r_count, c_count, cc_count, sink_count);
+}
+
+// Merges buffer and sink nets into clk_mesh for parasitic extraction
+void ClockMesh::mergeNetsToMesh(const std::string& clock_name)
+{
+  std::string base_name = mesh_net_name_.empty() ? clock_name : mesh_net_name_;
+  std::string mesh_net_name = base_name + "_mesh";
+
+  odb::dbNet* mesh_net = block_->findNet(mesh_net_name.c_str());
+  if (!mesh_net) {
+    logger_->error(CMS, 800, "Mesh net '{}' not found", mesh_net_name);
+    return;
+  }
+
+  int buffers_merged = 0;
+  int sinks_merged = 0;
+
+  // Collect nets to merge (can't modify net list while iterating)
+  std::vector<odb::dbNet*> buf_nets;
+  std::vector<odb::dbNet*> sink_nets;
+  std::string buf_prefix = base_name + "_buf_";
+
+  for (odb::dbNet* net : block_->getNets()) {
+    std::string name = net->getName();
+    if (name.rfind(buf_prefix, 0) == 0) {
+      buf_nets.push_back(net);
+    } else if (name.rfind("sink_", 0) == 0
+               && name.find("bterm") == std::string::npos) {
+      sink_nets.push_back(net);
+    }
+  }
+
+  odb::dbWire* new_wire = odb::dbWire::create(mesh_net);
+  odb::dbWireEncoder encoder;
+  encoder.begin(new_wire);
+
+  // Re-encode routing from buffer nets
+  for (odb::dbNet* net : buf_nets) {
+    odb::dbWire* wire = net->getWire();
+    if (wire) {
+      reencodeWireToMesh(wire, encoder);
+    }
+  }
+
+  // Re-encode routing from sink nets
+  for (odb::dbNet* net : sink_nets) {
+    odb::dbWire* wire = net->getWire();
+    if (wire) {
+      reencodeWireToMesh(wire, encoder);
+    }
+  }
+
+  encoder.end();
+
+  for (odb::dbNet* net : buf_nets) {
+    net->setDoNotTouch(false);
+
+    std::vector<odb::dbITerm*> iterms(net->getITerms().begin(), net->getITerms().end());
+    for (odb::dbITerm* iterm : iterms) {
+      iterm->disconnect();
+      iterm->connect(mesh_net);
+    }
+    odb::dbNet::destroy(net);
+    buffers_merged++;
+  }
+
+  for (odb::dbNet* net : sink_nets) {
+    net->setDoNotTouch(false);
+
+    std::vector<odb::dbITerm*> iterms(net->getITerms().begin(), net->getITerms().end());
+    for (odb::dbITerm* iterm : iterms) {
+      iterm->disconnect();
+      iterm->connect(mesh_net);
+    }
+    odb::dbNet::destroy(net);
+    sinks_merged++;
+  }
+
+  logger_->info(CMS, 801,
+                "Merged {} buffer nets and {} sink nets into '{}'",
+                buffers_merged, sinks_merged, mesh_net_name);
+
+  // Rebuild the STA network view from the current DB state.
+  // write_verilog reads from the STA network (not OpenDB directly),
+  // and the BTerm destruction callbacks only disconnect pins in STA
+  // but don't remove ports from the top-level cell.
+  network_->readDbAfter(db_);
+  logger_->info(CMS, 802, "Rebuilt STA network after merge");
+}
+
+// Writes Verilog with buffer and sink nets merged to mesh net
 void ClockMesh::writeMeshVerilog(const std::string& clock_name, const std::string& input_filename, const std::string& output_filename)
 {
-  std::string mesh_net_name = mesh_net_name_;
-  if (mesh_net_name.empty()) {
-    logger_->warn(CMS, 753, "Mesh net name not stored, using SDC clock name");
-    mesh_net_name = clock_name;
-  }
+  std::string base_name = mesh_net_name_.empty() ? clock_name : mesh_net_name_;
+  std::string mesh_net_target = base_name + "_mesh";
 
   std::ifstream in(input_filename);
   if (!in.is_open()) {
@@ -1069,8 +1811,7 @@ void ClockMesh::writeMeshVerilog(const std::string& clock_name, const std::strin
   in.close();
 
   std::set<std::string> nets_to_replace;
-  std::string buf_net_prefix = mesh_net_name + "_buf_";
-  std::string mesh_net_suffix = mesh_net_name + "_mesh";
+  std::string buf_net_prefix = base_name + "_buf_";
 
   for (odb::dbNet* net : block_->getNets()) {
     std::string name = net->getName();
@@ -1078,9 +1819,6 @@ void ClockMesh::writeMeshVerilog(const std::string& clock_name, const std::strin
       nets_to_replace.insert(name);
     }
     if (name.rfind("sink_", 0) == 0 && name.find("bterm") == std::string::npos) {
-      nets_to_replace.insert(name);
-    }
-    if (name == mesh_net_suffix) {
       nets_to_replace.insert(name);
     }
   }
@@ -1102,8 +1840,8 @@ void ClockMesh::writeMeshVerilog(const std::string& clock_name, const std::strin
   for (const std::string& net_name : sorted_nets) {
     size_t pos = 0;
     while ((pos = content.find(net_name, pos)) != std::string::npos) {
-      content.replace(pos, net_name.length(), mesh_net_name);
-      pos += mesh_net_name.length();
+      content.replace(pos, net_name.length(), mesh_net_target);
+      pos += mesh_net_target.length();
     }
   }
 
@@ -1119,10 +1857,6 @@ void ClockMesh::writeMeshVerilog(const std::string& clock_name, const std::strin
         break;
       }
     }
-    std::string wire_pattern = " wire " + mesh_net_name + ";";
-    if (!skip_line && line.find(wire_pattern) != std::string::npos) {
-      skip_line = true;
-    }
     if (!skip_line) {
       oss << line << "\n";
     }
@@ -1136,8 +1870,8 @@ void ClockMesh::writeMeshVerilog(const std::string& clock_name, const std::strin
 
   std::string final_content = "// Mesh-Merged Verilog Netlist\n";
   final_content += "// Modified by OpenROAD ClockMesh\n";
-  final_content += "// " + buf_net_prefix + "*, " + mesh_net_suffix + ", and sink_* nets merged to '" + mesh_net_name + "'\n";
-  final_content += "// CTS tree on original clock net '" + mesh_net_name + "' preserved\n";
+  final_content += "// " + buf_net_prefix + "* and sink_* nets merged to '" + mesh_net_target + "'\n";
+  final_content += "// CTS tree on original clock net '" + base_name + "' preserved\n";
   final_content += "// proxy_* and sink_bterm_* BTERMs removed from ports\n\n";
   final_content += result;
 

@@ -10,7 +10,7 @@ create_clock_mesh \
     -clock $clk_name \
     -h_layer met2 \
     -v_layer met3 \
-    -pitch 5.0 \
+    -pitch 1.0 \
     -buffers $buffer_list
 
 puts "Legalizing buffer placement..."
@@ -34,11 +34,75 @@ global_route -guide_file [make_result_file "mesh_cts_route.guide"] \
     -congestion_iterations 50
 
 detailed_route -output_drc [make_result_file "mesh_cts_drc.rpt"] \
-    -droute_end_iter 2
+    -droute_end_iter 1
 
 # After routing, connect the proxy BTERMs to the mesh via via stacks
 puts "Connecting proxy BTERMs to mesh..."
 connect_proxy_bterms_to_mesh -clock $clk_name
+
+# Capture CTS leaf arrival times from STA (must be before merge)
+puts "Capturing CTS leaf arrival times for skew analysis..."
+capture_mesh_arrivals -clock $clk_name
+
+# Merge buffer and sink nets into clk_mesh for parasitic extraction
+puts "Merging buffer and sink nets into mesh net..."
+merge_mesh_nets -clock $clk_name
+
+# Convert SWires to regular wires for OpenRCX extraction
+puts "Converting mesh SWires to regular wires..."
+convert_mesh_swire -clock $clk_name
+
+# Extract parasitics using OpenRCX (model-based extraction with coupling caps)
+puts "Setting up via resistances..."
+set_layer_rc -via mcon -resistance 9.249146E-3
+set_layer_rc -via via  -resistance 4.5E-3
+set_layer_rc -via via2 -resistance 3.368786E-3
+set_layer_rc -via via3 -resistance 0.376635E-3
+set_layer_rc -via via4 -resistance 0.00580E-3
+
+puts "Extracting parasitics with coupling capacitance..."
+extract_parasitics -ext_model_file ./sky130hd/rcx_patterns.rules \
+    -cc_model 10 \
+    -coupling_threshold 0.1 \
+    -max_res 0 \
+    -skip_over_cell
+
+# Write SPICE netlist from extracted parasitics
+# Include sky130 transistor models (TT corner) and cell subcircuit definitions
+set sky130_pdk "$::env(HOME)/.ciel/ciel/sky130/versions/54435919abffb937387ec956209f9cf5fd2dfbee/sky130A"
+set spice_models [list \
+    "${sky130_pdk}/libs.tech/ngspice/corners/tt.spice" \
+    "${sky130_pdk}/libs.ref/sky130_fd_sc_hd/spice/sky130_fd_sc_hd.spice"]
+
+set spice_file [make_result_file "mesh_cts_integration_sky130hd.spice"]
+puts "Writing SPICE netlist to: $spice_file"
+write_mesh_spice -clock $clk_name -output $spice_file -spice_models $spice_models
+
+# Verify merge: check that clk_mesh has all connections
+set block [ord::get_db_block]
+set mesh_net_name "clk_mesh"
+set mesh_net [$block findNet $mesh_net_name]
+if { $mesh_net == "NULL" } {
+    puts "ERROR: Mesh net '$mesh_net_name' not found after merge!"
+} else {
+    set iterms [$mesh_net getITerms]
+    puts "Mesh net '$mesh_net_name' has [llength $iterms] ITerms after merge"
+
+    # Check that no buffer/sink nets remain
+    set remaining_buf 0
+    set remaining_sink 0
+    foreach net [$block getNets] {
+        set name [$net getName]
+        if { [string match "${clk_name}_buf_*" $name] } {
+            incr remaining_buf
+        }
+        if { [string match "sink_*" $name] && ![string match "*bterm*" $name] } {
+            incr remaining_sink
+        }
+    }
+    puts "Remaining buffer nets: $remaining_buf (expected 0)"
+    puts "Remaining sink nets: $remaining_sink (expected 0)"
+}
 
 # # === DRC Check Section ===
 # puts "\n========================================"
@@ -86,18 +150,11 @@ set def_file [make_result_file "mesh_cts_integration_sky130hd.def"]
 puts "Writing DEF to: $def_file"
 write_def $def_file
 
-# Write Verilog netlists
-# Original netlist (using standard OpenROAD command)
-set verilog_original [make_result_file "mesh_cts_integration_sky130hd_original.v"]
-puts "Writing original Verilog netlist..."
-write_verilog -include_pwr_gnd $verilog_original
-puts "Original netlist: $verilog_original"
-
-# Mesh-merged netlist (reads original, modifies net names)
-set verilog_merged [make_result_file "mesh_cts_integration_sky130hd_merged.v"]
-puts "Writing mesh-merged Verilog netlist..."
-write_mesh_verilog -clock $clk_name -input $verilog_original -output $verilog_merged
-puts "Merged netlist:   $verilog_merged"
+# Write Verilog netlist (after merge, write_verilog is sufficient)
+set verilog_file [make_result_file "mesh_cts_integration_sky130hd.v"]
+puts "Writing Verilog netlist..."
+write_verilog -include_pwr_gnd $verilog_file
+puts "Verilog netlist: $verilog_file"
 
 
 # puts "\n========================================"

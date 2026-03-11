@@ -170,6 +170,65 @@ void connect_proxy_bterms_to_mesh_cmd(const char* clock_name)
   mesh_obj->connectProxyBTermsToMesh(clock_name);
 }
 
+// Capture CTS leaf arrival times from STA (call before merge)
+void capture_leaf_arrivals_cmd(const char* clock_name)
+{
+  cms::ClockMesh* mesh_obj = ord::getClockMesh();
+  if (!mesh_obj) {
+    return;
+  }
+  mesh_obj->captureLeafArrivals(clock_name);
+}
+
+// Merge buffer and sink nets into clk_mesh for parasitic extraction
+void merge_nets_to_mesh_cmd(const char* clock_name)
+{
+  cms::ClockMesh* mesh_obj = ord::getClockMesh();
+  if (!mesh_obj) {
+    return;
+  }
+  mesh_obj->mergeNetsToMesh(clock_name);
+}
+
+// Convert mesh grid SWires to regular dbWire for OpenRCX extraction
+void convert_swire_to_wire_cmd(const char* clock_name)
+{
+  cms::ClockMesh* mesh_obj = ord::getClockMesh();
+  if (!mesh_obj) {
+    return;
+  }
+  mesh_obj->convertSWireToWire(clock_name);
+}
+
+// Write SPICE netlist from extracted parasitics
+void write_mesh_spice_cmd(const char* clock_name, const char* spice_file,
+                          float vdd_voltage, float rise_time, float fall_time,
+                          Tcl_Obj* spice_models_obj)
+{
+  cms::ClockMesh* mesh_obj = ord::getClockMesh();
+  if (!mesh_obj) {
+    return;
+  }
+
+  // Convert TCL list to C++ vector<string>
+  std::vector<std::string> spice_models;
+  if (spice_models_obj) {
+    int list_len = 0;
+    Tcl_Obj** list_elements = nullptr;
+    if (Tcl_ListObjGetElements(nullptr, spice_models_obj, &list_len, &list_elements) == TCL_OK) {
+      for (int i = 0; i < list_len; ++i) {
+        const char* path = Tcl_GetString(list_elements[i]);
+        if (path && path[0] != '\0') {
+          spice_models.push_back(path);
+        }
+      }
+    }
+  }
+
+  mesh_obj->writeMeshSpice(clock_name, spice_file,
+                           vdd_voltage, rise_time, fall_time, spice_models);
+}
+
 // Write mesh-merged Verilog netlist with correct connectivity
 // Reads input_file (from write_verilog), modifies net names, writes to output_file
 void write_mesh_verilog_cmd(const char* clock_name,
