@@ -67,14 +67,14 @@ void ClockMesh::findClockSinks()
 
   clockToSinks_.clear();
   visitedClockNets_.clear();
-  sta::Sdc* sdc = sta_->sdc();
+  sta::Sdc* sdc = sta_->cmdSdc();
 
   if (!sdc) {
     logger_->warn(CMS, 4, "No SDC constraints found");
     return;
   }
 
-  for (auto clk : *sdc->clocks()) {
+  for (auto clk : sdc->clocks()) {
     std::string clkName = clk->name();
     std::set<odb::dbNet*> clkNets;
     findClockRoots(clk, clkNets);
@@ -294,9 +294,9 @@ odb::dbNet* ClockMesh::getOrCreateClockNet(const std::string& clock_name)
 
   // Find the root clock net name from SDC and use it as base for everything
   if (mesh_net_name_.empty()) {
-    sta::Sdc* sdc = sta_->sdc();
+    sta::Sdc* sdc = sta_->cmdSdc();
     if (sdc) {
-      for (auto clk : *sdc->clocks()) {
+      for (auto clk : sdc->clocks()) {
         if (std::string(clk->name()) == clock_name) {
           for (const sta::Pin* pin : clk->pins()) {
             odb::dbITerm* iterm;
@@ -1318,6 +1318,9 @@ void ClockMesh::captureLeafArrivals(const std::string& clock_name)
 {
   leaf_arrivals_ns_.clear();
 
+  // Ensure STA timing is up-to-date after CTS modifications
+  sta_->updateTiming(false);
+
   for (const GridIntersection& inter : grid_intersections_) {
     if (!inter.has_buffer || !inter.buffer_inst) {
       continue;
@@ -1326,17 +1329,24 @@ void ClockMesh::captureLeafArrivals(const std::string& clock_name)
     if (!input_iterm || !input_iterm->getNet()) {
       continue;
     }
-    std::string leaf_name = input_iterm->getNet()->getConstName();
-    if (leaf_arrivals_ns_.count(leaf_name)) {
+    std::string leaf_key = std::string(inter.buffer_inst->getConstName())
+        + "/" + std::string(input_iterm->getMTerm()->getConstName());
+    if (leaf_arrivals_ns_.count(leaf_key)) {
       continue;
     }
     sta::Pin* sta_pin = network_->dbToSta(input_iterm);
     if (sta_pin) {
-      float arrival_sec = sta_->pinArrival(
-          sta_pin, sta::RiseFall::rise(), sta::MinMax::max());
-      leaf_arrivals_ns_[leaf_name] = arrival_sec * 1e9;
+      float arrival_sec = sta_->arrival(
+          sta_pin, sta::RiseFallBoth::rise(), sta::MinMax::max());
+      leaf_arrivals_ns_[leaf_key] = arrival_sec * 1e9;
+      logger_->info(CMS, 873,
+                    "Buffer {} pin {} on net '{}': arrival = {:.6g} ns",
+                    inter.buffer_inst->getConstName(),
+                    input_iterm->getMTerm()->getConstName(),
+                    input_iterm->getNet()->getConstName(),
+                    arrival_sec * 1e9);
     } else {
-      leaf_arrivals_ns_[leaf_name] = 0.0;
+      leaf_arrivals_ns_[leaf_key] = 0.0;
     }
   }
 
@@ -1394,9 +1404,9 @@ void ClockMesh::writeMeshSpice(const std::string& clock_name, const std::string&
 
   // Get clock period from SDC (STA stores time in seconds)
   float period_ns = 10.0;  // fallback default
-  sta::Sdc* sdc = sta_->sdc();
+  sta::Sdc* sdc = sta_->cmdSdc();
   if (sdc) {
-    for (auto clk : *sdc->clocks()) {
+    for (auto clk : sdc->clocks()) {
       if (std::string(clk->name()) == clock_name) {
         period_ns = clk->period() * 1e9;  // seconds → nanoseconds
         break;
@@ -1502,29 +1512,45 @@ void ClockMesh::writeMeshSpice(const std::string& clock_name, const std::string&
   // Use cached CTS leaf arrival times (captured before merge)
   if (leaf_arrivals_ns_.empty()) {
     logger_->warn(CMS, 870, "No cached CTS leaf arrivals. " "Call capture_mesh_arrivals before merge_mesh_nets " "for accurate skew analysis. Using zero delays.");
-    // Collect leaf net names with zero delay as fallback
+    // Collect per-buffer keys with zero delay as fallback
     for (const GridIntersection& inter : grid_intersections_) {
       if (!inter.has_buffer || !inter.buffer_inst) {
         continue;
       }
       odb::dbITerm* input_iterm = getBufferInputPin(inter.buffer_inst);
       if (input_iterm && input_iterm->getNet()) {
-        std::string leaf_name = input_iterm->getNet()->getConstName();
-        if (!leaf_arrivals_ns_.count(leaf_name)) {
-          leaf_arrivals_ns_[leaf_name] = 0.0;
+        std::string leaf_key = std::string(inter.buffer_inst->getConstName())
+            + "/" + std::string(input_iterm->getMTerm()->getConstName());
+        if (!leaf_arrivals_ns_.count(leaf_key)) {
+          leaf_arrivals_ns_[leaf_key] = 0.0;
         }
       }
     }
   }
 
-  // Write per-leaf-net clock sources with STA arrival delay offsets
-  out << "\n* CTS leaf clock sources (with STA arrival delays)\n";
+  // Write per-buffer clock sources with STA arrival delay offsets
+  // Build map from buffer iterm ID to its unique SPICE input node
+  std::map<uint32_t, std::string> buf_input_spice_node;
+  out << "\n* CTS buffer clock sources (with per-pin STA arrival delays)\n";
   int vclk_count = 0;
-  for (const auto& [leaf_name, arrival] : leaf_arrivals_ns_) {
-    out << "Vclk_" << vclk_count << " " << leaf_name << " 0 PULSE(0 " << vdd
+  for (const auto& [leaf_key, arrival] : leaf_arrivals_ns_) {
+    std::string spice_node = "clk_in_" + sanitize(leaf_key);
+    out << "Vclk_" << vclk_count << " " << spice_node << " 0 PULSE(0 " << vdd
         << " " << arrival << "n " << rise_ns << "n " << fall_ns << "n "
         << pw_ns << "n " << period_ns << "n)"
-        << " $ arrival=" << arrival << "ns\n";
+        << " $ " << leaf_key << " arrival=" << arrival << "ns\n";
+    // Extract inst name from key "inst/pin" and find the iterm ID
+    size_t slash_pos = leaf_key.find('/');
+    if (slash_pos != std::string::npos) {
+      std::string inst_name = leaf_key.substr(0, slash_pos);
+      odb::dbInst* inst = block_->findInst(inst_name.c_str());
+      if (inst) {
+        odb::dbITerm* input_iterm = getBufferInputPin(inst);
+        if (input_iterm) {
+          buf_input_spice_node[input_iterm->getId()] = spice_node;
+        }
+      }
+    }
     vclk_count++;
   }
 
@@ -1535,7 +1561,7 @@ void ClockMesh::writeMeshSpice(const std::string& clock_name, const std::string&
       continue;
     }
     odb::dbInst* inst = inter.buffer_inst;
-    std::string inst_name = inst->getCosntName();
+    std::string inst_name = inst->getConstName();
     std::string master_name = inst->getMaster()->getConstName();
     out << "X" << inst_name;
 
@@ -1554,6 +1580,12 @@ void ClockMesh::writeMeshSpice(const std::string& clock_name, const std::string&
       }
       if (sig_type == odb::dbSigType::POWER) {
         out << " VDD";
+        return;
+      }
+      // Use per-buffer Vclk node for buffer input pins
+      auto buf_it = buf_input_spice_node.find(iterm->getId());
+      if (buf_it != buf_input_spice_node.end()) {
+        out << " " << buf_it->second;
         return;
       }
       odb::dbNet* iterm_net = iterm->getNet();

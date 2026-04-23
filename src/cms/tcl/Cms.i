@@ -4,7 +4,7 @@
 #include "cms/ClockMesh.hh"
 #include "ord/OpenRoad.hh"
 #include "db_sta/dbSta.hh"
-#include "sta/Corner.hh"
+#include "sta/Scene.hh"
 #include <tcl.h>
 
 namespace ord {

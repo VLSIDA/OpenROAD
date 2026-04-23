@@ -55,6 +55,10 @@ detailed_route -output_drc [make_result_file "asap7_mesh_drc.rpt"] \
 puts "Connecting proxy BTERMs to mesh..."
 connect_proxy_bterms_to_mesh -clock $clk_name
 
+# Estimate parasitics so STA has wire RC for CTS tree nets
+puts "Estimating parasitics for CTS arrival analysis..."
+estimate_parasitics -global_routing
+
 # Capture CTS leaf arrival times from STA (before merge)
 puts "Capturing CTS leaf arrival times for skew analysis..."
 capture_mesh_arrivals -clock $clk_name
