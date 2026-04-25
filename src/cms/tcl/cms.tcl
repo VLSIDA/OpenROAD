@@ -11,7 +11,7 @@
 # Note: Wire width is automatically taken from tech file (layer default width)
 proc create_clock_mesh { args } {
     sta::parse_key_args "create_clock_mesh" args \
-        keys {-clock -h_layer -v_layer -pitch -buffers} \
+        keys {-clock -h_layer -v_layer -pitch -buffers -macro_halo} \
         flags {}
 
     if { [info exists keys(-clock)] } {
@@ -46,11 +46,19 @@ proc create_clock_mesh { args } {
         set buffer_list {}
     }
 
+    # Optional macro halo (microns) — expand macro/blockage bboxes by this amount
+    # so no mesh geometry lands within halo of a blockage.
+    if { [info exists keys(-macro_halo)] } {
+        set macro_halo_dbu [ord::microns_to_dbu $keys(-macro_halo)]
+    } else {
+        set macro_halo_dbu 0
+    }
+
     # Convert pitch to DBU
     set pitch_dbu [ord::microns_to_dbu $pitch]
 
     # Call the C++ backend command (wire width is auto-computed from tech file)
-    cms::create_mesh_grid_cmd $clock_name $h_layer $v_layer $pitch_dbu $buffer_list
+    cms::create_mesh_grid_cmd $clock_name $h_layer $v_layer $pitch_dbu $buffer_list $macro_halo_dbu
 }
 
 # Connect sinks via router - places BTerms at grid intersections for router-based connections

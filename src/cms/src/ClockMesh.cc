@@ -208,6 +208,135 @@ odb::Rect ClockMesh::calculateBoundingBox(const std::vector<ClockSink>& sinks)
   return bbox;
 }
 
+// Collects macro and blockage bounding boxes, bloated by halo_dbu, into blockage_rects_
+void ClockMesh::collectBlockageRects(int halo_dbu)
+{
+  blockage_rects_.clear();
+  if (!block_) {
+    return;
+  }
+
+  for (odb::dbInst* inst : block_->getInsts()) {
+    if (!inst->isBlock()) {
+      continue;
+    }
+    odb::dbBox* bbox = inst->getBBox();
+    if (!bbox) {
+      continue;
+    }
+    odb::Rect r = bbox->getBox();
+    if (halo_dbu > 0) {
+      r.bloat(halo_dbu, r);
+    }
+    blockage_rects_.push_back(r);
+  }
+
+  for (odb::dbBlockage* blk : block_->getBlockages()) {
+    odb::dbBox* bbox = blk->getBBox();
+    if (!bbox) {
+      continue;
+    }
+    odb::Rect r = bbox->getBox();
+    if (halo_dbu > 0) {
+      r.bloat(halo_dbu, r);
+    }
+    blockage_rects_.push_back(r);
+  }
+
+  logger_->info(CMS, 130,
+                "Collected {} blockage rects (halo = {} DBU)",
+                blockage_rects_.size(), halo_dbu);
+}
+
+// True if (x, y) falls inside any blockage rect
+bool ClockMesh::isBlocked(int x, int y) const
+{
+  odb::Point p(x, y);
+  for (const odb::Rect& r : blockage_rects_) {
+    if (r.intersects(p)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// True if r overlaps any blockage rect
+bool ClockMesh::isBlocked(const odb::Rect& r) const
+{
+  for (const odb::Rect& blk : blockage_rects_) {
+    if (blk.intersects(r)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Clips a wire rect against blockage_rects_ along its long axis.
+// Returns 0..N surviving subsegments; segments shorter than min_segment_length dropped.
+std::vector<odb::Rect> ClockMesh::clipWireByBlockages(
+    const odb::Rect& wire_rect, bool is_horizontal, int min_segment_length) const
+{
+  std::vector<std::pair<int, int>> blocked;
+  for (const odb::Rect& blk : blockage_rects_) {
+    if (!blk.intersects(wire_rect)) {
+      continue;
+    }
+    int lo, hi;
+    if (is_horizontal) {
+      lo = std::max(blk.xMin(), wire_rect.xMin());
+      hi = std::min(blk.xMax(), wire_rect.xMax());
+    } else {
+      lo = std::max(blk.yMin(), wire_rect.yMin());
+      hi = std::min(blk.yMax(), wire_rect.yMax());
+    }
+    if (lo <= hi) {
+      blocked.emplace_back(lo, hi);
+    }
+  }
+
+  if (blocked.empty()) {
+    return {wire_rect};
+  }
+
+  std::sort(blocked.begin(), blocked.end());
+  std::vector<std::pair<int, int>> merged;
+  for (const auto& iv : blocked) {
+    if (!merged.empty() && iv.first <= merged.back().second) {
+      merged.back().second = std::max(merged.back().second, iv.second);
+    } else {
+      merged.push_back(iv);
+    }
+  }
+
+  std::vector<odb::Rect> result;
+  int cursor = is_horizontal ? wire_rect.xMin() : wire_rect.yMin();
+  int end    = is_horizontal ? wire_rect.xMax() : wire_rect.yMax();
+
+  auto emit = [&](int seg_start, int seg_end) {
+    if (seg_end - seg_start < min_segment_length) {
+      return;
+    }
+    if (is_horizontal) {
+      result.emplace_back(seg_start, wire_rect.yMin(),
+                          seg_end,   wire_rect.yMax());
+    } else {
+      result.emplace_back(wire_rect.xMin(), seg_start,
+                          wire_rect.xMax(), seg_end);
+    }
+  };
+
+  for (const auto& [lo, hi] : merged) {
+    if (cursor < lo) {
+      emit(cursor, lo - 1);
+    }
+    cursor = std::max(cursor, hi + 1);
+  }
+  if (cursor <= end) {
+    emit(cursor, end);
+  }
+  return result;
+}
+
 // Creates horizontal mesh wires at regular pitch intervals
 void ClockMesh::createHorizontalWires(odb::dbNet* net, odb::dbTechLayer* layer, const odb::Rect& bbox, int pitch, std::vector<MeshWire>& wires)
 {
@@ -219,12 +348,16 @@ void ClockMesh::createHorizontalWires(odb::dbNet* net, odb::dbTechLayer* layer, 
   const int half_width = wire_width / 2;
   const int x_start = bbox.xMin();
   const int x_end = bbox.xMax();
+  const int min_segment_length = wire_width * 2;
 
   for (int y_pos = bbox.yMin(); y_pos <= bbox.yMax(); y_pos += pitch) {
     const int y_min = y_pos - half_width;
     const int y_max = y_pos + half_width;
-    odb::Rect wire_rect(x_start, y_min, x_end, y_max);
-    wires.emplace_back(layer, net, wire_rect, true);
+    odb::Rect full_rect(x_start, y_min, x_end, y_max);
+    for (const odb::Rect& seg
+         : clipWireByBlockages(full_rect, true, min_segment_length)) {
+      wires.emplace_back(layer, net, seg, true);
+    }
   }
 }
 
@@ -239,12 +372,16 @@ void ClockMesh::createVerticalWires(odb::dbNet* net, odb::dbTechLayer* layer, co
   const int half_width = wire_width / 2;
   const int y_start = bbox.yMin();
   const int y_end = bbox.yMax();
+  const int min_segment_length = wire_width * 2;
 
   for (int x_pos = bbox.xMin(); x_pos <= bbox.xMax(); x_pos += pitch) {
     const int x_min = x_pos - half_width;
     const int x_max = x_pos + half_width;
-    odb::Rect wire_rect(x_min, y_start, x_max, y_end);
-    wires.emplace_back(layer, net, wire_rect, false);
+    odb::Rect full_rect(x_min, y_start, x_max, y_end);
+    for (const odb::Rect& seg
+         : clipWireByBlockages(full_rect, false, min_segment_length)) {
+      wires.emplace_back(layer, net, seg, false);
+    }
   }
 }
 
@@ -424,7 +561,7 @@ void ClockMesh::writeViasToDb(const std::vector<MeshVia>& vias)
 }
 
 // Main function: creates mesh grid, places buffers, and runs CTS
-void ClockMesh::createMeshGrid(const std::string& clock_name, odb::dbTechLayer* h_layer, odb::dbTechLayer* v_layer, int pitch, const std::vector<std::string>& buffer_list)
+void ClockMesh::createMeshGrid(const std::string& clock_name, odb::dbTechLayer* h_layer, odb::dbTechLayer* v_layer, int pitch, const std::vector<std::string>& buffer_list, int macro_halo_dbu)
 {
   if (db_) {
     odb::dbChip* chip = db_->getChip();
@@ -439,6 +576,8 @@ void ClockMesh::createMeshGrid(const std::string& clock_name, odb::dbTechLayer* 
 
   mesh_h_layer_ = h_layer;
   mesh_v_layer_ = v_layer;
+
+  collectBlockageRects(macro_halo_dbu);
 
   odb::dbTech* tech = db_->getTech();
   int h_level = h_layer ? h_layer->getRoutingLevel() : 0;
@@ -562,6 +701,17 @@ void ClockMesh::createMeshGrid(const std::string& clock_name, odb::dbTechLayer* 
       int h_y = (h_wire.rect.yMin() + h_wire.rect.yMax()) / 2;
       for (const MeshWire& v_wire : v_wires) {
         int v_x = (v_wire.rect.xMin() + v_wire.rect.xMax()) / 2;
+        // Skip intersections where clipped wires don't actually cover the point
+        if (v_x < h_wire.rect.xMin() || v_x > h_wire.rect.xMax()) {
+          continue;
+        }
+        if (h_y < v_wire.rect.yMin() || h_y > v_wire.rect.yMax()) {
+          continue;
+        }
+        // Safety net — should not fire if clipping is correct
+        if (isBlocked(v_x, h_y)) {
+          continue;
+        }
         odb::dbTechLayer* buf_layer = selectBufferLayer(h_wire.layer, v_wire.layer);
         grid_intersections_.emplace_back(v_x, h_y, buf_layer);
         // Store intersection as connection point on both mesh layers
@@ -653,6 +803,14 @@ void ClockMesh::connectSinksViaRouter(const std::string& clock_name, odb::dbTech
       continue;
     }
 
+    // Safety net: snap point must not land inside a blockage
+    if (isBlocked(grid_point.x(), grid_point.y())) {
+      logger_->warn(CMS, 511,
+                    "Sink {} snap point ({}, {}) is inside a blockage, skipping",
+                    sink.name, grid_point.x(), grid_point.y());
+      continue;
+    }
+
     // Place BTERM on the mesh grid layer for direct connectivity
     int min_width = grid_layer->getWidth();
     int half_width = min_width / 2;
@@ -723,7 +881,11 @@ odb::Point ClockMesh::findNearestGridWire(const odb::Point& loc, const std::vect
   odb::dbTechLayer* nearest_h_layer = nullptr;
   odb::dbTechLayer* nearest_v_layer = nullptr;
 
+  // Only consider wires whose clipped extent actually reaches the sink's coord
   for (const auto& wire : h_wires) {
+    if (loc.x() < wire.rect.xMin() || loc.x() > wire.rect.xMax()) {
+      continue;
+    }
     int wire_y = (wire.rect.yMin() + wire.rect.yMax()) / 2;
     int dist = std::abs(wire_y - loc.y());
     if (dist < min_dist_h) {
@@ -733,6 +895,9 @@ odb::Point ClockMesh::findNearestGridWire(const odb::Point& loc, const std::vect
     }
   }
   for (const auto& wire : v_wires) {
+    if (loc.y() < wire.rect.yMin() || loc.y() > wire.rect.yMax()) {
+      continue;
+    }
     int wire_x = (wire.rect.xMin() + wire.rect.xMax()) / 2;
     int dist = std::abs(wire_x - loc.x());
     if (dist < min_dist_v) {

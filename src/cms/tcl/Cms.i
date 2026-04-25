@@ -24,7 +24,8 @@ void create_mesh_grid_cmd(const char* clock_name,
                           const char* h_layer_name,
                           const char* v_layer_name,
                           int pitch,
-                          Tcl_Obj* buffer_list_obj)
+                          Tcl_Obj* buffer_list_obj,
+                          int macro_halo_dbu)
 {
   cms::ClockMesh* mesh_obj = ord::getClockMesh();
   if (!mesh_obj) {
@@ -81,7 +82,7 @@ void create_mesh_grid_cmd(const char* clock_name,
   }
 
   // Call the main mesh grid creation function (wire width auto-computed from tech)
-  mesh_obj->createMeshGrid(clock_name, h_layer, v_layer, pitch, buffer_list);
+  mesh_obj->createMeshGrid(clock_name, h_layer, v_layer, pitch, buffer_list, macro_halo_dbu);
 }
 
 // Connect sinks via router - places BTerms at grid intersections for router-based connections

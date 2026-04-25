@@ -87,7 +87,8 @@ class ClockMesh
                       odb::dbTechLayer* h_layer,
                       odb::dbTechLayer* v_layer,
                       int pitch,
-                      const std::vector<std::string>& buffer_list = {});
+                      const std::vector<std::string>& buffer_list = {},
+                      int macro_halo_dbu = 0);
 
   void findClockSinks();
   void connectSinksViaRouter(const std::string& clock_name,
@@ -152,6 +153,13 @@ class ClockMesh
   void reencodeWireToMesh(odb::dbWire* src_wire,
                           odb::dbWireEncoder& encoder);
 
+  void collectBlockageRects(int halo_dbu);
+  bool isBlocked(int x, int y) const;
+  bool isBlocked(const odb::Rect& r) const;
+  std::vector<odb::Rect> clipWireByBlockages(const odb::Rect& wire_rect,
+                                             bool is_horizontal,
+                                             int min_segment_length) const;
+
   ord::OpenRoad* openroad_ = nullptr;
   bool mesh_generated_ = false;
 
@@ -181,6 +189,11 @@ class ClockMesh
   // Cached CTS leaf net arrival times (seconds → nanoseconds)
   // Populated by captureLeafArrivals() before merge, used by writeMeshSpice()
   std::map<std::string, float> leaf_arrivals_ns_;
+
+  // Halo-expanded bounding boxes of macros + dbBlockages.
+  // Populated by collectBlockageRects() at the start of createMeshGrid().
+  // Used to skip mesh wires, vias, intersections, and buffers inside macros.
+  std::vector<odb::Rect> blockage_rects_;
 };
 
 void initClockMesh(ord::OpenRoad* openroad);
