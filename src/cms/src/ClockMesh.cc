@@ -1899,7 +1899,7 @@ void ClockMesh::writeMeshSpice(const std::string& clock_name, const std::string&
   if (c_count == 0) {
     // Fallback: read cap from RSegs (LEF-RC mode stores cap here)
     for (odb::dbRSeg* rseg : mesh_net->getRSegs()) {
-      double cap = rseg->getCapacitance(0);
+      double cap = rseg->getGroundCapacitance(0);
       if (cap > 0.0) {
         odb::dbCapNode* tgt_node = rseg->getTargetCapNode();
         if (!tgt_node) {

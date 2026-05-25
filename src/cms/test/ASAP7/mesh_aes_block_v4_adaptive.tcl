@@ -78,7 +78,7 @@ set_routing_layers -signal M2-M7 -clock M2-M7
 global_route -guide_file [make_result_file "aes_block_mesh_v4_adaptive.guide"] \
     -congestion_iterations 50
 detailed_route -output_drc [make_result_file "aes_block_mesh_v4_adaptive_drc.rpt"] \
-    -droute_end_iter 64
+    -droute_end_iter 0
 
 connect_proxy_bterms_to_mesh -clock $clk_name
 
