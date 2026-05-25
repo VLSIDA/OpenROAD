@@ -26,7 +26,7 @@ using AdjacencyList = std::vector<std::vector<int>>;
 
 namespace utl {
 class Logger;
-class CallBackHandler;
+class ServiceRegistry;
 }  // namespace utl
 
 namespace odb {
@@ -55,6 +55,11 @@ class dbNetwork;
 class SpefWriter;
 }  // namespace sta
 
+namespace gui {
+class HeatMapSourceRegistration;
+using HeatMapSourceHandle = std::shared_ptr<HeatMapSourceRegistration>;
+}  // namespace gui
+
 namespace grt {
 
 class FastRouteCore;
@@ -69,7 +74,6 @@ class RoutePt;
 class AbstractGrouteRenderer;
 class AbstractFastRouteRenderer;
 class GlobalRouter;
-class AbstractRoutingCongestionDataSource;
 class GRouteDbCbk;
 class Rudy;
 
@@ -114,7 +118,7 @@ class GlobalRouter
 {
  public:
   GlobalRouter(utl::Logger* logger,
-               utl::CallBackHandler* callback_handler,
+               utl::ServiceRegistry* service_registry,
                stt::SteinerTreeBuilder* stt_builder,
                odb::dbDatabase* db,
                sta::dbSta* sta,
@@ -122,10 +126,8 @@ class GlobalRouter
                dpl::Opendp* opendp);
   ~GlobalRouter();
 
-  void initGui(std::unique_ptr<AbstractRoutingCongestionDataSource>
-                   routing_congestion_data_source,
-               std::unique_ptr<AbstractRoutingCongestionDataSource>
-                   routing_congestion_data_source_rudy);
+  void initGui(gui::HeatMapSourceHandle routing_congestion_data_source,
+               gui::HeatMapSourceHandle routing_congestion_data_source_rudy);
 
   void clear();
 
@@ -153,12 +155,19 @@ class GlobalRouter
   void setGridOrigin(int x, int y);
   void setAllowCongestion(bool allow_congestion);
   void setResistanceAware(bool resistance_aware);
+  void setSnapshotBatchedWidth(int snapshot_batched_width);
+  int getSnapshotBatchedWidth() const;
+  int getSnapshotBatchCount() const;
+  bool isResistanceAware() { return resistance_aware_; };
+  void setNetIsResAware(odb::dbNet* db_net, bool res_aware);
+  bool isNetResAware(odb::dbNet* db_net);
   void setMacroExtension(int macro_extension);
   void setUseCUGR(bool use_cugr) { use_cugr_ = use_cugr; };
   void setSkipLargeFanoutNets(int skip_large_fanout)
   {
     skip_large_fanout_ = skip_large_fanout;
   };
+  void setNumThreads(int num_threads);
 
   void setInfiniteCapacity(bool infinite_capacity);
 
@@ -168,6 +177,8 @@ class GlobalRouter
   void updateNetResources(Net* net, bool release_resources);
   void ensurePinsPositions(odb::dbNet* db_net);
   bool findCoveredAccessPoint(const Net* net, Pin& pin);
+  bool updateUncoveredPinsPositions(odb::dbNet* db_net,
+                                    std::string& pins_not_covered);
   void saveGuidesFromFile(std::unordered_map<odb::dbNet*, Guides>& guides);
   void saveGuides(const std::vector<odb::dbNet*>& nets);
   void writeSegments(const char* file_name);
@@ -225,6 +236,7 @@ class GlobalRouter
   // Incremental global routing functions.
   // See class IncrementalGRoute.
   void addDirtyNet(odb::dbNet* net);
+  void updateCUGRNet(odb::dbNet* net);
   std::set<odb::dbNet*> getDirtyNets() { return dirty_nets_; }
   // check_antennas
   bool haveRoutes();
@@ -271,6 +283,7 @@ class GlobalRouter
   void setDebugRectilinearSTree(bool rectilinearSTree);
   void setDebugTree2D(bool tree2D);
   void setDebugTree3D(bool tree3D);
+  void setDebugEdges3D(bool edges3D);
   void setSttInputFilename(const char* file_name);
 
   void saveSttInputFile(Net* net);
@@ -298,6 +311,8 @@ class GlobalRouter
   // Report wire resistance
   float getLayerResistance(int layer, int length, odb::dbNet* net);
   float getViaResistance(int from_layer, int to_layer);
+  float getFRNetResistance(odb::dbNet* db_net);
+  float getFRNetResistanceOnMinClockLayer(odb::dbNet* db_net);
   double dbuToMicrons(int dbu);
   float estimatePathResistance(odb::dbObject* pin1,
                                odb::dbObject* pin2,
@@ -501,7 +516,7 @@ class GlobalRouter
   void configFastRoute();
 
   utl::Logger* logger_;
-  utl::CallBackHandler* callback_handler_;
+  utl::ServiceRegistry* service_registry_;
   stt::SteinerTreeBuilder* stt_builder_;
   ant::AntennaChecker* antenna_checker_;
   dpl::Opendp* opendp_;
@@ -525,6 +540,8 @@ class GlobalRouter
   int congestion_report_iter_step_;
   bool allow_congestion_;
   bool resistance_aware_{false};
+  int snapshot_batched_width_{0};
+  int num_threads_;
   std::vector<int> vertical_capacities_;
   std::vector<int> horizontal_capacities_;
   int macro_extension_;
@@ -563,8 +580,8 @@ class GlobalRouter
 
   RepairAntennas* repair_antennas_;
   Rudy* rudy_;
-  std::unique_ptr<AbstractRoutingCongestionDataSource> heatmap_;
-  std::unique_ptr<AbstractRoutingCongestionDataSource> heatmap_rudy_;
+  gui::HeatMapSourceHandle heatmap_;
+  gui::HeatMapSourceHandle heatmap_rudy_;
 
   // variables congestion report file
   const char* congestion_file_name_;

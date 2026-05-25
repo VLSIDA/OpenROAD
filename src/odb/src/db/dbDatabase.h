@@ -50,7 +50,14 @@ namespace odb {
 inline constexpr uint32_t kSchemaMajor = 0;  // Not used...
 inline constexpr uint32_t kSchemaInitial = 57;
 
-inline constexpr uint32_t kSchemaMinor = 127;  // Current revision number
+inline constexpr uint32_t kSchemaMinor = 129;  // Current revision number
+
+// Revision where _dbTechLayerAntennaRule was modified to use ARuleRatio for
+// gate_plus_diff
+inline constexpr uint32_t kSchemaLef58AntennaGatePlusDiff = 129;
+
+// Revision where dbChipPath was added to dbChip
+inline constexpr uint32_t kSchemaChipPath = 128;
 
 // Revision where chip_bump_ back-reference was added to dbBTerm
 inline constexpr uint32_t kSchemaBtermChipBump = 127;
@@ -285,6 +292,7 @@ class _dbNameCache;
 class _dbTech;
 class _dbLib;
 class _dbGDSLib;
+class UnfoldedModel;
 // User Code End Classes
 
 class _dbDatabase : public _dbObject
@@ -338,6 +346,8 @@ class _dbDatabase : public _dbObject
 
   utl::Logger* logger_;
   std::set<dbDatabaseObserver*> observers_;
+  UnfoldedModel* unfolded_model_;  // non-persistent object
+
   // User Code End Fields
 };
 dbIStream& operator>>(dbIStream& stream, _dbDatabase& obj);

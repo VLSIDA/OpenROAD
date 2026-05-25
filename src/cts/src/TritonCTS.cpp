@@ -362,8 +362,18 @@ void TritonCTS::countSinksPostDbWrite(
     int depth,
     bool fullTree,
     const std::unordered_set<odb::dbITerm*>& sinks,
-    const std::unordered_set<odb::dbInst*>& dummies)
+    const std::unordered_set<odb::dbInst*>& dummies,
+    std::unordered_set<odb::dbNet*>& visitedNets)
 {
+  if (net->getSigType() != odb::dbSigType::CLOCK) {
+    logger_->error(CTS,
+                   369,
+                   "Unexpected data net '{}' found during clock tree traversal",
+                   net->getName());
+  }
+  if (!visitedNets.insert(net).second) {
+    return;  // cycle detected: this net was already visited on this path
+  }
   odb::dbSet<odb::dbITerm> iterms = net->getITerms();
   int driverX = 0;
   int driverY = 0;
@@ -403,34 +413,24 @@ void TritonCTS::countSinksPostDbWrite(
       bool terminate = fullTree
                            ? (sinks.find(iterm) != sinks.end())
                            : !builder->isAnyTreeBuffer(getClockFromInst(inst));
-      odb::dbITerm* outputPin = iterm->getInst()->getFirstOutput();
       bool trueSink = true;
+
+      // Macro tree top net also drives the register tree top buffer,
+      // avoid the recursion going into the register tree.
+      if (builder->getTreeType() != TreeType::RegisterTree) {
+        if (!depth && builder->getTopBufferName() != inst->getName()) {
+          terminate = true;
+          trueSink = false;
+        }
+      }
+
+      odb::dbITerm* outputPin = iterm->getInst()->getFirstOutput();
       if (outputPin && outputPin->getNet() == net) {
         // Skip feedback loop.  When input pin and output pin are
         // connected to the same net this can lead to infinite recursion. For
         // example, some designs have Q pin connected to SI pin.
         terminate = true;
         trueSink = false;
-      }
-
-      if (!terminate && inst) {
-        if (inst->isBlock()) {
-          // Skip non-sink macro blocks
-          terminate = true;
-          trueSink = false;
-        } else {
-          sta::Cell* masterCell = network_->dbToSta(inst->getMaster());
-          if (masterCell) {
-            sta::LibertyCell* libCell = network_->libertyCell(masterCell);
-            if (libCell) {
-              if (libCell->hasSequentials()) {
-                // Skip non-sink registers
-                terminate = true;
-                trueSink = false;
-              }
-            }
-          }
-        }
       }
 
       if (!terminate) {
@@ -447,7 +447,8 @@ void TritonCTS::countSinksPostDbWrite(
                                 depth + 1,
                                 fullTree,
                                 sinks,
-                                dummies);
+                                dummies,
+                                visitedNets);
         } else {
           std::string cellType = "Complex cell";
           odb::dbInst* inst = iterm->getInst();
@@ -529,6 +530,7 @@ void TritonCTS::writeDataToDb()
           CTS, 124, "Clock net \"{}\"", builder->getClock().getName());
       logger_->info(CTS, 125, " Sinks {}", sinks.size());
     } else {
+      std::unordered_set<odb::dbNet*> visitedNets;
       countSinksPostDbWrite(builder.get(),
                             topClockNet,
                             sinkCount,
@@ -540,7 +542,8 @@ void TritonCTS::writeDataToDb()
                             0,
                             reportFullTree,
                             sinks,
-                            clkDummies);
+                            clkDummies,
+                            visitedNets);
       logger_->info(CTS, 98, "Clock net \"{}\"", builder->getClock().getName());
       logger_->info(CTS, 99, " Sinks {}", sinkCount);
       logger_->info(CTS, 100, " Leaf buffers {}", leafSinks);
@@ -855,8 +858,14 @@ std::string TritonCTS::selectBestMaxCapBuffer(
 
 // db functions
 
-void TritonCTS::cloneClockGaters(odb::dbNet* clkNet)
+void TritonCTS::cloneClockGaters(odb::dbNet* clkNet,
+                                 std::set<odb::Point>& occupiedPositions,
+                                 std::unordered_set<odb::dbNet*>& visitedNets)
 {
+  if (!visitedNets.insert(clkNet).second) {
+    return;  // cycle detected: this net was already visited
+  }
+
   odb::dbITerm* driver = clkNet->getFirstOutput();
   std::vector<int> xs;
   std::vector<int> ys;
@@ -888,7 +897,7 @@ void TritonCTS::cloneClockGaters(odb::dbNet* clkNet)
       if (libertyCell->isInverter() || libertyCell->isBuffer()) {
         continue;
       }
-      cloneClockGaters(outputNet);
+      cloneClockGaters(outputNet, occupiedPositions, visitedNets);
     }
   }
   if (!driver) {
@@ -906,13 +915,14 @@ void TritonCTS::cloneClockGaters(odb::dbNet* clkNet)
   point2pin[{drvrX, drvrY}].push_back(driver);
   stt::Tree ftree
       = options_->getSttBuilder()->makeSteinerTree(clkNet, xs, ys, 0);
-  findLongEdges(ftree, {drvrX, drvrY}, point2pin);
+  findLongEdges(ftree, {drvrX, drvrY}, point2pin, occupiedPositions);
 }
 
 void TritonCTS::findLongEdges(
     stt::Tree& clkSteiner,
     odb::Point driverPt,
-    std::map<odb::Point, std::vector<odb::dbITerm*>>& point2pin)
+    std::map<odb::Point, std::vector<odb::dbITerm*>>& point2pin,
+    std::set<odb::Point>& occupiedPositions)
 {
   const int threshold = options_->getMaxWl();
   debugPrint(
@@ -1031,7 +1041,7 @@ void TritonCTS::findLongEdges(
              validClusters);
 
   // Insert original ICG to its closest cluster, create clones to drive the
-  // other clusters
+  // other clusters.
   int nClones = 0;
   // hierarchy fix, make the clone net in the right scope
   sta::Pin* driver = nullptr;
@@ -1162,12 +1172,31 @@ void TritonCTS::findLongEdges(
       }
     }
 
-    // Move ICG (clone or original) to the center of its sinks
-    clone->setLocation(sinksBbox.xCenter(), sinksBbox.yCenter());
-    clone->setPlacementStatus(odb::dbPlacementStatus::PLACED);
+    // Resolve location collision and finalize placement.
+    resolveLocationCollision(
+        clone, {sinksBbox.xCenter(), sinksBbox.yCenter()}, occupiedPositions);
   }
   debugPrint(
       logger_, CTS, "clock gate cloning", 1, "Created {} clones", nClones);
+}
+
+void TritonCTS::resolveLocationCollision(
+    odb::dbInst* clone,
+    odb::Point location,
+    std::set<odb::Point>& occupiedPositions)
+{
+  // Ensure position is unique among both other clones and pre-existing
+  // instances to prevent mapLocationToSink_ key collision.
+  odb::Point cloneLoc = location;
+  // Shift by 1 DBU to guarantee unique coordinates on collision case.
+  // Site-legal placement is handled by downstream DPL.
+  int shift = 1;
+  while (occupiedPositions.contains(cloneLoc)) {
+    cloneLoc.setX(cloneLoc.getX() + shift);
+  }
+  occupiedPositions.insert(cloneLoc);
+  clone->setLocation(cloneLoc.getX(), cloneLoc.getY());
+  clone->setPlacementStatus(odb::dbPlacementStatus::PLACED);
 }
 
 void TritonCTS::populateTritonCTS()
@@ -1207,13 +1236,24 @@ void TritonCTS::populateTritonCTS()
       allClkNets.insert(clkNets.begin(), clkNets.end());
     }
   }
+  // Seed with all existing instance positions to prevent clones from
+  // landing on a pre-existing cell and causing mapLocationToSink_
+  // key collision in HTreeBuilder.
+  std::set<odb::Point> occupiedPositions;
+  for (odb::dbInst* inst : block_->getInsts()) {
+    int x, y;
+    inst->getLocation(x, y);
+    occupiedPositions.emplace(x, y);
+  }
+
+  std::unordered_set<odb::dbNet*> clkGateCloneVisitedNets;
   // Iterate over all the nets found by the user-input and dbSta
   for (const auto& clockInfo : clockNetsInfo) {
     std::set<odb::dbNet*> clockNets = clockInfo.first;
     std::string clkName = clockInfo.second;
     for (odb::dbNet* net : clockNets) {
       if (net != nullptr) {
-        cloneClockGaters(net);
+        cloneClockGaters(net, occupiedPositions, clkGateCloneVisitedNets);
         if (clkName.empty()) {
           logger_->info(CTS, 95, "Net \"{}\" found.", net->getName());
         } else {
@@ -2203,7 +2243,10 @@ double TritonCTS::computeInsertionDelay(const std::string& name,
       if (rise != 0 || fall != 0) {
         // use average of max rise and max fall
         // TODO: do we need to look at min insertion delays?
-        double delayPerSec = (rise + fall) / 2.0;
+        double delayPerSec = (rise + fall);
+        if (rise != 0 && fall != 0) {
+          delayPerSec /= 2.0;
+        }
         // convert delay to length because HTree uses lengths
         sta::Scene* corner = openSta_->cmdScene();
         double capPerMicron
@@ -2544,7 +2587,7 @@ void TritonCTS::setAllClocksPropagated()
     }
   }
 
-  estimate_parasitics_->estimateParasitics(est::ParasiticsSrc::placement);
+  estimate_parasitics_->estimateParasitics(est::ParasiticsSrc::kPlacement);
 }
 
 void TritonCTS::repairClockNets()

@@ -63,11 +63,11 @@ std::vector<odb::dbNet*> Grid::getNets(bool starts_with_power) const
 std::string Grid::typeToString(Type type)
 {
   switch (type) {
-    case Core:
+    case kCore:
       return "Core";
-    case Instance:
+    case kInstance:
       return "Instance";
-    case Existing:
+    case kExisting:
       return "Existing";
   }
 
@@ -286,9 +286,27 @@ bool Grid::repairVias(const Shape::ShapeTreeMap& global_shapes,
              getLongName());
   // find vias that do not overlap completely
   // attempt to extend straps to fit (if owned by grid)
+  Shape::ShapeTreeMap search_shapes = getShapes();
+
+  odb::Rect search_area = getDomainBoundary();
+  for (const auto& [layer, shapes] : search_shapes) {
+    for (const auto& shape : shapes) {
+      search_area.merge(shape->getRect());
+    }
+  }
+
+  // populate shapes and obstructions
+  for (auto& [layer, layer_global_shape] : global_shapes) {
+    auto& shapes = search_shapes[layer];
+    for (auto it = layer_global_shape.qbegin(bgi::intersects(search_area));
+         it != layer_global_shape.qend();
+         it++) {
+      shapes.insert(*it);
+    }
+  }
 
   auto obs_filter = [this](const ShapePtr& other) -> bool {
-    if (other->shapeType() != Shape::GRID_OBS) {
+    if (other->shapeType() != Shape::kGridObs) {
       return true;
     }
     const GridObsShape* shape = static_cast<GridObsShape*>(other.get());
@@ -323,6 +341,7 @@ bool Grid::repairVias(const Shape::ShapeTreeMap& global_shapes,
       }
       auto new_lower
           = extend_test->extendTo(upper_shape->getRect(),
+                                  search_shapes[extend_test->getLayer()],
                                   obstructions[extend_test->getLayer()],
                                   lower_shape.get(),
                                   obs_filter);
@@ -338,6 +357,7 @@ bool Grid::repairVias(const Shape::ShapeTreeMap& global_shapes,
       }
       auto new_upper
           = extend_test->extendTo(lower_shape->getRect(),
+                                  search_shapes[extend_test->getLayer()],
                                   obstructions[extend_test->getLayer()],
                                   upper_shape.get(),
                                   obs_filter);
@@ -612,7 +632,7 @@ void Grid::checkSetup() const
   // check if follow pins have connect statements
   std::set<odb::dbTechLayer*> follow_pin_layers;
   for (const auto& strap : straps_) {
-    if (strap->type() == Straps::Followpin) {
+    if (strap->type() == Straps::kFollowpin) {
       follow_pin_layers.insert(strap->getLayer());
     }
   }
@@ -847,7 +867,7 @@ void Grid::makeVias(const Shape::ShapeTreeMap& global_shapes,
       if (search_obs.qbegin(
               bgi::intersects(via->getArea())
               && bgi::satisfies([this, layer](const ShapePtr& other) -> bool {
-                   if (other->shapeType() != Shape::GRID_OBS) {
+                   if (other->shapeType() != Shape::kGridObs) {
                      return true;
                    }
                    // only consider obstructions on routing layers as blocking
@@ -861,7 +881,7 @@ void Grid::makeVias(const Shape::ShapeTreeMap& global_shapes,
                  }))
           != search_obs.qend()) {
         remove_vias.insert(via);
-        via->markFailed(failedViaReason::OBSTRUCTED);
+        via->markFailed(FailedViaReason::kObstructed);
         break;
       }
     }
@@ -908,7 +928,7 @@ void Grid::makeVias(const Shape::ShapeTreeMap& global_shapes,
                }))
         != overlapping_via_tree.qend()) {
       remove_vias.insert(via);
-      via->markFailed(failedViaReason::OVERLAPPING);
+      via->markFailed(FailedViaReason::kOverlapping);
     }
   }
   debugPrint(getLogger(),
@@ -1123,12 +1143,12 @@ void Grid::makeInitialObstructions(odb::dbBlock* block,
 
     if (box->getTechLayer() == nullptr) {
       for (auto* layer : block->getDb()->getTech()->getLayers()) {
-        auto shape = std::make_shared<Shape>(layer, obs_rect, Shape::BLOCK_OBS);
+        auto shape = std::make_shared<Shape>(layer, obs_rect, Shape::kBlockObs);
         obs[layer].push_back(std::move(shape));
       }
     } else {
       auto shape = std::make_shared<Shape>(
-          box->getTechLayer(), obs_rect, Shape::BLOCK_OBS);
+          box->getTechLayer(), obs_rect, Shape::kBlockObs);
       obs[box->getTechLayer()].push_back(std::move(shape));
     }
   }
@@ -1189,7 +1209,7 @@ void Grid::makeInitialObstructions(odb::dbBlock* block,
       for (auto* geom : bpin->getBoxes()) {
         auto* layer = geom->getTechLayer();
         auto shape
-            = std::make_shared<Shape>(layer, geom->getBox(), Shape::BLOCK_OBS);
+            = std::make_shared<Shape>(layer, geom->getBox(), Shape::kBlockObs);
         shape->generateObstruction();
         shape->setRect(shape->getRect());
         obs[layer].push_back(std::move(shape));
@@ -1237,7 +1257,7 @@ std::set<odb::dbInst*> Grid::getInstances() const
   std::set<odb::dbInst*> insts;
 
   for (auto* comp : getGridComponents()) {
-    if (comp->type() == GridComponent::PadConnect) {
+    if (comp->type() == GridComponent::kPadConnect) {
       auto* pad_connect = dynamic_cast<PadDirectConnectionStraps*>(comp);
       if (pad_connect != nullptr) {
         insts.insert(pad_connect->getITerm()->getInst());
@@ -1288,7 +1308,7 @@ odb::Rect CoreGrid::getDomainBoundary() const
 
   int follow_pin_width = 0;
   for (const auto& strap : getStraps()) {
-    if (strap->type() == GridComponent::Followpin) {
+    if (strap->type() == GridComponent::kFollowpin) {
       follow_pin_width = std::max(follow_pin_width, strap->getWidth());
     }
   }
@@ -1363,7 +1383,7 @@ void CoreGrid::cleanupShapes()
 
     for (auto* obs : inst->getMaster()->getObstructions()) {
       auto shape = std::make_shared<Shape>(
-          obs->getTechLayer(), outline, Shape::ShapeType::MACRO_OBS);
+          obs->getTechLayer(), outline, Shape::ShapeType::kMacroObs);
       shape->setObstruction(outline);
       macros[obs->getTechLayer()].insert(shape);
     }
@@ -1371,7 +1391,7 @@ void CoreGrid::cleanupShapes()
       for (auto* pin : term->getMPins()) {
         for (auto* geom : pin->getGeometry()) {
           auto shape = std::make_shared<Shape>(
-              geom->getTechLayer(), outline, Shape::ShapeType::MACRO_OBS);
+              geom->getTechLayer(), outline, Shape::ShapeType::kMacroObs);
           shape->setObstruction(outline);
           macros[geom->getTechLayer()].insert(shape);
         }
@@ -1407,16 +1427,12 @@ InstanceGrid::InstanceGrid(
     : Grid(domain, name, start_with_power, generate_obstructions), inst_(inst)
 {
   auto* halo = inst->getHalo();
-  if (halo != nullptr) {
-    odb::Rect halo_box = halo->getBox();
-
-    odb::Rect inst_box = inst->getBBox()->getBox();
+  if (halo != nullptr && !halo->isSoft()) {
+    odb::Rect halo_box = inst->getTransformedHalo();
 
     // copy halo from db
-    addHalo({halo_box.xMin() - inst_box.xMin(),
-             halo_box.yMin() - inst_box.yMin(),
-             inst_box.xMin() - halo_box.xMax(),
-             inst_box.yMin() - halo_box.yMax()});
+    addHalo(
+        {halo_box.xMin(), halo_box.yMin(), halo_box.xMax(), halo_box.yMax()});
   }
 }
 
@@ -1529,7 +1545,7 @@ ShapeVectorMap InstanceGrid::getInstanceObstructions(
     obs_rect.merge(spacing_rect);
 
     transform.apply(obs_rect);
-    auto shape = std::make_shared<Shape>(layer, obs_rect, Shape::BLOCK_OBS);
+    auto shape = std::make_shared<Shape>(layer, obs_rect, Shape::kBlockObs);
 
     obs[layer].push_back(std::move(shape));
   }
@@ -1541,7 +1557,7 @@ ShapeVectorMap InstanceGrid::getInstanceObstructions(
     const bool is_vertical
         = layer->getDirection() == odb::dbTechLayerDir::VERTICAL;
     for (const auto& pin_shape : pin_shapes) {
-      pin_shape->setShapeType(Shape::BLOCK_OBS);
+      pin_shape->setShapeType(Shape::kBlockObs);
       pin_shape->generateObstruction();
       pin_shape->setRect(applyHalo(
           pin_shape->getObstruction(), halo, true, is_horizontal, is_vertical));
@@ -1603,7 +1619,7 @@ ShapeVectorMap InstanceGrid::getInstancePins(odb::dbInst* inst)
             transform.apply(box_rect);
             auto shape = std::make_shared<Shape>(
                 via_box->getTechLayer(), net, box_rect);
-            shape->setShapeType(Shape::FIXED);
+            shape->setShapeType(Shape::kFixed);
             pins.push_back(std::move(shape));
           }
         } else {
@@ -1611,7 +1627,7 @@ ShapeVectorMap InstanceGrid::getInstancePins(odb::dbInst* inst)
           transform.apply(box_rect);
           auto shape
               = std::make_shared<Shape>(box->getTechLayer(), net, box_rect);
-          shape->setShapeType(Shape::FIXED);
+          shape->setShapeType(Shape::kFixed);
           pins.push_back(std::move(shape));
         }
       }

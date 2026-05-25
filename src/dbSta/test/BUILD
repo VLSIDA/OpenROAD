@@ -1,6 +1,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Copyright (c) 2022-2025, The OpenROAD Authors
 
+# Test Parity Note: All tests from CMakeLists.txt are included in this BUILD file.
+# No tests are intentionally excluded. See .kiro/specs/bazel-cmake-test-parity/intentional_exclusions.md
+
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("//test:regression.bzl", "regression_test")
 
@@ -20,12 +23,15 @@ ALL_TESTS = [
     "get_ports1_hier",
     "hier2",
     "hier3",
+    "hier_escape_port",
     "hierclock",
     "hierwrite",
     "hier_deep",
+    "hier_weird_port",
     "make_port",
     "network_edit1",
     "power1",
+    "read_def_bus_port",
     "read_liberty1",
     "read_vcd",
     "read_verilog1",
@@ -52,6 +58,7 @@ ALL_TESTS = [
     "sdc_get1",
     "sdc_names1",
     "sdc_names2",
+    "spef_def_names",
     "sta1",
     "sta2",
     "sta3",
@@ -194,6 +201,10 @@ filegroup(
             "sdc_names1": [
                 "hier1.def",
             ],
+            "spef_def_names": [
+                "example1_slow.lib",
+                "example1.lef",
+            ],
             "sta1": [
                 "example1_slow.lib",
                 "example1.def",
@@ -289,14 +300,13 @@ cc_test(
         "Nangate45/Nangate45.lef",
         "Nangate45/Nangate45_typ.lib",
         "cpp/TestDbSta_0.v",
+        "cpp/TestDbSta_StalePrevPath.v",
     ],
     deps = [
-        "//src/dbSta",
         "//src/dbSta:dbNetwork",
         "//src/odb",
         "//src/sta:opensta_lib",
         "//src/tst:integrated_fixture",
-        "//src/utl",
         "@googletest//:gtest",
         "@googletest//:gtest_main",
     ],
@@ -307,13 +317,8 @@ cc_test(
     srcs = ["cpp/TestReadVerilog.cpp"],
     data = glob(["cpp/TestReadVerilog*.v"]),
     deps = [
-        "//src/dbSta",
-        "//src/dbSta:dbNetwork",
-        "//src/dbSta:dbReadVerilog",
         "//src/odb",
-        "//src/sta:opensta_lib",
         "//src/tst:integrated_fixture",
-        "//src/utl",
         "@googletest//:gtest",
         "@googletest//:gtest_main",
     ],
@@ -324,13 +329,8 @@ cc_test(
     srcs = ["cpp/TestWriteVerilog.cpp"],
     data = glob(["cpp/TestWriteVerilog*.v"]),
     deps = [
-        "//src/dbSta",
-        "//src/dbSta:dbNetwork",
-        "//src/dbSta:dbReadVerilog",
-        "//src/odb",
         "//src/sta:opensta_lib",
         "//src/tst:integrated_fixture",
-        "//src/utl",
         "@googletest//:gtest",
         "@googletest//:gtest_main",
     ],

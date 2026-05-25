@@ -1,5 +1,9 @@
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
-load("//test:regression.bzl", "regression_test")
+load("@rules_python//python:defs.bzl", "py_library", "py_test")
+# Test Parity Note: All tests from CMakeLists.txt are included in this BUILD file.
+# No tests are intentionally excluded. See .kiro/specs/bazel-cmake-test-parity/intentional_exclusions.md
+
+load("//test:regression.bzl", "doc_check_test", "regression_test")
 
 package(features = ["layering_check"])
 
@@ -39,6 +43,7 @@ TESTS = [
     "liberty_dont_use",
     "pinswap_flat",
     "pinswap_hier",
+    "swap_pins_dont_touch",
     "pin_swap1",
     "rebuffer1",
     "rebuffer1_hier",
@@ -46,6 +51,7 @@ TESTS = [
     "remove_buffers_hier1",
     "remove_buffers1",
     "remove_buffers2",
+    "remove_buffers3",
     "remove_buffers4",
     "remove_buffers4_hier",
     "remove_buffers5",
@@ -62,6 +68,7 @@ TESTS = [
     "repair_design3_verbose",
     "repair_design4",
     "repair_design5",
+    "repair_design_outside_core",
     "repair_fanout1",
     "repair_fanout1_hier",
     "repair_fanout2",
@@ -94,6 +101,8 @@ TESTS = [
     "repair_hold8",
     "repair_hold9",
     "repair_hold9_verbose",
+    "repair_hold_multi_output_load",
+    "repair_setup_max_iter",
     "repair_setup1",
     "repair_setup1_multi",
     "repair_setup2",
@@ -115,8 +124,42 @@ TESTS = [
     "repair_setup8",
     "repair_setup9",
     "repair_setup9_hier",
+    "repair_setup_phase_endpoint_fanin",
+    "repair_setup_phase_startpoint_fanout",
+    "repair_setup_phase_tns",
+    "repair_setup_phase_wns_cone",
+    "repair_setup_phase_wns_path",
+    "repair_setup_phases_order",
+    "repair_setup_buffer_legacy_basic",
+    "repair_setup_clone_legacy_flat",
+    "repair_setup_clone_high_fanout",
+    "repair_setup_crit_vt_asap7",
+    "repair_setup_default_nangate45",
+    "repair_setup_endpoint_fanin_only",
+    "repair_setup_gcd",
+    "repair_setup_invalid_phase",
+    "repair_setup_move_tracker_level1",
+    "repair_setup_pin_command",
+    "repair_setup_reroute1",
+    "repair_setup_reroute2",
+    "repair_setup_sizedown_only",
+    "repair_setup_sizeup_match_only",
+    "repair_setup_split_load_hier_only",
+    "repair_setup_startpoint_fanout_only",
+    "repair_setup_swap_pins_dont_touch_sequence",
+    "repair_setup_tns",
+    "repair_setup_wns_guard",
+    "repair_setup_wns_last_gasp_noop",
     "repair_setup_sizedown",
+    "repair_setup_sizedown_legacy_basic",
     "repair_setup_sizeup_match",
+    "repair_setup_sizeup_legacy_basic",
+    "repair_setup_sizeup_match_inverter",
+    "repair_setup_sizeup_match_prev_fanout",
+    "repair_setup_splitload_legacy_basic",
+    "repair_setup_swappins_legacy_flat",
+    "repair_setup_unbuffer_legacy_bufx2",
+    "repair_setup_unbuffer_legacy_bufx8",
     "repair_setup_undo1",
     "repair_setup_undo2",
     "repair_slew1",
@@ -179,6 +222,8 @@ TESTS = [
     "report_floating_nets1",
     "report_floating_nets2",
     "report_floating_nets3",
+    "report_move_tracker",
+    "repair_setup_legacy_mt_tracker",
     "report_overdriven_nets1",
     "report_overdriven_nets2",
     "report_overdriven_nets3",
@@ -197,8 +242,21 @@ TESTS = [
     "set_dont_use1",
     "split_load_hier",
     "repair_setup_vt_swap",
+    "repair_setup_vtswap_legacy_asap7",
     "repair_setup_vt_swap2",
+    "measured_vt_swap",
 ]
+
+# From CMakeLists.txt or_integration_tests(PASSFAIL_TESTS
+PASSFAIL_TESTS = [
+    # NOTE: cpp_tests excluded - it's a CMake-specific wrapper script that expects
+    # build directory structure not compatible with Bazel
+    # "cpp_tests",
+    "repair_setup_legacy_mt",
+    "repair_setup_mt1",
+]
+
+ALL_TESTS = TESTS + PASSFAIL_TESTS
 
 filegroup(
     name = "test_resources",
@@ -209,7 +267,7 @@ filegroup(
         ["**/*"],
         exclude = [
             test + "." + ext
-            for test in TESTS
+            for test in ALL_TESTS
             for ext in [
                 "tcl",
                 "py",
@@ -231,6 +289,13 @@ extra_deps = {
     "repair_setup4_sequence": ["repair_setup4.tcl"],
     "repair_setup6_multi": ["repair_setup6.tcl"],
     "repair_setup7_multi": ["repair_setup7.tcl"],
+    "repair_setup_legacy_mt_tracker": ["report_move_tracker.tcl"],
+    "repair_setup_phase_endpoint_fanin": ["repair_setup1.tcl"],
+    "repair_setup_phase_startpoint_fanout": ["repair_setup1.tcl"],
+    "repair_setup_phase_tns": ["repair_setup1.tcl"],
+    "repair_setup_phase_wns_cone": ["repair_setup1.tcl"],
+    "repair_setup_phase_wns_path": ["repair_setup1.tcl"],
+    "repair_setup_phases_order": ["repair_setup1.tcl"],
 }
 
 BIG_TESTS = [
@@ -241,10 +306,19 @@ BIG_TESTS = [
     regression_test(
         name = test_name,
         size = "large" if test_name in BIG_TESTS else "medium",
+        check_passfail = True if test_name in PASSFAIL_TESTS else False,
         data = [":test_resources"] + extra_deps.get(test_name, []),
     )
-    for test_name in TESTS
+    for test_name in ALL_TESTS
 ]
+
+test_suite(
+    name = "cpp_tests",
+    tests = [
+        ":TestBufRem1",
+        ":TestResizer",
+    ],
+)
 
 cc_test(
     name = "rsz_buffer_removal",
@@ -259,7 +333,33 @@ cc_test(
         "//src/ant",
         "//src/dbSta",
         "//src/dbSta:dbNetwork",
-        "//src/dpl",
+        "//src/est",
+        "//src/grt",
+        "//src/odb",
+        "//src/rsz",
+        "//src/sta:opensta_lib",
+        "//src/stt",
+        "//src/tst",
+        "//src/tst:nangate45_fixture",
+        "//src/utl",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "TestBufRem1",
+    srcs = [
+        "cpp/TestBufferRemoval.cc",
+    ],
+    data = [
+        "Nangate45/Nangate45.lef",
+        "Nangate45/Nangate45_typ.lib",
+    ],
+    deps = [
+        "//src/ant",
+        "//src/dbSta",
+        "//src/dbSta:dbNetwork",
         "//src/est",
         "//src/grt",
         "//src/odb",
@@ -302,6 +402,33 @@ cc_test(
 )
 
 cc_test(
+    name = "TestBufferRemoval2",
+    srcs = [
+        "cpp/TestBufferRemoval2.cc",
+    ],
+    data = [
+        "Nangate45/Nangate45.lef",
+        "Nangate45/Nangate45_typ.lib",
+    ],
+    deps = [
+        "//src/ant",
+        "//src/dbSta",
+        "//src/dbSta:dbNetwork",
+        "//src/dpl",
+        "//src/est",
+        "//src/grt",
+        "//src/odb",
+        "//src/rsz",
+        "//src/sta:opensta_lib",
+        "//src/stt",
+        "//src/tst:nangate45_fixture",
+        "//src/utl",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
     name = "rsz_buffer_removal3",
     srcs = ["cpp/TestBufferRemoval3.cc"],
     data = [
@@ -310,9 +437,49 @@ cc_test(
     ] + glob(["cpp/TestBufferRemoval3*.v"]),
     deps = [
         "//src/dbSta",
-        "//src/dbSta:dbNetwork",
         "//src/odb",
         "//src/sta:opensta_lib",
+        "//src/tst:integrated_fixture",
+        "//src/utl",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "TestBufferRemoval3",
+    srcs = ["cpp/TestBufferRemoval3.cc"],
+    data = [
+        "Nangate45/Nangate45.lef",
+        "Nangate45/Nangate45_typ.lib",
+    ] + glob(["cpp/TestBufferRemoval3*.v"]),
+    deps = [
+        "//src/dbSta",
+        "//src/odb",
+        "//src/sta:opensta_lib",
+        "//src/tst:integrated_fixture",
+        "//src/utl",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "TestResizer",
+    srcs = ["cpp/TestResizer.cc"],
+    copts = ["-Isrc/rsz/src"],
+    data = glob(["cpp/TestResizer*.v"]),
+    features = ["-layering_check"],  # TODO: includes private headers
+    deps = [
+        "//src/dbSta",
+        "//src/dbSta:dbNetwork",
+        "//src/dpl",
+        "//src/grt",
+        "//src/odb",
+        "//src/rsz",
+        "//src/sta:opensta_lib",
+        "//src/stt",
+        "//src/tst",
         "//src/tst:integrated_fixture",
         "//src/utl",
         "@googletest//:gtest",
@@ -328,11 +495,102 @@ cc_test(
         "//src/dbSta",
         "//src/dbSta:dbNetwork",
         "//src/odb",
+        "//src/tst:integrated_fixture",
+        "//src/utl",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "TestInsertBuffer",
+    srcs = ["cpp/TestInsertBuffer.cpp"],
+    data = glob(["cpp/TestInsertBuffer*.v"]),
+    deps = [
+        "//src/dbSta",
+        "//src/dbSta:dbNetwork",
+        "//src/odb",
+        "//src/tst:integrated_fixture",
+        "//src/utl",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "TestResizerMt",
+    srcs = ["cpp/TestResizerMt.cc"],
+    args = ["--gtest_filter=TestResizerMtThreadPool.*"],
+    data = [
+        "Nangate45/Nangate45.lef",
+        "Nangate45/Nangate45_lvt.lef",
+        "Nangate45/Nangate45_lvt.lib",
+        "Nangate45/Nangate45_typ.lib",
+        "cpp/TestResizerMt_DelayEstimator.v",
+    ],
+    features = ["-layering_check"],
+    deps = [
+        "//src/ant",
+        "//src/dbSta",
+        "//src/dbSta:dbNetwork",
+        "//src/dpl",
+        "//src/est",
+        "//src/grt",
+        "//src/odb",
+        "//src/rsz",
         "//src/sta:opensta_lib",
+        "//src/stt",
         "//src/tst",
         "//src/tst:integrated_fixture",
         "//src/utl",
         "@googletest//:gtest",
         "@googletest//:gtest_main",
     ],
+)
+
+py_library(
+    name = "helpers",
+    srcs = ["helpers.py"],
+    imports = ["."],
+    deps = [
+        "//python/openroad:openroadpy",
+    ],
+)
+
+py_library(
+    name = "rsz_aux",
+    srcs = ["rsz_aux.py"],
+    imports = ["."],
+    deps = [
+        "//python/openroad:openroadpy",
+    ],
+)
+
+py_test(
+    name = "gcd_resize_py",
+    srcs = ["gcd_resize.py"],
+    data = [":test_resources"],
+    main = "gcd_resize.py",
+    deps = [
+        ":helpers",
+        ":rsz_aux",
+        "//python/openroad:openroadpy",
+    ],
+)
+
+py_test(
+    name = "rsz_man_tcl_check",
+    srcs = ["rsz_man_tcl_check.py"],
+    data = ["//src/rsz:doc_files"],
+    tags = ["doc_check"],
+    deps = ["//docs/src/scripts:extract_utils"],
+)
+
+doc_check_test(
+    name = "rsz_readme_msgs_check",
+    data = [
+        "//src/rsz:doc_files",
+        "//src/rsz:messages_txt",
+    ],
+    visibility = ["//visibility:public"],
 )

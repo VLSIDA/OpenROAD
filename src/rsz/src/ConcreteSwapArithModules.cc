@@ -307,7 +307,7 @@ bool ConcreteSwapArithModules::doSwapInstances(std::set<dbModInst*>& insts,
                 target);
   logger_->metric("design__instance__count__swapped_arithmetic_operator",
                   swapped_count);
-  return (swapped_count > 0);
+  return swapped_count > 0;
 }
 
 void ConcreteSwapArithModules::produceNewModuleName(const std::string& old_name,

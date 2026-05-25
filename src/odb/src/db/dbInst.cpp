@@ -906,7 +906,7 @@ Rect dbInst::getTransformedHalo()
   return halo;
 }
 
-void dbInst::setHalo(int left, int bottom, int right, int top)
+void dbInst::setHalo(int left, int bottom, int right, int top, bool is_soft)
 {
   dbBox* halo = getHalo();
 
@@ -914,7 +914,8 @@ void dbInst::setHalo(int left, int bottom, int right, int top)
     dbBox::destroy(halo);
   }
 
-  dbBox::create(this, left, bottom, right, top);
+  halo = dbBox::create(this, left, bottom, right, top);
+  halo->setSoft(is_soft);
 }
 
 void dbInst::getConnectivity(std::vector<dbInst*>& result,
@@ -1214,6 +1215,13 @@ bool dbInst::swapMaster(dbMaster* new_master_)
     return false;
   }
 
+  // Clear preferred APs before the ITerms are remapped to the new master.
+  for (const uint32_t iterm_id : inst->iterms_) {
+    dbITerm* iterm = (dbITerm*) block->iterm_tbl_->getPtr(iterm_id);
+    iterm->clearPrefAccessPoints();
+  }
+  inst->pin_access_idx_ = -1;
+
   // remove reference to inst_hdr
   _dbInstHdr* old_inst_hdr
       = block->inst_hdr_hash_.find(((_dbMaster*) old_master_)->id_);
@@ -1500,16 +1508,7 @@ void dbInst::destroy(dbInst* inst_)
     _dbITerm* _iterm = block->iterm_tbl_->getPtr(id);
     dbITerm* iterm = (dbITerm*) _iterm;
     iterm->disconnect();
-    if (inst_->getPinAccessIdx() >= 0) {
-      for (const auto& [pin, aps] : iterm->getAccessPoints()) {
-        for (auto ap : aps) {
-          _dbAccessPoint* _ap = (_dbAccessPoint*) ap;
-          auto [first, last] = std::ranges::remove_if(
-              _ap->iterms_, [id](const auto& id_in) { return id_in == id; });
-          _ap->iterms_.erase(first, last);
-        }
-      }
-    }
+    iterm->clearPrefAccessPoints();
 
     // Notify when pins are deleted (assumption: pins are destroyed only when
     // the related instance is destroyed)

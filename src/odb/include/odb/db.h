@@ -42,7 +42,6 @@ class Logger;
 namespace odb {
 
 class dbShape;
-class lefout;
 class dbViaParams;
 class dbTransform;
 
@@ -117,6 +116,7 @@ class dbChipBumpInst;
 class dbChipConn;
 class dbChipInst;
 class dbChipNet;
+class dbChipPath;
 class dbChipRegion;
 class dbChipRegionInst;
 class dbDatabase;
@@ -183,6 +183,8 @@ class dbExtControl;
 
 // Custom iterators
 class dbModuleBusPortModBTermItr;
+
+class UnfoldedModel;
 
 ///////////////////////////////////////////////////////////////////////////////
 ///
@@ -269,10 +271,10 @@ class dbBox : public dbObject
   uint32_t getDY() const;
 
   ///
-  /// Set temporary flag visited
+  /// Set the halo as soft
   ///
-  void setVisited(bool value);
-  bool isVisited() const;
+  void setSoft(bool value);
+  bool isSoft() const;
 
   ///
   /// Get the owner of this box
@@ -1306,23 +1308,21 @@ class dbBlock : public dbObject
   void getWireUpdatedNets(std::vector<dbNet*>& nets);
 
   ///
-  /// Make a unique net/instance name
+  /// Make a unique net name.
   /// If parent is nullptr, the net name will be unique in top module.
   /// If base_name is nullptr, the default net name will be used.
   /// If uniquify is IF_NEEDED*, unique suffix will be added when necessary.
   /// If uniquify is *_WITH_UNDERSCORE, an underscore will be added before the
   /// unique suffix.
+  /// If corresponding_flat_net is nullptr, any findNet() hit is a collision.
+  /// If corresponding_flat_net is non-null, only internal flat nets excluding
+  /// the corresponding one are collisions (lenient mode for ModNet creation).
   ///
-  std::string makeNewNetName(dbModInst* parent = nullptr,
+  std::string makeNewNetName(const dbModule* parent = nullptr,
                              const char* base_name = "net",
                              const dbNameUniquifyType& uniquify
-                             = dbNameUniquifyType::ALWAYS);
-
-  std::string makeNewModNetName(dbModule* parent,
-                                const char* base_name = "net",
-                                const dbNameUniquifyType& uniquify
-                                = dbNameUniquifyType::ALWAYS,
-                                dbNet* corresponding_flat_net = nullptr);
+                             = dbNameUniquifyType::ALWAYS,
+                             dbNet* corresponding_flat_net = nullptr);
   std::string makeNewInstName(dbModInst* parent = nullptr,
                               const char* base_name = "inst",
                               const dbNameUniquifyType& uniquify
@@ -2566,7 +2566,7 @@ class dbNet : public dbObject
   /// connected to a module output port that is unconnected in its parent
   /// module (isInternalTo == true).
   ///
-  bool isInternalTo(dbModule* module) const;
+  bool isInternalTo(const dbModule* module) const;
 
   ///
   /// Check issues such as multiple drivers, no driver, or dangling net
@@ -2585,6 +2585,12 @@ class dbNet : public dbObject
   /// are consistent
   //
   void checkSanityModNetConsistency() const;
+
+  ///
+  /// Check if this flat net's base name collides with a ModNet or ModBTerm
+  /// in its parent module scope without being associated with it.
+  ///
+  void checkSanityNameCollision() const;
 
   ///
   /// Dump dbNet connectivity for debugging
@@ -3113,7 +3119,7 @@ class dbInst : public dbObject
   ///
   /// Sets the halo to this instance.
   ///
-  void setHalo(int left, int bottom, int right, int top);
+  void setHalo(int left, int bottom, int right, int top, bool is_soft);
 
   ///
   /// Get the weight assigned to this instance.
@@ -4557,21 +4563,22 @@ class dbRSeg : public dbObject
   bool updatedCap();
 
   ///
-  /// Get the capacitance of this RC segment for this process corner. Returns
-  /// value in FF.
+  /// Get the ground capacitance of this RC segment for this process corner.
+  /// Returns value in FF.
   ///
-  double getCapacitance(int corner = 0);
+  double getGroundCapacitance(int corner = 0);
 
   ///
-  /// Get the capacitance of this RC segment for this process corner,
-  /// plus coupling capacitance. Returns value in FF.
+  /// Get the total capacitance (ground + coupling) of this RC segment for this
+  /// process corner. Returns value in FF.
   ///
-  double getSourceCapacitance(int corner = 0);
+  double getTotalCapacitance(int corner = 0);
 
   ///
-  /// Get the first capnode capacitance of this RC segment
-  /// for this process corner, if foreign,
-  /// plus coupling capacitance. Returns value in FF.
+  /// Get ground capacitance + coupling capacitance scaled by Miller effect
+  /// multiplier of this RC segment for this process corner. This function
+  /// should only be needed when a custom Miller effect multiplier is required.
+  /// Returns value in FF.
   ///
   double getCapacitance(int corner, double miller_mult);
 
@@ -5777,10 +5784,19 @@ class dbMTerm : public dbObject
   bool hasOxide2AntennaModel() const;
   dbTechAntennaPinModel* getDefaultAntennaModel() const;
   dbTechAntennaPinModel* getOxide2AntennaModel() const;
-  void writeAntennaLef(lefout& writer) const;
 
   // From LEF's ANTENNADIFFAREA on the MACRO's PIN
   void getDiffArea(std::vector<std::pair<double, dbTechLayer*>>& data);
+
+  // From LEF's ANTENNAPARTIALMETALAREA on the MACRO's PIN
+  void getPartialMetalArea(std::vector<std::pair<double, dbTechLayer*>>& data);
+
+  // From LEF's ANTENNAPARTIALMETALSIDEAREA on the MACRO's PIN
+  void getPartialMetalSideArea(
+      std::vector<std::pair<double, dbTechLayer*>>& data);
+
+  // From LEF's ANTENNAPARTIALCUTAREA on the MACRO's PIN
+  void getPartialCutArea(std::vector<std::pair<double, dbTechLayer*>>& data);
 
   void* staPort();
   void staSetPort(void* port);
@@ -6485,7 +6501,6 @@ class dbTechLayerSpacingRule : public dbObject
   bool getCutSameNet() const;
   bool getCutParallelOverlap() const;
   uint32_t getCutArea() const;
-  void writeLef(lefout& writer) const;
 
   void setSameNetPgOnly(bool pgonly);
   bool getSameNetPgOnly();
@@ -6553,7 +6568,6 @@ class dbTechMinCutRule : public dbObject
   void setLengthForCuts(uint32_t length, uint32_t distance);
   bool isAboveOnly() const;
   bool isBelowOnly() const;
-  void writeLef(lefout& writer) const;
   static dbTechMinCutRule* create(dbTechLayer* inly);
   static dbTechMinCutRule* getMinCutRule(dbTechLayer* inly, uint32_t dbid);
 };
@@ -6574,7 +6588,6 @@ class dbTechMinEncRule : public dbObject
   void setEnclosure(uint32_t area);
   bool getEnclosureWidth(uint32_t& width) const;
   void setEnclosureWidth(uint32_t width);
-  void writeLef(lefout& writer) const;
 
   static dbTechMinEncRule* create(dbTechLayer* inly);
   static dbTechMinEncRule* getMinEncRule(dbTechLayer* inly, uint32_t dbid);
@@ -6599,7 +6612,6 @@ class dbTechV55InfluenceEntry : public dbObject
   void setV55InfluenceEntry(const uint32_t& width,
                             const uint32_t& within,
                             const uint32_t& spacing);
-  void writeLef(lefout& writer) const;
 
   static dbTechV55InfluenceEntry* create(dbTechLayer* inly);
   static dbTechV55InfluenceEntry* getV55InfluenceEntry(dbTechLayer* inly,
@@ -6616,7 +6628,6 @@ class dbTechLayerAntennaRule : public dbObject
 {
  public:
   bool isValid() const;
-  void writeLef(lefout& writer) const;
 
   void setGatePlusDiffFactor(double factor);
   void setAreaMinusDiffFactor(double factor);
@@ -6662,6 +6673,7 @@ class dbTechLayerAntennaRule : public dbObject
   pwl_pair getDiffPSR() const;
   pwl_pair getDiffCSR() const;
   pwl_pair getAreaDiffReduce() const;
+  pwl_pair getGatePlusDiffPWL() const;
 
   // PWL
   void setDiffPAR(const std::vector<double>& diff_idx,
@@ -6672,6 +6684,8 @@ class dbTechLayerAntennaRule : public dbObject
                   const std::vector<double>& ratios);
   void setDiffCSR(const std::vector<double>& diff_idx,
                   const std::vector<double>& ratios);
+  void setGatePlusDiffPWL(const std::vector<double>& diff_idx,
+                          const std::vector<double>& ratios);
 
   // Single value
   void setDiffPAR(double ratio);
@@ -6703,8 +6717,6 @@ class dbTechAntennaPinModel : public dbObject
   void getMaxAreaCAR(std::vector<std::pair<double, dbTechLayer*>>& data);
   void getMaxSideAreaCAR(std::vector<std::pair<double, dbTechLayer*>>& data);
   void getMaxCutCAR(std::vector<std::pair<double, dbTechLayer*>>& data);
-
-  void writeLef(dbTech* tech, lefout& writer) const;
 
   static dbTechAntennaPinModel* getAntennaPinModel(dbMaster* master,
                                                    uint32_t dbid);
@@ -7258,6 +7270,10 @@ class dbChip : public dbObject
 
   dbSet<dbMarkerCategory> getMarkerCategories() const;
 
+  dbSet<dbChipPath> getChipPaths() const;
+
+  dbChipPath* findChipPath(const char* name) const;
+
   // User Code Begin dbChip
 
   ChipType getChipType() const;
@@ -7434,6 +7450,34 @@ class dbChipNet : public dbObject
   // User Code End dbChipNet
 };
 
+class dbChipPath : public dbObject
+{
+ public:
+  const char* getName() const;
+
+  // User Code Begin dbChipPath
+  struct Entry
+  {
+    std::vector<dbChipInst*> chip_inst_path;  // hierarchical path to the region
+    dbChipRegionInst* region;
+    bool negated;  // do not touch this region, i.e., the path must be connected
+                   // without crossing this region
+  };
+
+  dbChip* getChip() const;
+
+  std::vector<Entry> getEntries() const;
+
+  void addEntry(const std::vector<dbChipInst*>& chip_inst_path,
+                dbChipRegionInst* region,
+                bool negated);
+
+  static dbChipPath* create(dbChip* chip, const char* name);
+
+  static void destroy(dbChipPath* path);
+  // User Code End dbChipPath
+};
+
 class dbChipRegion : public dbObject
 {
  public:
@@ -7556,6 +7600,9 @@ class dbDatabase : public dbObject
   ///
   dbChip* getChip();
 
+  void constructUnfoldedModel();
+
+  UnfoldedModel* getUnfoldedModel() const;
   ////////////////////////
   /// DEPRECATED
   ////////////////////////
@@ -8609,6 +8656,12 @@ class dbModNet : public dbObject
   void checkSanity() const;
 
   ///
+  /// Check if any flat net in this module scope has a base name matching
+  /// this ModNet's name without being associated with it.
+  ///
+  void checkSanityNameCollision() const;
+
+  ///
   /// Merge the terminals of the in_modnet with this modnet
   ///
   void mergeModNet(dbModNet* in_modnet);
@@ -9255,7 +9308,6 @@ class dbTechLayer : public dbObject
   bool hasV55SpacingRules() const;
   bool getV55SpacingWidthsAndLengths(std::vector<uint32_t>& width_idx,
                                      std::vector<uint32_t>& length_idx) const;
-  void printV55SpacingRules(lefout& writer) const;
   bool getV55SpacingTable(std::vector<std::vector<uint32_t>>& sptbl) const;
 
   void initV55LengthIndex(uint32_t numelems);
@@ -9274,7 +9326,6 @@ class dbTechLayer : public dbObject
   /// with index tables
   ///
   bool hasTwoWidthsSpacingRules() const;
-  void printTwoWidthsSpacingRules(lefout& writer) const;
   bool getTwoWidthsSpacingTable(
       std::vector<std::vector<uint32_t>>& sptbl) const;
   uint32_t getTwoWidthsSpacingTableNumWidths() const;
@@ -9294,6 +9345,7 @@ class dbTechLayer : public dbObject
   ///
   dbTechLayerAntennaRule* createDefaultAntennaRule();
   dbTechLayerAntennaRule* createOxide2AntennaRule();
+  dbTechLayerAntennaRule* getOrCreateAntennaModel(int oxide_idx);
 
   ///
   /// Access and write antenna rule models -- get functions will return nullptr
@@ -9303,7 +9355,6 @@ class dbTechLayer : public dbObject
   bool hasOxide2AntennaRule() const;
   dbTechLayerAntennaRule* getDefaultAntennaRule() const;
   dbTechLayerAntennaRule* getOxide2AntennaRule() const;
-  void writeAntennaRulesLef(lefout& writer) const;
 
   ///
   /// Get collection of minimum cuts, minimum enclosure rules, if exist

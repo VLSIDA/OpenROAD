@@ -1,8 +1,9 @@
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
+load("@rules_python//python:defs.bzl", "py_test")
 # SPDX-License-Identifier: BSD-3-Clause
 # Copyright (c) 2022-2025, The OpenROAD Authors
 
-load("@rules_cc//cc:cc_test.bzl", "cc_test")
-load("//test:regression.bzl", "regression_test")
+load("//test:regression.bzl", "doc_check_test", "regression_test")
 
 package(features = ["layering_check"])
 
@@ -37,6 +38,7 @@ COMPULSORY_TESTS = [
     "fillers9_verbose",
     "fillers10",
     "fillers11",
+    "fillers12",
     "fragmented_row01",
     "fragmented_row02",
     "fragmented_row03",
@@ -67,6 +69,7 @@ COMPULSORY_TESTS = [
     "regions2",
     "regions3",
     "report_failures",
+    "row_boundary_filter",
     "simple01",
     "simple02",
     "simple03",
@@ -81,6 +84,7 @@ COMPULSORY_TESTS = [
     "blockage1-opt",
     "gcd-opt",
     "gcd_no_one_site_gaps-opt",
+    "gcd_no_one_site_sanity",
     "ibex-opt",
     "multi_height1-opt",
     "edge_spacing-opt",
@@ -88,18 +92,13 @@ COMPULSORY_TESTS = [
     "regions2-opt",
 ]
 
-# Disabled in CMakeLists.txt
-MANUAL_TESTS = [
-    "dpl_man_tcl_check",
-    "dpl_readme_msgs_check",
-]
-
-ALL_TESTS = COMPULSORY_TESTS + MANUAL_TESTS
+ALL_TESTS = COMPULSORY_TESTS
 
 filegroup(
     name = "regression_resources",
     srcs = [
         "Nangate45/Nangate45.lef",
+        "Nangate45/Nangate45_typ.lib",
         "helpers.tcl",
     ],
 )
@@ -200,6 +199,9 @@ filegroup(
             "gcd_no_one_site_gaps-opt": [
                 "Nangate45_data/Nangate45-opt.lef",
             ],
+            "gcd_no_one_site_sanity": [
+                "Nangate45_data/Nangate45-opt.lef",
+            ],
             "hybrid_cells": [
                 "Nangate45/fake_macros.lef",
             ],
@@ -242,6 +244,7 @@ filegroup(
                 "Nangate45/fake_macros.lef",
             ],
             "obstruction2": [
+                "Nangate45/fakeram45_64x7.lib",
                 "Nangate45/fakeram45_64x7.lef",
             ],
             "pad01": [
@@ -283,7 +286,7 @@ filegroup(
     regression_test(
         name = test_name,
         data = [":" + test_name + "_resources"],
-        tags = ["manual"] if test_name in MANUAL_TESTS else [],
+        tags = [],
         visibility = ["//visibility:public"],
     )
     for test_name in ALL_TESTS
@@ -300,4 +303,21 @@ cc_test(
         "@googletest//:gtest",
         "@googletest//:gtest_main",
     ],
+)
+
+py_test(
+    name = "dpl_man_tcl_check",
+    srcs = ["dpl_man_tcl_check.py"],
+    data = ["//src/dpl:doc_files"],
+    tags = ["doc_check"],
+    deps = ["//docs/src/scripts:extract_utils"],
+)
+
+doc_check_test(
+    name = "dpl_readme_msgs_check",
+    data = [
+        "//src/dpl:doc_files",
+        "//src/dpl:messages_txt",
+    ],
+    visibility = ["//visibility:public"],
 )

@@ -5,10 +5,33 @@ load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("//bazel:python_wrap_cc.bzl", "python_wrap_cc")
 load("//bazel:tcl_encode_or.bzl", "tcl_encode")
 load("//bazel:tcl_wrap_cc.bzl", "tcl_wrap_cc")
+load("//test:regression.bzl", "messages_txt")
 
 package(
     default_visibility = ["//:__subpackages__"],
     features = ["layering_check"],
+)
+
+# Abstract service interface published through utl::ServiceRegistry.
+# Consumers depend only on this target, not on //src/drt, which keeps
+# them free of the full drt implementation surface.
+cc_library(
+    name = "pin_access_service",
+    hdrs = ["include/drt/PinAccessService.h"],
+    includes = ["include"],
+)
+
+cc_library(
+    name = "base_types",
+    srcs = ["src/frBaseTypes.cpp"],
+    hdrs = ["src/frBaseTypes.h"],
+    includes = ["src"],
+    deps = [
+        "//src/odb",
+        "//src/utl",
+        "@boost.geometry",
+        "@boost.serialization",
+    ],
 )
 
 cc_library(
@@ -28,15 +51,6 @@ cc_library(
         "src/db/gcObj/gcNet.h",
         "src/db/gcObj/gcPin.h",
         "src/db/gcObj/gcShape.h",
-        "src/db/grObj/grAccessPattern.h",
-        "src/db/grObj/grBlockObject.h",
-        "src/db/grObj/grFig.h",
-        "src/db/grObj/grNet.h",
-        "src/db/grObj/grNode.h",
-        "src/db/grObj/grPin.h",
-        "src/db/grObj/grRef.h",
-        "src/db/grObj/grShape.h",
-        "src/db/grObj/grVia.h",
         "src/db/infra/KDTree.hpp",
         "src/db/infra/frBox.h",
         "src/db/infra/frPoint.h",
@@ -60,9 +74,7 @@ cc_library(
         "src/db/obj/frMarker.h",
         "src/db/obj/frMaster.h",
         "src/db/obj/frNet.h",
-        "src/db/obj/frNode.h",
         "src/db/obj/frPin.h",
-        "src/db/obj/frRPin.h",
         "src/db/obj/frRef.h",
         "src/db/obj/frShape.h",
         "src/db/obj/frTerm.h",
@@ -79,8 +91,14 @@ cc_library(
         "src/db/tech/frTechObject.h",
         "src/db/tech/frViaDef.h",
         "src/db/tech/frViaRuleGenerate.h",
+        "src/dr/FlexMazeTypes.h",
     ],
-    deps = ["@boost.polygon"],
+    deps = [
+        ":base_types",
+        "//src/odb",
+        "//src/utl",
+        "@boost.polygon",
+    ],
 )
 
 cc_library(
@@ -89,7 +107,6 @@ cc_library(
         "src/AbstractGraphicsFactory.h",
         "src/DesignCallBack.cpp",
         "src/DesignCallBack.h",
-        "src/PACallBack.h",
         "src/TritonRoute.cpp",
         "src/db/drObj/drAccessPattern.cpp",
         "src/db/drObj/drNet.cpp",
@@ -103,8 +120,6 @@ cc_library(
         "src/db/obj/frInstTerm.cpp",
         "src/db/obj/frMarker.cpp",
         "src/db/obj/frNet.cpp",
-        "src/db/obj/frNode.cpp",
-        "src/db/obj/frRPin.cpp",
         "src/db/obj/frShape.cpp",
         "src/db/obj/frVia.cpp",
         "src/db/taObj/taShape.cpp",
@@ -132,10 +147,7 @@ cc_library(
         "src/dr/FlexGridGraph.cpp",
         "src/dr/FlexGridGraph.h",
         "src/dr/FlexGridGraph_maze.cpp",
-        "src/dr/FlexMazeTypes.h",
         "src/dr/FlexWavefront.h",
-        "src/frBaseTypes.cpp",
-        "src/frBaseTypes.h",
         "src/frDesign.h",
         "src/frProfileTask.h",
         "src/frRTree.h",
@@ -153,19 +165,6 @@ cc_library(
         "src/gc/FlexGC_rq.cpp",
         "src/global.cpp",
         "src/global.h",
-        "src/gr/FlexGR.cpp",
-        "src/gr/FlexGR.h",
-        "src/gr/FlexGRCMap.cpp",
-        "src/gr/FlexGRCMap.h",
-        "src/gr/FlexGRGridGraph.cpp",
-        "src/gr/FlexGRGridGraph.h",
-        "src/gr/FlexGRGridGraph_maze.cpp",
-        "src/gr/FlexGRWavefront.h",
-        "src/gr/FlexGR_end.cpp",
-        "src/gr/FlexGR_init.cpp",
-        "src/gr/FlexGR_maze.cpp",
-        "src/gr/FlexGR_rq.cpp",
-        "src/gr/FlexGR_topo.cpp",
         "src/io/GuideProcessor.cpp",
         "src/io/GuideProcessor.h",
         "src/io/io.cpp",
@@ -198,14 +197,16 @@ cc_library(
         "include/drt/TritonRoute.h",
     ],
     copts = [
-        "-Isrc/drt/src",
         "-fopenmp",
     ],
     includes = [
         "include",
+        "src",
     ],
     deps = [
+        ":base_types",
         ":db_hdrs",
+        ":pin_access_service",
         "//src/dst",
         "//src/odb",
         "//src/stt",
@@ -238,9 +239,7 @@ cc_library(
         "src/dr/FlexDR_graphics.cpp",
         "src/dr/FlexDR_graphics.h",
         "src/dr/FlexGridGraph.h",
-        "src/dr/FlexMazeTypes.h",
         "src/dr/FlexWavefront.h",
-        "src/frBaseTypes.h",
         "src/frDesign.h",
         "src/frRegionQuery.h",
         "src/gc/FlexGC.h",
@@ -261,15 +260,17 @@ cc_library(
         "include/drt/MakeTritonRoute.h",
     ],
     copts = [
-        "-Isrc/drt/src",
         "-Wno-missing-braces",  # from TCL swigging
     ],
     includes = [
         "include",
+        "src",
     ],
     deps = [
+        ":base_types",
         ":db_hdrs",
         ":drt",
+        ":pin_access_service",
         "//:ord",
         "//src/dst",
         "//src/gui",
@@ -327,4 +328,17 @@ python_wrap_cc(
     deps = [
         "//src/odb:swig-py",
     ],
+)
+
+filegroup(
+    name = "doc_files",
+    srcs = [
+        "README.md",
+        "src/TritonRoute.tcl",
+    ],
+    visibility = ["//src/drt/test:__pkg__"],
+)
+
+messages_txt(
+    visibility = ["//src/drt/test:__pkg__"],
 )

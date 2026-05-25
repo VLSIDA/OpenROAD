@@ -5,6 +5,7 @@ load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("//bazel:python_wrap_cc.bzl", "python_wrap_cc")
 load("//bazel:tcl_encode_or.bzl", "tcl_encode")
 load("//bazel:tcl_wrap_cc.bzl", "tcl_wrap_cc")
+load("//test:regression.bzl", "messages_txt")
 
 package(
     default_visibility = ["//:__subpackages__"],
@@ -17,6 +18,9 @@ cc_library(
         "src/CheckPlacement.cpp",
         "src/DecapPlacement.cpp",
         "src/FillerPlacement.cpp",
+        "src/NegotiationLegalizer.cpp",
+        "src/NegotiationLegalizer.h",
+        "src/NegotiationLegalizerPass.cpp",
         "src/Opendp.cpp",
         "src/OptMirror.cpp",
         "src/Optdp.cpp",
@@ -78,11 +82,9 @@ cc_library(
         "include/dpl/Opendp.h",
         "include/dpl/OptMirror.h",
     ],
-    copts = [
-        "-Isrc/dpl/src",
-    ],
     includes = [
         "include",
+        "src",
     ],
     deps = [
         "//src/odb",
@@ -91,7 +93,6 @@ cc_library(
         "@boost.geometry",
         "@boost.icl",
         "@boost.polygon",
-        "@boost.property_tree",
         "@boost.random",
         "@boost.tokenizer",
         "@boost.utility",
@@ -128,9 +129,7 @@ cc_library(
         "//src/gui",
         "//src/odb",
         "//src/utl",
-        "@boost.geometry",
         "@boost.icl",
-        "@boost.polygon",
         "@boost.stacktrace",
         "@boost.utility",
         "@tcl_lang//:tcl",
@@ -179,4 +178,17 @@ python_wrap_cc(
     deps = [
         "//src/odb:swig-py",
     ],
+)
+
+filegroup(
+    name = "doc_files",
+    srcs = [
+        "README.md",
+        "src/Opendp.tcl",
+    ],
+    visibility = ["//src/dpl/test:__pkg__"],
+)
+
+messages_txt(
+    visibility = ["//src/dpl/test:__pkg__"],
 )

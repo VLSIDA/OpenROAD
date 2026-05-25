@@ -1,6 +1,6 @@
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("@rules_python//python:defs.bzl", "py_library", "py_test")
-load("//test:regression.bzl", "regression_test")
+load("//test:regression.bzl", "doc_check_test", "regression_test")
 
 package(features = ["layering_check"])
 
@@ -17,7 +17,7 @@ TESTS = [
     "diverge01",
     "error01",
     "incremental01",
-    "incremental02",
+    "mbff_orig_name",
     "nograd01",
     "simple01",
     "simple01-obs",
@@ -41,6 +41,12 @@ TESTS = [
     "simple10",
     "region01",
 ]
+
+PASSFAIL_TESTS = [
+    "incremental02",
+]
+
+ALL_TESTS = TESTS + PASSFAIL_TESTS
 
 py_library(
     name = "helpers",
@@ -79,16 +85,12 @@ filegroup(
     ),
 )
 
-# TODO: Enable once difference between bazel and ctest is resolved.
-MANUAL_FOR_BAZEL_TESTS = [
-    "incremental02",
-]
-
 [regression_test(
     name = test_name,
+    check_log = False if test_name in PASSFAIL_TESTS else True,
+    check_passfail = True if test_name in PASSFAIL_TESTS else False,
     data = [":test_resources"],
-    tags = ["manual"] if test_name in MANUAL_FOR_BAZEL_TESTS else [],
-) for test_name in TESTS]
+) for test_name in ALL_TESTS]
 
 PY_TESTS = [
     "ar01",
@@ -152,7 +154,6 @@ cc_test(
     ],
     deps = [
         "//:openroad_lib",
-        "//bazel:runfiles",
         "//src/ant",
         "//src/dbSta",
         "//src/dbSta:dbReadVerilog",
@@ -169,4 +170,27 @@ cc_test(
         "@googletest//:gtest",
         "@googletest//:gtest_main",
     ],
+)
+
+py_test(
+    name = "gpl_man_tcl_check",
+    srcs = ["gpl_man_tcl_check.py"],
+    data = ["//src/gpl:doc_files"],
+    tags = ["doc_check"],
+    deps = ["//docs/src/scripts:extract_utils"],
+)
+
+doc_check_test(
+    name = "gpl_readme_msgs_check",
+    data = [
+        "//src/gpl:doc_files",
+        "//src/gpl:messages_txt",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+doc_check_test(
+    name = "gpl_messages_txt_check",
+    check_log = False,
+    data = ["//src/gpl:messages_txt"],
 )

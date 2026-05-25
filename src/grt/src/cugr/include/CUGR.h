@@ -29,7 +29,7 @@ class SteinerTreeBuilder;
 
 namespace utl {
 class Logger;
-class CallBackHandler;
+class ServiceRegistry;
 }  // namespace utl
 
 namespace grt {
@@ -70,7 +70,7 @@ class CUGR
  public:
   CUGR(odb::dbDatabase* db,
        utl::Logger* log,
-       utl::CallBackHandler* callback_handler,
+       utl::ServiceRegistry* service_registry,
        stt::SteinerTreeBuilder* stt_builder,
        sta::dbSta* sta);
   ~CUGR();
@@ -91,16 +91,27 @@ class CUGR
   {
     critical_nets_percentage_ = percentage;
   }
+  void addDirtyNet(odb::dbNet* net);
+  void updateNet(odb::dbNet* net);
+  void routeIncremental();
+
+  const std::vector<int>& getOriginalResources() const;
+  void computeCongestionInformation();
+  const std::vector<int>& getTotalCapacityPerLayer() const;
+  const std::vector<int>& getTotalUsagePerLayer() const;
+  const std::vector<int>& getTotalOverflowPerLayer() const;
+  const std::vector<int>& getMaxHorizontalOverflows() const;
+  const std::vector<int>& getMaxVerticalOverflows() const;
 
  private:
   float calculatePartialSlack();
   float getNetSlack(odb::dbNet* net);
   void setInitialNetSlacks();
-  void updateOverflowNets(std::vector<int>& netIndices);
-  void patternRoute(std::vector<int>& netIndices);
-  void patternRouteWithDetours(std::vector<int>& netIndices);
-  void mazeRoute(std::vector<int>& netIndices);
-  void sortNetIndices(std::vector<int>& netIndices) const;
+  void updateOverflowNets(std::vector<int>& net_indices);
+  void patternRoute(std::vector<int>& net_indices);
+  void patternRouteWithDetours(std::vector<int>& net_indices);
+  void mazeRoute(std::vector<int>& net_indices);
+  void sortNetIndices(std::vector<int>& net_indices) const;
   void getGuides(const GRNet* net,
                  std::vector<std::pair<int, grt::BoxT>>& guides);
   void printStatistics() const;
@@ -113,7 +124,7 @@ class CUGR
 
   odb::dbDatabase* db_;
   utl::Logger* logger_;
-  utl::CallBackHandler* callback_handler_;
+  utl::ServiceRegistry* service_registry_;
   stt::SteinerTreeBuilder* stt_builder_;
   sta::dbSta* sta_;
   NetRouteMap routes_;
@@ -124,6 +135,8 @@ class CUGR
   int area_of_wire_patches_ = 0;
 
   float critical_nets_percentage_ = 0;
+
+  std::vector<int> nets_to_route_;
 };
 
 }  // namespace grt

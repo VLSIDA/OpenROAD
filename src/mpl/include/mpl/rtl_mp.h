@@ -35,8 +35,7 @@ class MplObserver;
 class MacroPlacer
 {
  public:
-  MacroPlacer(sta::dbNetwork* network,
-              odb::dbDatabase* db,
+  MacroPlacer(odb::dbDatabase* db,
               sta::dbSta* sta,
               utl::Logger* logger,
               par::PartitionMgr* tritonpart);
@@ -51,8 +50,6 @@ class MacroPlacer
              int max_num_level,
              float coarsening_ratio,
              int large_net_threshold,
-             int halo_width,
-             int halo_height,
              odb::Rect global_fence,
              float area_weight,
              float outline_weight,
@@ -61,12 +58,12 @@ class MacroPlacer
              float fence_weight,
              float boundary_weight,
              float notch_weight,
-             float macro_blockage_weight,
+             float soft_blockage_weight,
              float target_util,
              float min_ar,
              const char* report_directory,
              bool keep_clustering_data);
-
+  void blockMacroChannels();
   void placeMacro(odb::dbInst* inst,
                   const float& x_origin,
                   const float& y_origin,
@@ -77,6 +74,7 @@ class MacroPlacer
 
   void setMacroPlacementFile(const std::string& file_name);
   void addGuidanceRegion(odb::dbInst* macro, odb::Rect region);
+  void setBaseHalo(int left, int bottom, int right, int top);
   void setMacroHalo(odb::dbInst* macro,
                     int left,
                     int bottom,

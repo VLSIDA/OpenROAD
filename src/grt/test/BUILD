@@ -1,4 +1,5 @@
-load("//test:regression.bzl", "regression_test")
+load("@rules_python//python:defs.bzl", "py_test")
+load("//test:regression.bzl", "doc_check_test", "regression_test")
 
 package(features = ["layering_check"])
 
@@ -10,6 +11,7 @@ TESTS = [
     "clock_route_alpha",
     "clock_route_error1",
     "clock_route_error2",
+    "colocated_pins",
     "congestion1",
     "congestion2",
     "congestion3",
@@ -32,6 +34,7 @@ TESTS = [
     "gcd_cugr",
     "gcd_flute",
     "increase_capacity1",
+    "incremental_update_net",
     "infinite_cap",
     "inst_pin_out_of_die",
     "invalid_pin_placement",
@@ -122,13 +125,6 @@ filegroup(
 
 # TODO: Enable once difference between bazel and ctest is resolved.
 MANUAL_FOR_BAZEL_TESTS = [
-    "critical_nets_percentage_cugr",
-    "cugr_adjustment1",
-    "cugr_adjustment2",
-    "cugr_adjustment3",
-    "gcd_cugr",
-    "pin_access1_cugr",
-    "pin_access2_cugr",
 ]
 
 [regression_test(
@@ -136,3 +132,58 @@ MANUAL_FOR_BAZEL_TESTS = [
     data = [":test_resources"],
     tags = ["manual"] if test_name in MANUAL_FOR_BAZEL_TESTS else [],
 ) for test_name in TESTS]
+
+regression_test(
+    name = "snapshot_batched_bus_route",
+    check_log = False,
+    check_passfail = True,
+    data = [
+        "bus_route.tcl",
+        ":test_resources",
+    ],
+)
+
+regression_test(
+    name = "snapshot_batched_incremental_state",
+    check_log = False,
+    check_passfail = True,
+    data = [":test_resources"],
+)
+
+regression_test(
+    name = "snapshot_batched_smoke",
+    check_log = False,
+    check_passfail = True,
+    data = [":test_resources"],
+)
+
+regression_test(
+    name = "snapshot_batched_single_thread_smoke",
+    check_log = False,
+    check_passfail = True,
+    data = [":test_resources"],
+)
+
+regression_test(
+    name = "thread_count_reports",
+    check_log = False,
+    check_passfail = True,
+    data = [":test_resources"],
+)
+
+py_test(
+    name = "grt_man_tcl_check",
+    srcs = ["grt_man_tcl_check.py"],
+    data = ["//src/grt:doc_files"],
+    tags = ["doc_check"],
+    deps = ["//docs/src/scripts:extract_utils"],
+)
+
+doc_check_test(
+    name = "grt_readme_msgs_check",
+    data = [
+        "//src/grt:doc_files",
+        "//src/grt:messages_txt",
+    ],
+    visibility = ["//visibility:public"],
+)

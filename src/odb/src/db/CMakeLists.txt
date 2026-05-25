@@ -86,6 +86,9 @@ add_library(db
     dbGroupGroundNetItr.cpp
     dbGDSLib.cpp
     dbSwapMasterSanityChecker.cpp
+    unfoldedModel.cpp
+    util.cpp
+    poly_decomp.cpp
     # Generator Code Begin cpp
     dbAccessPoint.cpp
     dbBusPort.cpp
@@ -96,6 +99,7 @@ add_library(db
     dbChipConn.cpp
     dbChipInst.cpp
     dbChipNet.cpp
+    dbChipPath.cpp
     dbChipRegion.cpp
     dbChipRegionInst.cpp
     dbDatabase.cpp
@@ -197,7 +201,6 @@ set_target_properties(db
 
 target_link_libraries(db
     PUBLIC
-        zutil
         utl_lib
         ${TCL_LIBRARY}
 

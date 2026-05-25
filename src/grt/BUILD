@@ -5,6 +5,7 @@ load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("//bazel:python_wrap_cc.bzl", "python_wrap_cc")
 load("//bazel:tcl_encode_or.bzl", "tcl_encode")
 load("//bazel:tcl_wrap_cc.bzl", "tcl_wrap_cc")
+load("//test:regression.bzl", "messages_txt")
 
 package(
     default_visibility = ["//:__subpackages__"],
@@ -17,15 +18,21 @@ cc_library(
         "src/fastroute/include/AbstractFastRouteRenderer.h",
         "src/fastroute/include/DataType.h",
     ],
+    includes = ["src/fastroute/include"],
     visibility = ["//visibility:private"],
     deps = [
         "//src/stt",
+        "//src/utl",
     ],
 )
 
 cc_library(
     name = "groute",
     hdrs = ["include/grt/GRoute.h"],
+    includes = [
+        "include",
+    ],
+    deps = ["//src/odb"],
 )
 
 cc_library(
@@ -46,6 +53,9 @@ cc_library(
         "src/fastroute/include/FastRouteRenderer.h",
         "src/fastroute/include/Graph2D.h",
     ],
+    copts = [
+        "-fopenmp",
+    ],
     includes = [
         "include",
         "src/fastroute/include",
@@ -55,6 +65,7 @@ cc_library(
         ":groute",
         "//src/dbSta",
         "//src/dbSta:dbNetwork",
+        "//src/est:parasitics_service",
         "//src/gui",
         "//src/odb",
         "//src/sta:opensta_lib",
@@ -100,9 +111,9 @@ cc_library(
     ],
     deps = [
         ":groute",
-        "//:ord",
         "//src/dbSta",
         "//src/dbSta:dbNetwork",
+        "//src/est:parasitics_service",
         "//src/odb",
         "//src/sta:opensta_lib",
         "//src/stt",
@@ -146,9 +157,9 @@ cc_library(
         ":groute",
         "//src/ant",
         "//src/dbSta",
-        "//src/dbSta:SpefWriter",
         "//src/dbSta:dbNetwork",
         "//src/dpl",
+        "//src/drt:pin_access_service",
         "//src/gui",
         "//src/odb",
         "//src/sta:opensta_lib",
@@ -184,34 +195,23 @@ cc_library(
         "include/grt/MakeGlobalRouter.h",
     ],
     copts = [
-        "-Isrc/grt/src",
         "-Wno-missing-braces",  # from TCL swigging
         "-fopenmp",
     ],
     includes = [
         "include",
+        "src",
     ],
     deps = [
-        ":abstract-fastroute",
-        ":cugr",
         ":fastroute",
         ":groute",
         ":grt",
         "//:ord",
-        "//src/ant",
-        "//src/dbSta",
-        "//src/dpl",
         "//src/gui",
         "//src/odb",
         "//src/sta:opensta_lib",
-        "//src/stt",
         "//src/utl",
-        "@boost.geometry",
-        "@boost.graph",
-        "@boost.icl",
-        "@boost.iterator",
         "@boost.stacktrace",
-        "@openmp",
         "@tcl_lang//:tcl",
     ],
 )
@@ -252,4 +252,17 @@ python_wrap_cc(
         "include",
         "src",
     ],
+)
+
+filegroup(
+    name = "doc_files",
+    srcs = [
+        "README.md",
+        "src/GlobalRouter.tcl",
+    ],
+    visibility = ["//src/grt/test:__pkg__"],
+)
+
+messages_txt(
+    visibility = ["//src/grt/test:__pkg__"],
 )

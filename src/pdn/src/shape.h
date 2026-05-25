@@ -51,21 +51,21 @@ class Shape
   };
   enum ShapeType
   {
-    SHAPE,
-    GRID_OBS,
-    BLOCK_OBS,
-    MACRO_OBS,
-    OBS,
-    FIXED
+    kShape,
+    kGridObs,
+    kBlockObs,
+    kMacroObs,
+    kObs,
+    kFixed
   };
   struct RectIndexableGetter
   {
-    using result_type = odb::Rect;
+    using result_type = odb::Rect;  // NOLINT(readability-identifier-naming)
     odb::Rect operator()(const ShapePtr& t) const { return t->getRect(); }
   };
   struct ObstructionIndexableGetter
   {
-    using result_type = odb::Rect;
+    using result_type = odb::Rect;  // NOLINT(readability-identifier-naming)
     odb::Rect operator()(const ShapePtr& t) const
     {
       return t->getObstruction();
@@ -177,7 +177,8 @@ class Shape
 
   std::unique_ptr<Shape> extendTo(
       const odb::Rect& rect,
-      const ObstructionTree& obstructions,
+      const Shape::ShapeTree& shapes,
+      const Shape::ObstructionTree& obstructions,
       Shape* orig_shape,
       const std::function<bool(const ShapePtr&)>& obs_filter
       = [](const ShapePtr&) { return true; }) const;

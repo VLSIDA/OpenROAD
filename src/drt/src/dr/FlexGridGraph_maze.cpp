@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "db/drObj/drPin.h"
+#include "db/tech/frLayer.h"
 #include "dr/FlexDR.h"
 #include "dr/FlexGridGraph.h"
 #include "dr/FlexMazeTypes.h"
@@ -267,7 +268,7 @@ frCost FlexGridGraph::getEstCost(const FlexMazeIdx& src,
     auto layerNum = (gridZ + 1) * 2;
     auto layer = getTech()->getLayer(layerNum);
     if (!router_cfg_->USENONPREFTRACKS || layer->isUnidirectional()) {
-      bool isH = (layer->getDir() == dbTechLayerDir::HORIZONTAL);
+      bool isH = layer->isHorizontal();
       if (isH && dstMazeIdx1.y() == dstMazeIdx2.y()) {
         auto gap = abs(nextPoint.y() - dstPoint1.y());
         if (gap

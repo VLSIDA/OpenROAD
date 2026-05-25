@@ -56,3 +56,6 @@ add_compile_options(
   add_subdirectory(abc)
 
 endif()
+
+add_subdirectory(lodepng)
+add_subdirectory(stb_truetype)

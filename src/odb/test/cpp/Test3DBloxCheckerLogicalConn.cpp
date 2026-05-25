@@ -8,6 +8,7 @@
 #include "gtest/gtest.h"
 #include "odb/3dblox.h"
 #include "odb/db.h"
+#include "odb/dbTypes.h"
 #include "odb/geom.h"
 
 namespace odb {
@@ -75,6 +76,7 @@ class CheckerLogicalConnFixture : public CheckerFixture
   void check()
   {
     utl::Logger logger;
+    db_->constructUnfoldedModel();
     ThreeDBlox three_dblox(&logger, db_.get());
     three_dblox.check();
   }
