@@ -116,8 +116,14 @@ bool ClockMesh::isSink(odb::dbITerm* iterm)
   if (!libertyCell) {
     return true;
   }
+  // Macros (block-class instances) are NOT mesh sinks — CTS already drives
+  // their clock pins via the original clock net. The mesh is for low-skew
+  // distribution to many tiny std-cell flop loads; macro clock pins have
+  // their own (much larger) cap and timing characteristics that CTS handles
+  // properly. Letting them onto the mesh pollutes load-adaptive sizing and
+  // duplicates the clock drive.
   if (inst->isBlock()) {
-    return true;
+    return false;
   }
   sta::LibertyPort* inputPort =
       libertyCell->findLibertyPort(iterm->getMTerm()->getConstName());
