@@ -111,19 +111,21 @@ void ClockMesh::findClockRoots(sta::Clock* clk, std::set<odb::dbNet*>& clockNets
 bool ClockMesh::isSink(odb::dbITerm* iterm)
 {
   odb::dbInst* inst = iterm->getInst();
-  sta::Cell* masterCell = network_->dbToSta(inst->getMaster());
-  sta::LibertyCell* libertyCell = network_->libertyCell(masterCell);
-  if (!libertyCell) {
-    return true;
-  }
   // Macros (block-class instances) are NOT mesh sinks — CTS already drives
   // their clock pins via the original clock net. The mesh is for low-skew
   // distribution to many tiny std-cell flop loads; macro clock pins have
   // their own (much larger) cap and timing characteristics that CTS handles
   // properly. Letting them onto the mesh pollutes load-adaptive sizing and
-  // duplicates the clock drive.
+  // duplicates the clock drive. Check this BEFORE the Liberty early-return
+  // below, because LEF-only macros (e.g. fakeram*) have no Liberty cell and
+  // would otherwise fall through to the "treat as sink" fallback.
   if (inst->isBlock()) {
     return false;
+  }
+  sta::Cell* masterCell = network_->dbToSta(inst->getMaster());
+  sta::LibertyCell* libertyCell = network_->libertyCell(masterCell);
+  if (!libertyCell) {
+    return true;
   }
   sta::LibertyPort* inputPort =
       libertyCell->findLibertyPort(iterm->getMTerm()->getConstName());
