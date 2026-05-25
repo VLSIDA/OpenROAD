@@ -25,7 +25,8 @@ void create_mesh_grid_cmd(const char* clock_name,
                           const char* v_layer_name,
                           int pitch,
                           Tcl_Obj* buffer_list_obj,
-                          int macro_halo_dbu)
+                          int macro_halo_dbu,
+                          Tcl_Obj* cts_buffer_list_obj)
 {
   cms::ClockMesh* mesh_obj = ord::getClockMesh();
   if (!mesh_obj) {
@@ -65,12 +66,11 @@ void create_mesh_grid_cmd(const char* clock_name,
     }
   }
 
-  // Convert TCL list to C++ vector<string>
+  // Convert mesh buffer TCL list to C++ vector<string>
   std::vector<std::string> buffer_list;
   if (buffer_list_obj) {
     int list_len = 0;
     Tcl_Obj** list_elements = nullptr;
-
     if (Tcl_ListObjGetElements(nullptr, buffer_list_obj, &list_len, &list_elements) == TCL_OK) {
       for (int i = 0; i < list_len; ++i) {
         const char* buf_name = Tcl_GetString(list_elements[i]);
@@ -81,8 +81,23 @@ void create_mesh_grid_cmd(const char* clock_name,
     }
   }
 
+  // Convert CTS buffer TCL list to C++ vector<string> (empty = auto-infer)
+  std::vector<std::string> cts_buffer_list;
+  if (cts_buffer_list_obj) {
+    int list_len = 0;
+    Tcl_Obj** list_elements = nullptr;
+    if (Tcl_ListObjGetElements(nullptr, cts_buffer_list_obj, &list_len, &list_elements) == TCL_OK) {
+      for (int i = 0; i < list_len; ++i) {
+        const char* buf_name = Tcl_GetString(list_elements[i]);
+        if (buf_name && buf_name[0] != '\0') {
+          cts_buffer_list.push_back(buf_name);
+        }
+      }
+    }
+  }
+
   // Call the main mesh grid creation function (wire width auto-computed from tech)
-  mesh_obj->createMeshGrid(clock_name, h_layer, v_layer, pitch, buffer_list, macro_halo_dbu);
+  mesh_obj->createMeshGrid(clock_name, h_layer, v_layer, pitch, buffer_list, macro_halo_dbu, cts_buffer_list);
 }
 
 // Connect sinks via router - places BTerms at grid intersections for router-based connections
@@ -204,7 +219,7 @@ void convert_swire_to_wire_cmd(const char* clock_name)
 // Write SPICE netlist from extracted parasitics
 void write_mesh_spice_cmd(const char* clock_name, const char* spice_file,
                           float vdd_voltage, float rise_time, float fall_time,
-                          Tcl_Obj* spice_models_obj)
+                          Tcl_Obj* spice_models_obj, bool zero_delay)
 {
   cms::ClockMesh* mesh_obj = ord::getClockMesh();
   if (!mesh_obj) {
@@ -227,7 +242,7 @@ void write_mesh_spice_cmd(const char* clock_name, const char* spice_file,
   }
 
   mesh_obj->writeMeshSpice(clock_name, spice_file,
-                           vdd_voltage, rise_time, fall_time, spice_models);
+                           vdd_voltage, rise_time, fall_time, spice_models, zero_delay);
 }
 
 // Write mesh-merged Verilog netlist with correct connectivity

@@ -88,7 +88,8 @@ class ClockMesh
                       odb::dbTechLayer* v_layer,
                       int pitch,
                       const std::vector<std::string>& buffer_list = {},
-                      int macro_halo_dbu = 0);
+                      int macro_halo_dbu = 0,
+                      const std::vector<std::string>& cts_buffer_list = {});
 
   void findClockSinks();
   void connectSinksViaRouter(const std::string& clock_name,
@@ -104,7 +105,8 @@ class ClockMesh
                       float vdd_voltage = 0.0,
                       float rise_time_ns = 0.0,
                       float fall_time_ns = 0.0,
-                      const std::vector<std::string>& spice_models = {});
+                      const std::vector<std::string>& spice_models = {},
+                      bool zero_delay = false);
   void writeMeshVerilog(const std::string& clock_name,
                         const std::string& input_filename,
                         const std::string& output_filename);
@@ -134,6 +136,9 @@ class ClockMesh
                                  const std::vector<MeshWire>& h_wires,
                                  const std::vector<MeshWire>& v_wires,
                                  odb::dbTechLayer** out_grid_layer);
+  bool findNearestGridIntersection(const odb::Point& loc,
+                                   odb::Point& out_point,
+                                   odb::dbTechLayer** out_layer) const;
   void createViaStackAtPoint(const odb::Point& location,
                              odb::dbTechLayer* from_layer,
                              odb::dbTechLayer* to_layer,

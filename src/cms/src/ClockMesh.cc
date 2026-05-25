@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 #include "cms/ClockMesh.hh"
+#include "cms/LoadAdaptiveBuffer.hh"
 #include <algorithm>
 #include <cmath>
 #include <fstream>
@@ -561,7 +562,7 @@ void ClockMesh::writeViasToDb(const std::vector<MeshVia>& vias)
 }
 
 // Main function: creates mesh grid, places buffers, and runs CTS
-void ClockMesh::createMeshGrid(const std::string& clock_name, odb::dbTechLayer* h_layer, odb::dbTechLayer* v_layer, int pitch, const std::vector<std::string>& buffer_list, int macro_halo_dbu)
+void ClockMesh::createMeshGrid(const std::string& clock_name, odb::dbTechLayer* h_layer, odb::dbTechLayer* v_layer, int pitch, const std::vector<std::string>& buffer_list, int macro_halo_dbu, const std::vector<std::string>& cts_buffer_list)
 {
   if (db_) {
     odb::dbChip* chip = db_->getChip();
@@ -664,6 +665,17 @@ void ClockMesh::createMeshGrid(const std::string& clock_name, odb::dbTechLayer* 
   }
   odb::Rect aligned_bbox(aligned_x_start, aligned_y_start, bbox.xMax(), bbox.yMax());
 
+  // Log grid size
+  double dbu_per_um = tech->getDbUnitsPerMicron();
+  int h_wire_count = (aligned_pitch > 0) ? (aligned_bbox.dy() / aligned_pitch + 1) : 0;
+  int v_wire_count = (aligned_pitch > 0) ? (aligned_bbox.dx() / aligned_pitch + 1) : 0;
+  logger_->info(CMS, 121,
+      "Clock mesh parameters: pitch={:.3f}um, expected {} H-lines x {} V-lines, "
+      "bbox {:.3f}x{:.3f}um",
+      aligned_pitch / dbu_per_um,
+      h_wire_count, v_wire_count,
+      aligned_bbox.dx() / dbu_per_um, aligned_bbox.dy() / dbu_per_um);
+
   odb::dbNet* mesh_net = getOrCreateClockNet(clock_name);
   if (!mesh_net) {
     logger_->error(CMS, 116, "Failed to find clock net for '{}'", clock_name);
@@ -734,19 +746,39 @@ void ClockMesh::createMeshGrid(const std::string& clock_name, odb::dbTechLayer* 
 
   int buffers_placed = 0;
   if (!buffer_list.empty() && !grid_intersections_.empty()) {
-    placeBuffersAtIntersections(buffer_list[0], mesh_net);
+    if (buffer_list.size() > 1) {
+      // Multiple candidate masters → clocksyn-style load-adaptive sizing.
+      placeBuffersLoadAdaptive(block_, network_, logger_,
+                               mesh_h_layer_, mesh_v_layer_,
+                               mesh_wires_, clockToSinks_[clock_name],
+                               grid_intersections_, buffer_list);
+    } else {
+      placeBuffersAtIntersections(buffer_list[0], mesh_net);
+    }
     connectBuffersToNets(mesh_net, clock_name);
     buffers_placed = grid_intersections_.size();
 
     std::string cts_net_name = mesh_net_name_.empty() ? clock_name
                                                       : mesh_net_name_;
-    buildCtsTreeToBuffers(cts_net_name, buffer_list);
+    buildCtsTreeToBuffers(cts_net_name, cts_buffer_list);
   }
 
   mesh_generated_ = true;
 
-  logger_->info(CMS, 120, "Created clock mesh: {} wires, {} vias, {} buffers",
-                h_wires.size() + v_wires.size(), vias.size(), buffers_placed);
+  // Count distinct grid lines (a blockage-clipped line becomes multiple segments)
+  std::set<int> h_positions, v_positions;
+  for (const MeshWire& w : h_wires)
+    h_positions.insert((w.rect.yMin() + w.rect.yMax()) / 2);
+  for (const MeshWire& w : v_wires)
+    v_positions.insert((w.rect.xMin() + w.rect.xMax()) / 2);
+
+  logger_->info(CMS, 120,
+      "Created clock mesh: {} horizontal lines x {} vertical lines "
+      "({} H-segments, {} V-segments), "
+      "{} intersections, {} vias, {} buffers placed",
+      h_positions.size(), v_positions.size(),
+      h_wires.size(), v_wires.size(),
+      grid_intersections_.size(), vias.size(), buffers_placed);
 }
 
 // Creates BTerm pins for sinks at grid intersections for router connections
@@ -871,7 +903,36 @@ void ClockMesh::connectSinksViaRouter(const std::string& clock_name, odb::dbTech
   logger_->info(CMS, 510, "Created {} sink BTerms for routing", bterms_created);
 }
 
-// Finds the nearest mesh grid wire to a given point
+// Finds the nearest grid intersection to a point.
+// Grid intersections are guaranteed to be on connected mesh segments
+// (they're where an H-wire and V-wire both cover the point after clipping).
+// Returns false if grid_intersections_ is empty.
+bool ClockMesh::findNearestGridIntersection(const odb::Point& loc,
+                                             odb::Point& out_point,
+                                             odb::dbTechLayer** out_layer) const
+{
+  int64_t best_dist2 = std::numeric_limits<int64_t>::max();
+  const GridIntersection* best = nullptr;
+  for (const GridIntersection& inter : grid_intersections_) {
+    int64_t dx = inter.x - loc.x();
+    int64_t dy = inter.y - loc.y();
+    int64_t d2 = dx*dx + dy*dy;
+    if (d2 < best_dist2) {
+      best_dist2 = d2;
+      best = &inter;
+    }
+  }
+  if (!best) {
+    return false;
+  }
+  out_point = odb::Point(best->x, best->y);
+  if (out_layer) {
+    *out_layer = best->layer;
+  }
+  return true;
+}
+
+// Finds the nearest mesh grid wire to a given point.
 odb::Point ClockMesh::findNearestGridWire(const odb::Point& loc, const std::vector<MeshWire>& h_wires, const std::vector<MeshWire>& v_wires, odb::dbTechLayer** out_grid_layer)
 {
   int best_x = loc.x();
@@ -1188,37 +1249,15 @@ void ClockMesh::buildCtsTreeToBuffers(
     return;
   }
 
-  // Use the user-specified buffer list first, fall back to auto-detect
+  // Build the buffer list string. Empty string triggers TritonCTS auto-inference.
   std::string clkbuf_list;
-  if (!buffer_list.empty()) {
-    for (const auto& buf : buffer_list) {
-      if (!clkbuf_list.empty()) {
-        clkbuf_list += " ";
-      }
-      clkbuf_list += buf;
+  for (const auto& buf : buffer_list) {
+    if (!clkbuf_list.empty()) {
+      clkbuf_list += " ";
     }
-  } else {
-    // Auto-detect: search for cells with "clkbuf" or "BUF" in name
-    for (odb::dbLib* lib : db_->getLibs()) {
-      for (odb::dbMaster* master : lib->getMasters()) {
-        std::string name = master->getName();
-        if (name.find("clkbuf_") != std::string::npos
-            || name.find("CLKBUF") != std::string::npos) {
-          if (!clkbuf_list.empty()) {
-            clkbuf_list += " ";
-          }
-          clkbuf_list += name;
-        }
-      }
-    }
+    clkbuf_list += buf;
   }
-
-  if (!clkbuf_list.empty()) {
-    triton_cts->setBufferList(clkbuf_list.c_str());
-  } else {
-    logger_->error(CMS, 402, "No clock buffers found. " "Specify buffers with -buffers option");
-    return;
-  }
+  triton_cts->setBufferList(clkbuf_list.c_str());
 
   triton_cts->runTritonCts();
 }
@@ -1392,7 +1431,17 @@ void ClockMesh::convertSWireToWire(const std::string& clock_name)
     }
   }
 
-  // Append grid geometry to the existing dbWire (which has merged routing)
+  // Append mesh geometry to the existing dbWire (which already holds the
+  // routed clk_buf_* and sink_* paths after mergeNetsToMesh).  We rely on
+  // OpenRCX's same-layer geometric coincidence merging to tie routed
+  // wires to the mesh: each mesh wire is one continuous newPath; vias are
+  // standalone newPaths; H-wire / V-wire / via shapes physically overlap
+  // at every intersection on both layers, and OpenRCX collapses overlapping
+  // wire shapes on the same layer into one RC node during extraction.
+  //
+  // This is the simplest encoding that worked on dense aes_block (0 fails).
+  // The connectivity-aware sink filter in connectSinksViaRouter handles the
+  // sparse case where the mesh topology itself splits into sub-meshes.
   odb::dbWire* wire = mesh_net->getWire();
   if (!wire) {
     wire = odb::dbWire::create(mesh_net);
@@ -1401,28 +1450,29 @@ void ClockMesh::convertSWireToWire(const std::string& clock_name)
   odb::dbWireEncoder encoder;
   encoder.append(wire);
 
-  // Encode each wire segment, breaking at connection points so OpenRCX creates explicit nodes where routed wires meet mesh wires
   for (const auto& wr : wire_rects) {
     int cx_start, cy_start, cx_end, cy_end;
     if (wr.is_horizontal) {
       int cy = (wr.rect.yMin() + wr.rect.yMax()) / 2;
       cx_start = wr.rect.xMin();
-      cx_end = wr.rect.xMax();
-      cy_start = cy;
-      cy_end = cy;
+      cx_end   = wr.rect.xMax();
+      cy_start = cy_end = cy;
     } else {
       int cx = (wr.rect.xMin() + wr.rect.xMax()) / 2;
-      cx_start = cx;
-      cx_end = cx;
+      cx_start = cx_end = cx;
       cy_start = wr.rect.yMin();
-      cy_end = wr.rect.yMax();
+      cy_end   = wr.rect.yMax();
     }
 
-    // Find connection points that fall on this wire segment
-    int layer_level = wr.layer->getRoutingLevel();
+    // Insert intermediate POINTs at every planned connection point on this
+    // wire so OpenRCX has explicit RC nodes there (proxy BTerms / sink BTerms
+    // sit on top of these).
+    int level = wr.layer->getRoutingLevel();
     std::vector<int> break_coords;
     for (const auto& [px, py, plevel] : mesh_connection_points_) {
-      if (plevel != layer_level) continue;
+      if (plevel != level) {
+        continue;
+      }
       if (wr.is_horizontal) {
         if (py == cy_start && px > cx_start && px < cx_end) {
           break_coords.push_back(px);
@@ -1433,27 +1483,24 @@ void ClockMesh::convertSWireToWire(const std::string& clock_name)
         }
       }
     }
+    std::sort(break_coords.begin(), break_coords.end());
 
     encoder.newPath(wr.layer, odb::dbWireType::ROUTED);
-    if (break_coords.empty()) {
-      encoder.addPoint(cx_start, cy_start);
-      encoder.addPoint(cx_end, cy_end);
-    } else {
-      // Sort and insert intermediate points at connection locations
-      std::sort(break_coords.begin(), break_coords.end());
-      encoder.addPoint(cx_start, cy_start);
-      for (int coord : break_coords) {
-        if (wr.is_horizontal) {
-          encoder.addPoint(coord, cy_start);
-        } else {
-          encoder.addPoint(cx_start, coord);
-        }
+    encoder.addPoint(cx_start, cy_start);
+    for (int c : break_coords) {
+      if (wr.is_horizontal) {
+        encoder.addPoint(c, cy_start);
+      } else {
+        encoder.addPoint(cx_start, c);
       }
-      encoder.addPoint(cx_end, cy_end);
     }
+    encoder.addPoint(cx_end, cy_end);
   }
 
-  // Encode each via
+  // Vias as standalone paths.  OpenRCX merges the via's bottom-layer point
+  // with the H-wire's bottom-layer rectangle and the via's top-layer point
+  // with the V-wire's top-layer rectangle (both physically overlap at the
+  // grid intersection coord on the same layer).
   for (const auto& ve : via_entries) {
     odb::dbTechLayer* bot_layer = ve.tech_via->getBottomLayer();
     encoder.newPath(bot_layer, odb::dbWireType::ROUTED);
@@ -1494,20 +1541,27 @@ void ClockMesh::captureLeafArrivals(const std::string& clock_name)
     if (!input_iterm || !input_iterm->getNet()) {
       continue;
     }
+    // Key by input pin so writeMeshSpice can match Vclk source → buffer input
     std::string leaf_key = std::string(inter.buffer_inst->getConstName())
         + "/" + std::string(input_iterm->getMTerm()->getConstName());
     if (leaf_arrivals_ns_.count(leaf_key)) {
       continue;
     }
-    sta::Pin* sta_pin = network_->dbToSta(input_iterm);
-    if (sta_pin) {
+    // Capture arrival at the INPUT pin (excludes the buffer's input→output
+    // cell-delay arc). The per-buffer Vclk source then represents "when the
+    // CTS signal reaches the mesh buffer input"; the real buffer subcircuit
+    // in the SPICE netlist propagates the cell delay, so capturing at the
+    // output would double-count it.
+    sta::Pin* arrival_pin = network_->dbToSta(input_iterm);
+    const char* arrival_pin_name = input_iterm->getMTerm()->getConstName();
+    if (arrival_pin) {
       float arrival_sec = sta_->arrival(
-          sta_pin, sta::RiseFallBoth::rise(), sta::MinMax::max());
+          arrival_pin, sta::RiseFallBoth::rise(), sta::MinMax::max());
       leaf_arrivals_ns_[leaf_key] = arrival_sec * 1e9;
       logger_->info(CMS, 873,
-                    "Buffer {} pin {} on net '{}': arrival = {:.6g} ns",
+                    "Buffer {} arrival at pin {} (excl. cell delay) on net '{}': {:.6g} ns",
                     inter.buffer_inst->getConstName(),
-                    input_iterm->getMTerm()->getConstName(),
+                    arrival_pin_name,
                     input_iterm->getNet()->getConstName(),
                     arrival_sec * 1e9);
     } else {
@@ -1533,7 +1587,7 @@ void ClockMesh::captureLeafArrivals(const std::string& clock_name)
 }
 
 // Reads extracted parasitics from DB and writes SPICE netlist
-void ClockMesh::writeMeshSpice(const std::string& clock_name, const std::string& spice_file, float vdd_voltage, float rise_time_ns, float fall_time_ns, const std::vector<std::string>& spice_models)
+void ClockMesh::writeMeshSpice(const std::string& clock_name, const std::string& spice_file, float vdd_voltage, float rise_time_ns, float fall_time_ns, const std::vector<std::string>& spice_models, bool zero_delay)
 {
   std::string base_name = mesh_net_name_.empty() ? clock_name : mesh_net_name_;
   std::string mesh_net_name = base_name + "_mesh";
@@ -1651,8 +1705,11 @@ void ClockMesh::writeMeshSpice(const std::string& clock_name, const std::string&
   out << "*\n";
 
   // Simulator options for convergence with extracted RC networks
-  out << ".option rshunt=1e12\n";  
+  out << ".option rshunt=1e12\n";
+  out << ".option method=gear\n";
   out << ".option abstol=1e-10 reltol=0.003 vntol=1e-4\n";
+  out << ".option delmax=10p\n";
+  out << ".option autostop\n";
 
   // Disable Monte Carlo mismatch for deterministic simulation
   if (!spice_models.empty()) {
@@ -1674,31 +1731,50 @@ void ClockMesh::writeMeshSpice(const std::string& clock_name, const std::string&
   out << "\n* Power supplies\n";
   out << "Vvdd VDD 0 " << vdd << "\n";
 
-  // Use cached CTS leaf arrival times (captured before merge)
-  if (leaf_arrivals_ns_.empty()) {
-    logger_->warn(CMS, 870, "No cached CTS leaf arrivals. " "Call capture_mesh_arrivals before merge_mesh_nets " "for accurate skew analysis. Using zero delays.");
-    // Collect per-buffer keys with zero delay as fallback
-    for (const GridIntersection& inter : grid_intersections_) {
-      if (!inter.has_buffer || !inter.buffer_inst) {
-        continue;
-      }
-      odb::dbITerm* input_iterm = getBufferInputPin(inter.buffer_inst);
-      if (input_iterm && input_iterm->getNet()) {
-        std::string leaf_key = std::string(inter.buffer_inst->getConstName())
-            + "/" + std::string(input_iterm->getMTerm()->getConstName());
-        if (!leaf_arrivals_ns_.count(leaf_key)) {
-          leaf_arrivals_ns_[leaf_key] = 0.0;
-        }
+  // Ensure every mesh buffer has an arrival entry. Captured arrivals come
+  // from capture_mesh_arrivals; any buffer missing from that map (partial
+  // capture, multi-clock domains, post-capture buffer additions) gets a
+  // zero-delay fallback so its SPICE input source is still written.
+  const bool capture_was_empty = leaf_arrivals_ns_.empty();
+  int filled_zero = 0;
+  for (const GridIntersection& inter : grid_intersections_) {
+    if (!inter.has_buffer || !inter.buffer_inst) {
+      continue;
+    }
+    odb::dbITerm* input_iterm = getBufferInputPin(inter.buffer_inst);
+    if (input_iterm && input_iterm->getNet()) {
+      std::string leaf_key = std::string(inter.buffer_inst->getConstName())
+          + "/" + std::string(input_iterm->getMTerm()->getConstName());
+      if (!leaf_arrivals_ns_.count(leaf_key)) {
+        leaf_arrivals_ns_[leaf_key] = 0.0;
+        filled_zero++;
       }
     }
+  }
+  if (capture_was_empty) {
+    logger_->warn(CMS, 870, "No cached CTS leaf arrivals. Call capture_mesh_arrivals before merge_mesh_nets for accurate skew analysis. Using zero delays for all {} buffers.", filled_zero);
+  } else if (filled_zero > 0) {
+    logger_->warn(CMS, 871, "Partial CTS leaf arrivals: {} buffers were missing from the captured map and assigned zero delay. Skew numbers for those buffers' downstream sinks will be optimistic.", filled_zero);
+  }
+
+  // If zero_delay requested, build a zeroed copy of arrivals (leaves original intact)
+  std::map<std::string, float> arrivals_for_spice;
+  if (zero_delay) {
+    for (const auto& [k, v] : leaf_arrivals_ns_) {
+      arrivals_for_spice[k] = 0.0f;
+    }
+    logger_->info(CMS, 872, "zero_delay mode: all {} mesh buffer arrival times set to 0.", arrivals_for_spice.size());
+    out << "\n* CTS buffer clock sources (zero-delay mode: all arrivals forced to 0)\n";
+  } else {
+    arrivals_for_spice = leaf_arrivals_ns_;
+    out << "\n* CTS buffer clock sources (with per-pin STA arrival delays)\n";
   }
 
   // Write per-buffer clock sources with STA arrival delay offsets
   // Build map from buffer iterm ID to its unique SPICE input node
   std::map<uint32_t, std::string> buf_input_spice_node;
-  out << "\n* CTS buffer clock sources (with per-pin STA arrival delays)\n";
   int vclk_count = 0;
-  for (const auto& [leaf_key, arrival] : leaf_arrivals_ns_) {
+  for (const auto& [leaf_key, arrival] : arrivals_for_spice) {
     std::string spice_node = "clk_in_" + sanitize(leaf_key);
     out << "Vclk_" << vclk_count << " " << spice_node << " 0 PULSE(0 " << vdd
         << " " << arrival << "n " << rise_ns << "n " << fall_ns << "n "
@@ -1816,7 +1892,7 @@ void ClockMesh::writeMeshSpice(const std::string& clock_name, const std::string&
     double cap = cap_node->getCapacitance(0);
     if (cap > 0.0) {
       out << "C" << c_count << " " << node_name(cap_node)
-          << " 0 " << cap << "f\n";
+          << " 0 " << cap * 1e-15 << "\n";
       c_count++;
     }
   }
@@ -1830,7 +1906,7 @@ void ClockMesh::writeMeshSpice(const std::string& clock_name, const std::string&
           continue;
         }
         out << "C" << c_count << " " << node_name(tgt_node)
-            << " 0 " << cap << "f\n";
+            << " 0 " << cap * 1e-15 << "\n";
         c_count++;
       }
     }
@@ -1851,7 +1927,7 @@ void ClockMesh::writeMeshSpice(const std::string& clock_name, const std::string&
       double cap = cc->getCapacitance(0);
       if (cap > 0.0) {
         out << "Cc" << cc_count << " " << node_name(src)
-            << " " << node_name(tgt) << " " << cap << "f\n";
+            << " " << node_name(tgt) << " " << cap * 1e-15 << "\n";
         cc_count++;
       }
     }
@@ -1890,10 +1966,15 @@ void ClockMesh::writeMeshSpice(const std::string& clock_name, const std::string&
                 "Added {} sink .measure statements for skew analysis",
                 sink_count);
 
-  // Simulation control — step = rise_time/10, duration = 3 periods
-  // 3 periods is enough for .measure RISE=2 to trigger
-  float tran_step = rise_ns / 10.0;
-  float tran_stop = period_ns * 3.0;
+  // Simulation control — step = rise_time/2.
+  // Stop = max buffer arrival + half period margin for mesh RC propagation.
+  // autostop exits HSpice as soon as all .measure statements are satisfied.
+  float tran_step = rise_ns / 2.0;
+  float max_arrival = 0.0f;
+  for (const auto& [k, v] : arrivals_for_spice) {
+    max_arrival = std::max(max_arrival, v);
+  }
+  float tran_stop = max_arrival + period_ns * 0.5f;
   out << "\n* Simulation control\n";
   out << ".tran " << tran_step << "n " << tran_stop << "n\n";
   out << ".end\n";

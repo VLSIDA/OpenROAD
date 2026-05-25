@@ -4,7 +4,7 @@
 
 source "../helpers.tcl"
 
-set orfs /home/wajid/OpenROAD-flow-scripts/flow
+set orfs /home/wali2/OpenROAD-flow-scripts/flow
 set results $orfs/results/asap7/swerv_wrapper/base
 set plat $orfs/platforms/asap7
 

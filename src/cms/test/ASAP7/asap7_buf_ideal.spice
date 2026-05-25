@@ -1,5 +1,13 @@
-* Ideal behavioral buffer model for ASAP7 BUFx4
+* Behavioral CMOS buffer for ASAP7 BUFx4 — Level-1 MOSFET two-inverter chain.
+* Draws VDD current so I(Vvdd) gives real switching power.
 * Pin order matches CDL: A VDD VSS Y
+.MODEL NBUF NMOS Level=1 VT0=0.30 KP=270e-6 LAMBDA=0.01 GAMMA=0.5 PHI=0.65 NSUB=1e17 TOX=4e-9 CGSO=2e-10 CGDO=2e-10
+.MODEL PBUF PMOS Level=1 VT0=-0.30 KP=90e-6  LAMBDA=0.01 GAMMA=0.5 PHI=0.65 NSUB=1e17 TOX=4e-9 CGSO=2e-10 CGDO=2e-10
 .SUBCKT BUFx4_ASAP7_75t_R A VDD VSS Y
-Ebuf Y VSS A VSS 1.0
+* Stage 1 — inverter (A → AN)
+MP1 AN A VDD VDD PBUF W=1.0u L=0.5u
+MN1 AN A VSS VSS NBUF W=0.5u L=0.5u
+* Stage 2 — inverter (AN → Y), 4× drive strength
+MP2 Y AN VDD VDD PBUF W=4.0u L=0.5u
+MN2 Y AN VSS VSS NBUF W=2.0u L=0.5u
 .ENDS

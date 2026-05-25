@@ -27,6 +27,7 @@ if (Python3_FOUND AND BUILD_PYTHON)
       include
     PRIVATE
       src
+      ${Boost_INCLUDE_DIRS}
   )
 
   target_link_libraries(utl_py

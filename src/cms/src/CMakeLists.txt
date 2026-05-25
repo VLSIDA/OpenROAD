@@ -6,6 +6,7 @@ set(CMS_TCL_DIR ${CMAKE_SOURCE_DIR}/src/cms/tcl)
 
 add_library(cms_lib
   ClockMesh.cc
+  LoadAdaptiveBuffer.cc
 )
 
 target_include_directories(cms_lib

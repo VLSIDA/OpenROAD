@@ -3,7 +3,7 @@
 
 source "../helpers.tcl"
 
-set orfs /home/wajid/OpenROAD-flow-scripts/flow
+set orfs /home/wali2/OpenROAD-flow-scripts/flow
 set results $orfs/results/asap7/swerv_wrapper/base
 set plat $orfs/platforms/asap7
 
@@ -77,11 +77,11 @@ connect_sinks_to_mesh -clock $clk_name -proxy_layer M6
 puts "Routing..."
 set_routing_layers -signal M2-M7 -clock M2-M7
 
-global_route -guide_file [make_result_file "swerv_mesh.guide"] \
+global_route -guide_file [make_result_file "swerv_mesh_v2.guide"] \
     -congestion_iterations 50
 
-detailed_route -output_drc [make_result_file "swerv_mesh_drc.rpt"] \
-    -droute_end_iter 1
+detailed_route -output_drc [make_result_file "swerv_mesh_v2_drc.rpt"] \
+    -droute_end_iter 0
 
 connect_proxy_bterms_to_mesh -clock $clk_name
 estimate_parasitics -global_routing
@@ -92,10 +92,15 @@ convert_mesh_swire -clock $clk_name
 extract_parasitics -ext_model_file $plat/rcx_patterns.rules \
     -cc_model 10 -coupling_threshold 0.1 -max_res 0 -skip_over_cell
 
-set spice_file [make_result_file "swerv_mesh.spice"]
+set spice_file [make_result_file "swerv_mesh_v2.spice"]
 set script_dir [file dirname [file normalize [info script]]]
 write_mesh_spice -clock $clk_name -output $spice_file -vdd 0.7 \
     -spice_models [list $script_dir/asap7_buf_ideal.spice]
+
+set spice_zd [make_result_file "swerv_mesh_v2_zero_delay.spice"]
+write_mesh_spice -clock $clk_name -output $spice_zd -vdd 0.7 \
+    -spice_models [list $script_dir/asap7_buf_ideal.spice] \
+    -zero_delay
 
 # --- Verify ---
 set mesh_net [$block findNet "clk_mesh"]
@@ -156,11 +161,11 @@ puts "Wire violations:   $wire_v"
 puts "Buffer violations: $buf_v"
 puts "===================================="
 
-set odb_file [make_result_file "swerv_mesh.odb"]
+set odb_file [make_result_file "swerv_mesh_v2.odb"]
 puts "Writing ODB: $odb_file"
 write_db $odb_file
 
-set def_file [make_result_file "swerv_mesh.def"]
+set def_file [make_result_file "swerv_mesh_v2.def"]
 write_def $def_file
 
 puts "View layout with:  openroad -gui $odb_file"

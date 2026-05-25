@@ -22,6 +22,7 @@ target_link_libraries(tst
     grt_lib
     rsz_lib
     stt_lib
+    GTest::gtest
   PRIVATE
     utl_lib
     odb

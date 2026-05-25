@@ -7,11 +7,17 @@
 #                          -h_layer <horizontal_layer> \
 #                          -v_layer <vertical_layer> \
 #                          -pitch <pitch> \
-#                          [-buffers {buf1 buf2 buf3...}]
+#                          [-buffers {buf1 ...}] \
+#                          [-cts_buffers {buf1 ...}] \
+#                          [-macro_halo <microns>]
+# -buffers:     cell(s) placed at mesh grid intersections
+# -cts_buffers: cell(s) used by TritonCTS to build the tree from root to
+#               mesh intersection buffers. If omitted, TritonCTS auto-infers
+#               from the loaded liberty files.
 # Note: Wire width is automatically taken from tech file (layer default width)
 proc create_clock_mesh { args } {
     sta::parse_key_args "create_clock_mesh" args \
-        keys {-clock -h_layer -v_layer -pitch -buffers -macro_halo} \
+        keys {-clock -h_layer -v_layer -pitch -buffers -cts_buffers -macro_halo} \
         flags {}
 
     if { [info exists keys(-clock)] } {
@@ -38,16 +44,21 @@ proc create_clock_mesh { args } {
         utl::error CMS 304 "Missing required argument: -pitch"
     }
 
-    # Optional buffers parameter (list of buffer cell names)
-    # If not specified, no buffers will be inserted
+    # Mesh intersection buffers (required for buffer-inserted mesh)
     if { [info exists keys(-buffers)] } {
         set buffer_list $keys(-buffers)
     } else {
         set buffer_list {}
     }
 
-    # Optional macro halo (microns) — expand macro/blockage bboxes by this amount
-    # so no mesh geometry lands within halo of a blockage.
+    # CTS tree buffers (optional — empty means TritonCTS auto-infers)
+    if { [info exists keys(-cts_buffers)] } {
+        set cts_buffer_list $keys(-cts_buffers)
+    } else {
+        set cts_buffer_list {}
+    }
+
+    # Optional macro halo (microns)
     if { [info exists keys(-macro_halo)] } {
         set macro_halo_dbu [ord::microns_to_dbu $keys(-macro_halo)]
     } else {
@@ -57,8 +68,7 @@ proc create_clock_mesh { args } {
     # Convert pitch to DBU
     set pitch_dbu [ord::microns_to_dbu $pitch]
 
-    # Call the C++ backend command (wire width is auto-computed from tech file)
-    cms::create_mesh_grid_cmd $clock_name $h_layer $v_layer $pitch_dbu $buffer_list $macro_halo_dbu
+    cms::create_mesh_grid_cmd $clock_name $h_layer $v_layer $pitch_dbu $buffer_list $macro_halo_dbu $cts_buffer_list
 }
 
 # Connect sinks via router - places BTerms at grid intersections for router-based connections
@@ -219,7 +229,7 @@ proc convert_mesh_swire { args } {
 proc write_mesh_spice { args } {
     sta::parse_key_args "write_mesh_spice" args \
         keys {-clock -output -vdd -rise_time -fall_time -spice_models} \
-        flags {}
+        flags {-zero_delay}
 
     if { [info exists keys(-clock)] } {
         set clock_name $keys(-clock)
@@ -259,7 +269,9 @@ proc write_mesh_spice { args } {
         set spice_models {}
     }
 
-    cms::write_mesh_spice_cmd $clock_name $spice_file $vdd $rise_time $fall_time $spice_models
+    set zero_delay [info exists flags(-zero_delay)]
+
+    cms::write_mesh_spice_cmd $clock_name $spice_file $vdd $rise_time $fall_time $spice_models $zero_delay
 }
 
 # Write mesh-merged Verilog netlist with correct connectivity
