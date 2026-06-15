@@ -7,6 +7,7 @@
 #include <functional>
 #include <map>
 #include <memory>
+#include <set>
 #include <string>
 #include <utility>
 #include <vector>
@@ -92,14 +93,15 @@ class RamGen
                 int num_words,
                 int column_mux_ratio,
                 int read_ports,
+                bool use_latch,
                 odb::dbMaster* storage_cell,
                 odb::dbMaster* tristate_cell,
                 odb::dbMaster* inv_cell,
                 odb::dbMaster* tapcell,
                 int max_tap_dist);
 
-  void ramPdngen(const char* power_pin,
-                 const char* ground_pin,
+  void ramPdngen(const char* power_net_name,
+                 const char* ground_net_name,
                  const char* route_name,
                  int route_width,
                  const char* ver_name,
@@ -197,7 +199,11 @@ class RamGen
   odb::dbMaster* clock_gate_cell_{nullptr};
   odb::dbMaster* buffer_cell_{nullptr};
   odb::dbMaster* aoi22_cell_{nullptr};
+  odb::dbMaster* latch_cell_{nullptr};
   odb::dbMaster* tapcell_{nullptr};
+
+  std::set<std::string> power_pin_names_;
+  std::set<std::string> ground_pin_names_;
 
   std::map<PortRole, std::string> storage_ports_;
   std::map<PortRole, std::string> tristate_ports_;
@@ -205,6 +211,7 @@ class RamGen
   std::map<PortRole, std::string> and2_ports_;
   std::map<PortRole, std::string> clock_gate_ports_;
   std::map<PortRole, std::string> buffer_ports_;
+  std::map<PortRole, std::string> latch_ports_;
 
   std::vector<odb::dbBTerm*> addr_inputs_;
   std::vector<odb::dbBTerm*> data_inputs_;
@@ -213,6 +220,7 @@ class RamGen
   std::string aoi22_in_a1_, aoi22_in_a2_, aoi22_in_b1_, aoi22_in_b2_,
       aoi22_out_;
   Grid ram_grid_;
+  bool use_latch_{false};
 };
 
 }  // namespace ram

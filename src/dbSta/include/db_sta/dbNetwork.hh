@@ -367,7 +367,10 @@ class dbNetwork : public ConcreteNetwork
 
   // Return the highest net above the given net.
   // - If the net is a flat net, return it.
-  // - If the net is a hier net, return the modnet in the highest hierarchy.
+  // - If the net is a hier net (dbModNet), return the associated flat dbNet.
+  // This ensures parasitic externality checks in ensureParasiticNode work
+  // correctly: net_ is always a flat net, so the comparison net != net_
+  // must also operate on flat nets.
   Net* highestNetAbove(Net* net) const override;
 
   ////////////////////////////////////////////////////////////////
@@ -402,6 +405,44 @@ class dbNetwork : public ConcreteNetwork
   double dbuToMeters(int dist) const;
   int metersToDbu(double dist) const;
 
+  ////////////////////////////////////////////////////////////////
+  // Sequential / Flop / Scan flop utility functions
+  // clock pin functions
+  bool isClockPin(odb::dbITerm* iterm) const;
+  bool clockOn(odb::dbInst* inst) const;
+
+  // d pin functions
+  bool isDPin(odb::dbITerm* iterm) const;
+  int getNumD(odb::dbInst* inst) const;
+
+  // q(n) pin functions
+  bool isQPin(odb::dbITerm* iterm) const;
+  bool isInvertingQPin(odb::dbITerm* iterm) const;
+  int getNumQ(odb::dbInst* inst) const;
+
+  // clear/preset pin functions
+  bool hasClear(odb::dbInst* inst) const;
+  bool isClearPin(odb::dbITerm* iterm) const;
+  bool hasPreset(odb::dbInst* inst) const;
+  bool isPresetPin(odb::dbITerm* iterm) const;
+
+  // scan cell/pin functions
+  bool isScanCell(odb::dbInst* inst) const;
+  bool isScanIn(odb::dbITerm* iterm) const;
+  odb::dbITerm* getScanIn(odb::dbInst* inst) const;
+  bool isScanEnable(odb::dbITerm* iterm) const;
+  odb::dbITerm* getScanEnable(odb::dbInst* inst) const;
+  LibertyPort* getLibertyScanEnable(const LibertyCell* lib_cell) const;
+  LibertyPort* getLibertyScanIn(const LibertyCell* lib_cell) const;
+  LibertyPort* getLibertyScanOut(const LibertyCell* lib_cell) const;
+
+  // supply pin functions
+  bool isSupplyPin(odb::dbITerm* iterm) const;
+  bool isValidFlop(odb::dbInst* FF) const;
+  bool isValidTray(odb::dbInst* tray) const;
+
+  ////////////////////////////////////////////////////////////////
+
   // hierarchy handler, set in openroad tested in network child traverserser
 
   void setHierarchy() { db_->setHierarchy(true); }
@@ -428,8 +469,6 @@ class dbNetwork : public ConcreteNetwork
   PortMemberIterator* memberIterator(const Port* port) const override;
   PinSet* drivers(const Pin* pin) override;
   PinSet* drivers(const Net* net) override;
-  void removeDriverFromCache(const Net* net);
-  void removeDriverFromCache(const Net* net, const Pin* drvr);
 
   using Network::cell;
   using Network::direction;
@@ -482,6 +521,11 @@ class dbNetwork : public ConcreteNetwork
   static constexpr unsigned DBIDTAG_WIDTH = 0x4;
 
  private:
+  const LibertyCell* getLibertyCell(const Cell* cell) const;
+  void addDriverToCacheIfPresent(const Net* net, const Pin* drvr);
+  void removeDriverFromCache(const Net* net);
+  void removeDriverFromCache(const Net* net, const Pin* drvr);
+
   // Strip the parent-instance prefix from a hierarchical name, treating
   // backslash-escaped slashes (\/) as literal name characters rather than
   // hierarchy separators.  Used to recover an in-module name from a

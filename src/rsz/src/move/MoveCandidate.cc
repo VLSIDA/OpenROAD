@@ -3,6 +3,9 @@
 
 #include "MoveCandidate.hh"
 
+#include "OptimizerTypes.hh"
+#include "rsz/Resizer.hh"
+
 namespace rsz {
 
 MoveCandidate::MoveCandidate(Resizer& resizer, const Target& target)

@@ -3,6 +3,9 @@
 
 #pragma once
 
+#include "MoveCommitter.hh"
+#include "OptimizerTypes.hh"
+#include "RepairSetupContext.hh"
 #include "SetupLegacyBase.hh"
 
 namespace rsz {

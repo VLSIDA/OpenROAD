@@ -59,7 +59,6 @@ target_include_directories(utl_lib
     include
   PRIVATE
     src
-    ${Boost_INCLUDE_DIRS}
     ${TCL_INCLUDE_PATH}
 )
 
@@ -70,6 +69,8 @@ target_link_libraries(utl_lib
     spdlog::spdlog
     ${TCL_LIBRARY}
     ${Boost_LIBRARIES}
+  PRIVATE
+    Boost::headers
 )
 
 target_sources(utl
@@ -83,8 +84,9 @@ target_include_directories(utl
     include
   PRIVATE
     src
-    ${Boost_INCLUDE_DIRS}
 )
+
+target_link_libraries(utl PRIVATE Boost::headers)
 
 target_compile_definitions(utl
   PUBLIC

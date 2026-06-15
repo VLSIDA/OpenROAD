@@ -7,6 +7,7 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "MeasuredVtSwapPolicy.hh"
@@ -219,7 +220,7 @@ bool Optimizer::repairSetup(const sta::Pin* const end_pin)
   config.match_cell_footprint = resizer_.matchCellFootprint();
   config.sequence = {MoveType::kUnbuffer,
                      MoveType::kVtSwap,
-                     MoveType::kSizeDown,
+                     MoveType::kSizeDownFanout,
                      MoveType::kSizeUp,
                      MoveType::kSwapPins,
                      MoveType::kBuffer,

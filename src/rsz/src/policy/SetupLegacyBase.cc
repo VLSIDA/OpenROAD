@@ -5,13 +5,10 @@
 
 #include <algorithm>
 #include <cmath>
-#include <cstddef>
 #include <cstdlib>
 #include <limits>
-#include <map>
 #include <memory>
 #include <optional>
-#include <set>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -32,7 +29,6 @@
 #include "est/EstimateParasitics.h"
 #include "rsz/Resizer.hh"
 #include "sta/Delay.hh"
-#include "sta/Fuzzy.hh"
 #include "sta/Graph.hh"
 #include "sta/GraphClass.hh"
 #include "sta/Liberty.hh"
@@ -40,7 +36,6 @@
 #include "sta/NetworkClass.hh"
 #include "sta/Path.hh"
 #include "sta/PathExpanded.hh"
-#include "sta/PortDirection.hh"
 #include "sta/Sdc.hh"
 #include "sta/Search.hh"
 #include "sta/SearchClass.hh"
@@ -173,8 +168,9 @@ void SetupLegacyBase::buildMainMoveSequence(const bool log_sequence)
         case MoveType::kSizeUp:
           move_sequence_.push_back(MoveType::kSizeUp);
           break;
-        case MoveType::kSizeDown:
-          pushMoveIfEnabled(!config_.skip_size_down, MoveType::kSizeDown);
+        case MoveType::kSizeDownFanout:
+          pushMoveIfEnabled(!config_.skip_size_down_fanout,
+                            MoveType::kSizeDownFanout);
           break;
         case MoveType::kClone:
           pushMoveIfEnabled(!config_.skip_gate_cloning, MoveType::kClone);
@@ -201,7 +197,7 @@ void SetupLegacyBase::buildMainMoveSequence(const bool log_sequence)
     pushMoveIfEnabled(!config_.skip_vt_swap && hasVtSwapCells(),
                       MoveType::kVtSwap);
     move_sequence_.push_back(MoveType::kSizeUp);
-    if (!config_.skip_size_down) {
+    if (!config_.skip_size_down_fanout) {
       // Disabled by default for legacy parity.
     }
     pushMoveIfEnabled(!config_.skip_pin_swap, MoveType::kSwapPins);
@@ -247,7 +243,7 @@ bool SetupLegacyBase::beginJournaledEndpointSearch(
   endpoint_state.pass = 1;
   endpoint_state.decreasing_slack_passes = 0;
   endpoint_state.force_single_repair = false;
-  resizer_.journalBegin();
+  committer_.beginJournal();
   endpoint_state.journal_open = true;
   return true;
 }
@@ -268,9 +264,7 @@ void SetupLegacyBase::acceptEndpointState(
   if (!endpoint_state.journal_open) {
     return;
   }
-
-  resizer_.journalEnd();
-  committer_.acceptPendingMoves();
+  committer_.commitJournal();
   endpoint_state.journal_open = false;
 }
 
@@ -280,9 +274,7 @@ void SetupLegacyBase::restoreEndpointState(
   if (!endpoint_state.journal_open) {
     return;
   }
-
-  resizer_.journalRestore();
-  committer_.rejectPendingMoves();
+  committer_.restoreJournal();
   endpoint_state.journal_open = false;
 }
 
@@ -300,7 +292,7 @@ void SetupLegacyBase::saveImprovedCheckpoint(
     SetupLegacyBase::EndpointRepairState& endpoint_state)
 {
   acceptEndpointState(endpoint_state);
-  resizer_.journalBegin();
+  committer_.beginJournal();
   endpoint_state.journal_open = true;
 }
 
@@ -524,7 +516,7 @@ bool SetupLegacyBase::repairPins(
                       driver_pin, focus_path, focus_slack, target)
                 : makePinTarget(driver_pin, focus_slack, target);
       if (has_target) {
-        prewarm_targets.push_back(target);
+        prewarm_targets.push_back(std::move(target));
       }
     }
     prewarmTargets(prewarm_targets);
@@ -605,7 +597,7 @@ int SetupLegacyBase::repairProgressIncrement(const MoveType type,
 
 bool SetupLegacyBase::allowsBatchRepair(const MoveType type)
 {
-  return type == MoveType::kSizeDown;
+  return type == MoveType::kSizeDownFanout;
 }
 
 bool SetupLegacyBase::tryCandidateSequence(
@@ -635,11 +627,12 @@ bool SetupLegacyBase::tryCandidateSequence(
   return false;
 }
 
-bool SetupLegacyBase::trySizeDownBatch(MoveGenerator& generator,
-                                       const Target& target,
-                                       const int repairs_per_pass,
-                                       int& changed,
-                                       std::optional<MoveType>& accepted_type)
+bool SetupLegacyBase::trySizeDownFanoutBatch(
+    MoveGenerator& generator,
+    const Target& target,
+    const int repairs_per_pass,
+    int& changed,
+    std::optional<MoveType>& accepted_type)
 {
   bool accepted_batch = false;
   while (tryCandidateSequence(
@@ -692,11 +685,11 @@ bool SetupLegacyBase::tryRepairTarget(
                network_->pathName(live_target.driver_pin));
 
     if (allowsBatchRepair(type)) {
-      if (trySizeDownBatch(generator,
-                           live_target,
-                           repairs_per_pass,
-                           changed,
-                           accepted_type)) {
+      if (trySizeDownFanoutBatch(generator,
+                                 live_target,
+                                 repairs_per_pass,
+                                 changed,
+                                 accepted_type)) {
         return true;
       }
       continue;
@@ -761,7 +754,7 @@ bool SetupLegacyBase::repairPath(sta::Path* path,
     static_cast<void>(ignored);
     Target target;
     makePathDriverTarget(path, expanded, drvr_index, path_slack, target);
-    targets.push_back(target);
+    targets.push_back(std::move(target));
   }
 
   // Prewarm for legacy MT policy
@@ -841,7 +834,7 @@ void SetupLegacyBase::printProgress(const int iteration,
       "| {: >+7.1f}% | {: >8s} | {: >10s} | {: >10s} | {: >6d} | {}",
       itr_field,
       totalMoves(MoveType::kUnbuffer),
-      totalMoves(MoveType::kSizeUp) + totalMoves(MoveType::kSizeDown)
+      totalMoves(MoveType::kSizeUp) + totalMoves(MoveType::kSizeDownFanout)
           + totalMoves(MoveType::kSizeUpMatch) + totalMoves(MoveType::kVtSwap),
       totalMoves(MoveType::kBuffer) + totalMoves(MoveType::kSplitLoad),
       totalMoves(MoveType::kClone),

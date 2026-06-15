@@ -12,7 +12,9 @@
 #include "MoveCandidate.hh"
 #include "MoveGenerator.hh"
 #include "OptimizerTypes.hh"
+#include "RepairSetupContext.hh"
 #include "SetupLegacyPolicy.hh"
+#include "rsz/Resizer.hh"
 
 namespace rsz {
 
@@ -87,11 +89,12 @@ class SetupLegacyMtPolicy : public SetupLegacyPolicy
       int repairs_per_pass,
       int& changed,
       std::optional<MoveType>& accepted_type);
-  bool estimateAndCommitSizeDownBatch(MoveGenerator& generator,
-                                      const Target& target,
-                                      int repairs_per_pass,
-                                      int& changed,
-                                      std::optional<MoveType>& accepted_type);
+  bool estimateAndCommitSizeDownFanoutBatch(
+      MoveGenerator& generator,
+      const Target& target,
+      int repairs_per_pass,
+      int& changed,
+      std::optional<MoveType>& accepted_type);
   MoveResult commitCandidate(const Target& target,
                              MoveType type,
                              MoveCandidate& candidate);

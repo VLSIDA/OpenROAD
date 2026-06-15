@@ -68,10 +68,10 @@ cc_library(
         "src/move/RerouteCandidate.hh",
         "src/move/RerouteGenerator.cc",
         "src/move/RerouteGenerator.hh",
-        "src/move/SizeDownCandidate.cc",
-        "src/move/SizeDownCandidate.hh",
-        "src/move/SizeDownGenerator.cc",
-        "src/move/SizeDownGenerator.hh",
+        "src/move/SizeDownFanoutCandidate.cc",
+        "src/move/SizeDownFanoutCandidate.hh",
+        "src/move/SizeDownFanoutGenerator.cc",
+        "src/move/SizeDownFanoutGenerator.hh",
         "src/move/SizeUpCandidate.cc",
         "src/move/SizeUpCandidate.hh",
         "src/move/SizeUpGenerator.cc",
@@ -148,14 +148,13 @@ cc_library(
         "//src/est",
         "//src/grt",
         "//src/grt:groute",
-        "//src/odb",
+        "//src/odb/src/db",
         "//src/sta:opensta_lib",
         "//src/stt",
         "//src/utl",
         "@boost.container_hash",
         "@boost.multi_array",
         "@spdlog",
-        "@tcl_lang//:tcl",
     ],
 )
 
@@ -182,7 +181,7 @@ cc_library(
         "//:ord",
         "//src/dbSta:dbNetwork",
         "//src/gui",
-        "//src/odb",
+        "//src/odb/src/db",
         "//src/sta:opensta_lib",
         "//src/utl",
         "@boost.stacktrace",
@@ -244,5 +243,8 @@ filegroup(
 )
 
 messages_txt(
-    visibility = ["//src/rsz/test:__pkg__"],
+    visibility = [
+        "//docs:__pkg__",
+        "//src/rsz/test:__pkg__",
+    ],
 )
