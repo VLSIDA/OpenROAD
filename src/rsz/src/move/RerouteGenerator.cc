@@ -79,7 +79,10 @@ std::vector<std::unique_ptr<MoveCandidate>> RerouteGenerator::generate(
     return candidates;
   }
 
-  odb::dbNet* db_net = resizer_.dbNetwork()->staToDb(net);
+  // Resolve to the flat dbNet via the driver pin. staToDb(Net*) asserts on a
+  // hierarchical modnet, which modern (hierarchy-preserving) flows can hand us,
+  // so use flatNet() which tolerates hierarchy and returns the flat net.
+  odb::dbNet* db_net = resizer_.dbNetwork()->flatNet(driver_pin);
   if (db_net == nullptr) {
     debugPrint(resizer_.logger(),
                RSZ,
