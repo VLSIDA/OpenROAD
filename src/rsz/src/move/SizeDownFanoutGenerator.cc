@@ -73,6 +73,13 @@ struct SizeDownFanoutOutputProfile
 
 bool resolveDriverContext(SizeDownFanoutContext& ctx)
 {
+  // This move needs the endpoint timing path (for scene/min_max below); only
+  // path-driver targets carry a non-null endpoint_path/driver_path. Guard like
+  // the other path-driven generators do, so a pure instance-view target can't
+  // null-deref endpoint_path->scene().
+  if (!ctx.target.canBePathDriver()) {
+    return false;
+  }
   ctx.drvr_pin = ctx.target.resolvedPin(ctx.resizer);
   ctx.drvr_vertex = ctx.target.vertex(ctx.resizer);
   if (ctx.drvr_pin == nullptr || ctx.drvr_vertex == nullptr) {
@@ -91,8 +98,16 @@ bool resolveDriverContext(SizeDownFanoutContext& ctx)
   }
 
   ctx.drvr_port = ctx.resizer.network()->libertyPort(ctx.drvr_pin);
-  ctx.scene = ctx.target.endpoint_path->scene(ctx.resizer.sta());
-  ctx.min_max = ctx.target.endpoint_path->minMax(ctx.resizer.sta());
+  // Use the target's cached scene + the setup analysis mode instead of
+  // re-dereferencing endpoint_path. Another move tried on this same target
+  // earlier in this tryRepairTarget pass (e.g. pin swap, which precedes
+  // size-down in the FINE granularity sequence) can invalidate the STA search
+  // and free its Path objects, leaving endpoint_path dangling -> SIGSEGV in
+  // endpoint_path->scene(). The Scene* is captured at target collection and is
+  // long-lived (not freed by search invalidation), so it stays valid; size-down
+  // is a setup-only move, so max is the correct analysis mode.
+  ctx.scene = ctx.target.activeScene(ctx.resizer);
+  ctx.min_max = ctx.resizer.maxAnalysisMode();
   return ctx.drvr_port != nullptr && ctx.scene != nullptr
          && ctx.min_max != nullptr;
 }
