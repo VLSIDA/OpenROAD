@@ -30,6 +30,7 @@ add_library(rsz_lib
     DelayEstimatorReporter.cc
     policy/SetupCritVtSwapPolicy.cc
     policy/SetupDirectionalPolicy.cc
+    policy/SetupGranularityPolicy.cc
     policy/SetupLastGaspPolicy.cc
     policy/SetupLegacyPolicy.cc
     policy/SetupTnsPolicy.cc

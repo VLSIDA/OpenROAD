@@ -3,6 +3,7 @@
 
 #include "Optimizer.hh"
 
+#include <chrono>
 #include <cstddef>
 #include <memory>
 #include <string>
@@ -16,6 +17,7 @@
 #include "RepairSetupContext.hh"
 #include "SetupCritVtSwapPolicy.hh"
 #include "SetupDirectionalPolicy.hh"
+#include "SetupGranularityPolicy.hh"
 #include "SetupLastGaspPolicy.hh"
 #include "SetupLegacyBase.hh"
 #include "SetupLegacyMtPolicy.hh"
@@ -26,6 +28,8 @@
 #include "SetupWnsPolicy.hh"
 #include "est/EstimateParasitics.h"
 #include "rsz/Resizer.hh"
+#include "sta/Graph.hh"
+#include "sta/MinMax.hh"
 #include "sta/StringUtil.hh"
 #include "utl/Logger.h"
 #include "utl/scope.h"
@@ -113,6 +117,14 @@ std::unique_ptr<OptimizationPolicy> Optimizer::makePolicyForPhase(
     return std::make_unique<SetupTnsPolicy>(
         resizer_, committer_, setup_context, config_);
   }
+  if (phase_name == "COARSE") {
+    return std::make_unique<SetupCoarsePolicy>(
+        resizer_, committer_, setup_context, config_);
+  }
+  if (phase_name == "FINE") {
+    return std::make_unique<SetupFinePolicy>(
+        resizer_, committer_, setup_context, config_);
+  }
   if (phase_name == "ENDPOINT_FANIN") {
     return std::make_unique<SetupDirectionalPolicy>(
         resizer_, committer_, setup_context, config_, /*use_starts=*/false);
@@ -147,8 +159,8 @@ std::unique_ptr<OptimizationPolicy> Optimizer::makePolicyForPhase(
       utl::RSZ,
       217,
       "Unknown phase name '{}'. Valid phase names are: LEGACY, WNS, "
-      "WNS_PATH, WNS_CONE, TNS, ENDPOINT_FANIN, STARTPOINT_FANOUT, "
-      "LAST_GASP, CRIT_VT_SWAP, REROUTE",
+      "WNS_PATH, WNS_CONE, TNS, COARSE, FINE, ENDPOINT_FANIN, "
+      "STARTPOINT_FANOUT, LAST_GASP, CRIT_VT_SWAP, REROUTE",
       phase_name);
   return nullptr;
 }
@@ -197,9 +209,30 @@ bool Optimizer::run()
     if (!policy->start()) {
       return false;
     }
+    const auto phase_start = std::chrono::steady_clock::now();
     while (!policy->converged()) {
       policy->iterate();
     }
+    // Per-phase effectiveness + run-time for coarse->fine experiments.
+    const double phase_secs
+        = std::chrono::duration<double>(std::chrono::steady_clock::now()
+                                        - phase_start)
+              .count();
+    sta::Slack phase_wns;
+    sta::Vertex* phase_wns_vertex = nullptr;
+    resizer_.sta()->worstSlack(
+        resizer_.maxAnalysisMode(), phase_wns, phase_wns_vertex);
+    const float phase_tns
+        = resizer_.sta()->totalNegativeSlack(resizer_.maxAnalysisMode());
+    resizer_.logger()->report(
+        "Phase {}/{} {}: {:.2f}s  WNS={:.4g}  TNS={:.4g}  area={:.1f}",
+        i + 1,
+        phase_count,
+        phase_names[i],
+        phase_secs,
+        phase_wns,
+        phase_tns,
+        resizer_.computeDesignArea());
     last_policy = std::move(policy);
   }
 

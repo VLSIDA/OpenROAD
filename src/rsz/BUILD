@@ -112,6 +112,8 @@ cc_library(
         "src/policy/SetupCritVtSwapPolicy.hh",
         "src/policy/SetupDirectionalPolicy.cc",
         "src/policy/SetupDirectionalPolicy.hh",
+        "src/policy/SetupGranularityPolicy.cc",
+        "src/policy/SetupGranularityPolicy.hh",
         "src/policy/SetupLastGaspPolicy.cc",
         "src/policy/SetupLastGaspPolicy.hh",
         "src/policy/SetupLegacyBase.cc",
