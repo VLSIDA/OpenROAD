@@ -902,11 +902,30 @@ void FlexPA::filterViaAccess(
       }
     };
 
-    // UP Vias
-    collect_vias(layer_num + 1, max_num_via_trial);
+    // Backside clock: a clock std-cell pin on M1 must reach backside metal
+    // (BM1) via the nTSV (M1 <-> BM1 via), which lives one layer DOWN from M1,
+    // and must NOT escape UPWARD onto the front-side metals (M2/M3). If we leave
+    // up-via access enabled, DRT prefers accessing the pin up to M2 and hauls
+    // the clock tree on the front side (off the backside guides). So for a clock
+    // pin that sits directly above a backside routing layer, collect ONLY the
+    // down via and suppress the up via -- forcing access down to the backside.
+    // inst_term is null for IO terms (isIOTerm), so guard the net lookup;
+    // hasNet() protects against an unattached term.
+    const bool is_clock_net = inst_term && inst_term->hasNet()
+                              && inst_term->getNet()->isClock();
+    const bool below_is_backside
+        = (layer_num - 2 >= getTech()->getBottomLayerNum())
+          && getTech()->getLayer(layer_num - 2)->isRoutable()
+          && getTech()->getLayer(layer_num - 2)->isBackside();
+    const bool backside_clock_pin = is_clock_net && below_is_backside;
 
-    // DOWN Vias
-    if (isIOTerm(inst_term)) {
+    // UP Vias (suppressed for a backside clock pin -- it goes down only)
+    if (!backside_clock_pin) {
+      collect_vias(layer_num + 1, max_num_via_trial);
+    }
+
+    // DOWN Vias (IO terms, and backside clock pins via the nTSV)
+    if (isIOTerm(inst_term) || is_clock_net) {
       collect_vias(layer_num - 1, max_num_via_trial);
     }
   }
@@ -1284,6 +1303,11 @@ bool FlexPA::genPinAccessCostBounded(
     pa_requirements_met& reqs)
 {
   const bool is_std_cell_pin = isStdCellTerm(inst_term);
+  // Backside clock: a clock std-cell M1 pin accesses DOWN to BM1 via the
+  // nTSV, so it may legitimately have only frDirEnum::D (no UP) access.
+  // inst_term is null for IO terms; hasNet() guards an unattached term.
+  const bool is_clock_net = inst_term && inst_term->hasNet()
+                            && inst_term->getNet()->isClock();
   std::vector<std::unique_ptr<frAccessPoint>> new_aps;
   LayerToRectCoordsMap layer_rect_to_coords;
   genAPsFromPinShapes(
@@ -1305,8 +1329,12 @@ bool FlexPA::genPinAccessCostBounded(
     // for stdcell, add (i) planar access if layer_num != VIA_ACCESS_LAYERNUM,
     // and (ii) access if exist access for macro, allow pure planar ap
     if (is_std_cell_pin) {
+      // Backside clock: keep a clock-net AP on a low layer if it has DOWN
+      // access (M1 clock pin -> BM1 via the nTSV) even when it lacks UP
+      // access, instead of rejecting it for missing UP access.
       if (ap->getLayerNum() <= router_cfg_->VIA_ACCESS_LAYERNUM
-          && !ap->hasAccess(frDirEnum::U)) {
+          && !ap->hasAccess(frDirEnum::U)
+          && !(is_clock_net && ap->hasAccess(frDirEnum::D))) {
         continue;
       }
     }

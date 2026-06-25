@@ -3255,6 +3255,35 @@ bool FlexDRWorker::routeNet(drNet* net, std::vector<FlexMazeIdx>& paths)
   std::vector<FlexMazeIdx> path;  // astar must return with >= 1 idx
   bool isFirstConn = true;
   bool searchSuccess = true;
+  // Backside clock distribution (CMS tree-on-top flow): the clock TREE stays on
+  // the frontside metals; only the leaf "crossing" nets -- mesh-buffer outputs
+  // and sinks, which carry a pin/BTerm on a backside mesh layer (BM1/BM2) --
+  // descend to the backside. Discriminate by whether the net actually has a pin
+  // access on a backside layer; do NOT use "clock with no BTerm" (that wrongly
+  // forces the frontside tree nets down, since they have no BTerm either).
+  // Recomputed per net so the flags never leak to the next net.
+  bool touches_backside = false;
+  for (const auto& dpin : net->getPins()) {
+    for (const auto& ap : dpin->getAccessPatterns()) {
+      if (getTech()->getLayer(ap->getBeginLayerNum())->isBackside()) {
+        touches_backside = true;
+        break;
+      }
+    }
+    if (touches_backside) {
+      break;
+    }
+  }
+  const bool is_crossing = net->getFrNet()->isClock() && touches_backside;
+  // No net is *confined* to the backside in this flow: the crossing nets are
+  // mixed (a frontside buffer-output/sink pin plus a backside mesh BTerm) and
+  // must span M0 -nTSV- BPR -BV0- BM1 -BV1- BM2 continuously, so they are left
+  // UNRESTRICTED. The backside-only confinement is unused here.
+  gridGraph_.setRestrictClockToBackside(false);
+  // Confine to the frontside everything that does NOT cross to the backside
+  // mesh: ordinary signals AND the frontside clock tree nets (keeps the tree on
+  // top). Only the crossing nets are free to descend through the nTSV column.
+  gridGraph_.setRestrictToFrontside(!is_crossing);
   while (!unConnPins.empty()) {
     mazePinInit();
     auto nextPin = routeNet_getNextDst(

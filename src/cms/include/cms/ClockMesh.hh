@@ -1,0 +1,244 @@
+// SPDX-License-Identifier: BSD-3-Clause
+
+#pragma once
+
+#include <map>
+#include <set>
+#include <string>
+#include <tuple>
+#include <vector>
+
+#include "odb/db.h"
+#include "odb/PtrSetMap.h"  // odb::ODBPtrLess (odb deletes std::less<dbObject*>)
+
+namespace odb {
+class dbWireEncoder;
+}
+
+namespace utl {
+class Logger;
+}
+
+namespace sta {
+class dbSta;
+class dbNetwork;
+class Clock;
+}  // namespace sta
+
+namespace ord {
+class OpenRoad;
+}
+
+namespace cms {
+
+struct ClockSink {
+  std::string name;
+  int x;
+  int y;
+  odb::dbITerm* iterm;
+  bool isMacro;
+
+  ClockSink(const std::string& n, int px, int py, odb::dbITerm* term, bool macro)
+    : name(n), x(px), y(py), iterm(term), isMacro(macro) {}
+};
+
+struct MeshWire {
+  odb::dbTechLayer* layer;
+  odb::dbNet* net;
+  odb::Rect rect;
+  bool is_horizontal;
+
+  MeshWire(odb::dbTechLayer* l, odb::dbNet* n, const odb::Rect& r, bool horiz)
+    : layer(l), net(n), rect(r), is_horizontal(horiz) {}
+};
+
+struct MeshVia {
+  odb::dbTechLayer* lower_layer;
+  odb::dbTechLayer* upper_layer;
+  odb::dbNet* net;
+  odb::Rect area;
+
+  MeshVia(odb::dbTechLayer* lower, odb::dbTechLayer* upper,
+          odb::dbNet* n, const odb::Rect& a)
+    : lower_layer(lower), upper_layer(upper), net(n), area(a) {}
+};
+
+struct GridIntersection {
+  int x;
+  int y;
+  odb::dbTechLayer* layer;
+  bool has_buffer = false;
+  odb::dbInst* buffer_inst = nullptr;
+  odb::dbBTerm* proxy_bterm = nullptr;
+  odb::dbInst* tsv_inst = nullptr;   // gt2_6t_TSV front<->back crossing cell
+
+  GridIntersection(int px, int py, odb::dbTechLayer* l)
+    : x(px), y(py), layer(l) {}
+};
+
+class ClockMesh
+{
+ public:
+  ClockMesh();
+  ~ClockMesh() = default;
+
+  void init(ord::OpenRoad* openroad);
+  bool meshGenerated() const { return mesh_generated_; }
+
+  void createMeshGrid(const std::string& clock_name,
+                      odb::dbTechLayer* h_layer,
+                      odb::dbTechLayer* v_layer,
+                      int pitch,
+                      const std::vector<std::string>& buffer_list = {},
+                      int macro_halo_dbu = 0,
+                      const std::vector<std::string>& cts_buffer_list = {},
+                      const std::string& mesh_strategy = "adaptive");
+
+  void findClockSinks();
+  void connectSinksViaRouter(const std::string& clock_name,
+                              odb::dbTechLayer* proxy_layer);
+  void setupProxyBTerms(const std::string& clock_name,
+                        odb::dbTechLayer* proxy_layer);
+  void connectProxyBTermsToMesh(const std::string& clock_name);
+  void captureLeafArrivals(const std::string& clock_name);
+  void mergeNetsToMesh(const std::string& clock_name);
+  void convertSWireToWire(const std::string& clock_name);
+  void writeMeshSpice(const std::string& clock_name,
+                      const std::string& spice_file,
+                      float vdd_voltage = 0.0,
+                      float rise_time_ns = 0.0,
+                      float fall_time_ns = 0.0,
+                      const std::vector<std::string>& spice_models = {},
+                      bool zero_delay = false,
+                      bool full_tree = false,
+                      bool finfet = false);
+  void writeMeshVerilog(const std::string& clock_name,
+                        const std::string& input_filename,
+                        const std::string& output_filename);
+  std::string getClockNetName() const { return mesh_net_name_; }
+
+ private:
+  void findClockRoots(sta::Clock* clk, std::set<odb::dbNet*, odb::ODBPtrLess>& clockNets);
+  bool isSink(odb::dbITerm* iterm);
+  void computeITermPosition(odb::dbITerm* term, int& x, int& y) const;
+  bool separateSinks(odb::dbNet* net, std::vector<ClockSink>& sinks);
+
+  odb::Rect calculateBoundingBox(const std::vector<ClockSink>& sinks);
+  void createHorizontalWires(odb::dbNet* net, odb::dbTechLayer* layer,
+                             const odb::Rect& bbox, int pitch,
+                             std::vector<MeshWire>& wires);
+  void createVerticalWires(odb::dbNet* net, odb::dbTechLayer* layer,
+                           const odb::Rect& bbox, int pitch,
+                           std::vector<MeshWire>& wires);
+  void createViasAtIntersections(const std::vector<MeshWire>& h_wires,
+                                 const std::vector<MeshWire>& v_wires,
+                                 std::vector<MeshVia>& vias);
+  void writeWiresToDb(const std::vector<MeshWire>& wires);
+  void writeViasToDb(const std::vector<MeshVia>& vias);
+  odb::dbNet* getOrCreateClockNet(const std::string& clock_name);
+
+  odb::Point findNearestGridWire(const odb::Point& loc,
+                                 const std::vector<MeshWire>& h_wires,
+                                 const std::vector<MeshWire>& v_wires,
+                                 odb::dbTechLayer** out_grid_layer);
+  bool findNearestGridIntersection(const odb::Point& loc,
+                                   odb::Point& out_point,
+                                   odb::dbTechLayer** out_layer) const;
+  void createViaStackAtPoint(const odb::Point& location,
+                             odb::dbTechLayer* from_layer,
+                             odb::dbTechLayer* to_layer,
+                             odb::dbNet* net);
+  odb::dbTechLayer* selectBufferLayer(odb::dbTechLayer* h_layer,
+                                      odb::dbTechLayer* v_layer);
+
+  void placeBuffersAtIntersections(const std::string& buffer_master,
+                                   odb::dbNet* mesh_net);
+  odb::dbInst* placeTsvCell(odb::dbMaster* master, const std::string& name,
+                            int x, int y, odb::dbOrientType orient);
+  // Snaps y to the nearest placement row (so a row-tall cell sits between that
+  // row's BPR rails); returns the row y and its orientation.
+  bool nearestRow(int y, int& row_y, odb::dbOrientType& orient) const;
+  void connectBuffersToNets(odb::dbNet* mesh_net, const std::string& clock_name);
+  int createProxyBTermsWithSeparateNets(odb::dbNet* mesh_net,
+                                        odb::dbTechLayer* proxy_layer);
+  odb::dbITerm* getBufferOutputPin(odb::dbInst* buffer);
+  odb::dbITerm* getBufferInputPin(odb::dbInst* buffer);
+  void buildCtsTreeToBuffers(const std::string& clock_net_name,
+                             const std::vector<std::string>& buffer_list);
+  void reencodeWireToMesh(odb::dbWire* src_wire,
+                          odb::dbWireEncoder& encoder);
+
+  void collectBlockageRects(int halo_dbu);
+  bool isBlocked(int x, int y) const;
+  bool isBlocked(const odb::Rect& r) const;
+  std::vector<odb::Rect> clipWireByBlockages(const odb::Rect& wire_rect,
+                                             bool is_horizontal,
+                                             int min_segment_length) const;
+
+  // PDN-avoidance: collect vertical power straps, shift a vertical clock wire
+  // clear of them, and notch a horizontal clock wire where it crosses one.
+  void collectPdnVStraps();
+  int shiftVClearOfPdn(int x_center, int half_w, int spacing) const;
+  std::vector<odb::Rect> notchHByPdn(const odb::Rect& seg, int spacing,
+                                     int min_segment_length) const;
+  void pruneOrphanHSegments(std::vector<MeshWire>& h_wires,
+                            const std::vector<MeshWire>& v_wires) const;
+
+  ord::OpenRoad* openroad_ = nullptr;
+  bool mesh_generated_ = false;
+
+  odb::dbDatabase* db_ = nullptr;
+  odb::dbBlock* block_ = nullptr;
+  sta::dbSta* sta_ = nullptr;
+  sta::dbNetwork* network_ = nullptr;
+  utl::Logger* logger_ = nullptr;
+
+  std::map<std::string, std::vector<ClockSink>> clockToSinks_;
+  std::set<odb::dbNet*, odb::ODBPtrLess> visitedClockNets_;
+
+  std::vector<MeshWire> mesh_wires_;
+  std::vector<MeshVia> connection_vias_;
+  odb::dbTechLayer* mesh_h_layer_ = nullptr;
+  odb::dbTechLayer* mesh_v_layer_ = nullptr;
+  odb::dbTechLayer* bterm_layer_ = nullptr;
+  odb::dbTechLayer* proxy_layer_ = nullptr;
+  std::vector<GridIntersection> grid_intersections_;
+  std::string mesh_net_name_;
+  int sink_bterm_counter_ = 0;
+
+  // Connection points where routed wires meet mesh grid wires (x, y, routing_level)
+  // Used by convertSWireToWire to break mesh segments at these points
+  std::set<std::tuple<int,int,int>> mesh_connection_points_;
+
+  // Map from (x, y, layer-level) on the mesh net's dbWire to the proxy bterm
+  // name at that position. Populated by convertSWireToWire when emitting
+  // break points. Used by writeMeshSpice (when merge_mesh_nets is skipped)
+  // to alias the mesh-net's internal node at each proxy bterm position to
+  // the bterm's SPICE name, so sub-net stubs electrically merge with the
+  // mesh stripes at those points.
+  std::map<std::tuple<int,int,int>, std::string> proxy_alias_;
+
+  // Cached CTS leaf net arrival times (seconds → nanoseconds)
+  // Populated by captureLeafArrivals() before merge, used by writeMeshSpice()
+  std::map<std::string, float> leaf_arrivals_ns_;
+
+  // Cached CTS leaf net rise slews (seconds → nanoseconds), same key scheme
+  // as leaf_arrivals_ns_. Populated alongside arrivals. writeMeshSpice() uses
+  // these as the per-buffer Vclk PULSE rise/fall when zero_delay=false and
+  // the user did not pass an explicit -rise_time / -fall_time override.
+  std::map<std::string, float> leaf_slews_ns_;
+
+  // Halo-expanded bounding boxes of macros + dbBlockages.
+  // Populated by collectBlockageRects() at the start of createMeshGrid().
+  // Used to skip mesh wires, vias, intersections, and buffers inside macros.
+  std::vector<odb::Rect> blockage_rects_;
+
+  // Merged x-intervals of vertical PDN power straps (BM3). Populated by
+  // collectPdnVStraps(). Vertical clock wires shift clear of these; horizontal
+  // clock wires are notched at them. Empty => behavior unchanged.
+  std::vector<std::pair<int, int>> pdn_vstrap_x_;
+};
+
+void initClockMesh(ord::OpenRoad* openroad);
+
+}  // namespace cms

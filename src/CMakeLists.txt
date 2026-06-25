@@ -266,6 +266,7 @@ add_subdirectory(ppl)
 add_subdirectory(rmp)
 add_subdirectory(cgt)
 add_subdirectory(cts)
+add_subdirectory(cms)
 add_subdirectory(cut)
 add_subdirectory(grt)
 add_subdirectory(tap)
@@ -339,6 +340,7 @@ target_link_libraries(openroad
   rmp
   cgt
   cts
+  cms
   cut
   grt
   tap

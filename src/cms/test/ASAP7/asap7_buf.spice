@@ -1,0 +1,17 @@
+* Transistor-level CMOS buffer for ASAP7 BUFx4 using the actual BSIM-CMG
+* finFET model card (asap7_TT_160803.pm). Sizing follows clocksyn convention:
+*   stage1 (input inverter):   nfin = 4   (w = 4 * 27nm = 108nm)
+*   stage2 (output inverter):  nfin = 12  (w = 12 * 27nm = 324nm,  3x drive)
+*   l = 20nm, delvtrand = 0, xl = 1e-9
+* Pin order matches the ASAP7 CDL: A VDD VSS Y
+
+.include '/home/wali2/clocksyn/tech/asap7_TT_160803.pm'
+
+.SUBCKT BUFx4_ASAP7_75t_R A VDD VSS Y
+* Stage 1 — input inverter (A -> AN)
+m1 AN A VDD VDD pmos_rvt w=108.000000n l=20.000000n nfin=4 delvtrand=0.000000 xl=1.000000e-09
+m2 AN A VSS VSS nmos_rvt w=108.000000n l=20.000000n nfin=4 delvtrand=0.000000 xl=1.000000e-09
+* Stage 2 — output inverter (AN -> Y), 3x drive
+m3 Y AN VDD VDD pmos_rvt w=324.000000n l=20.000000n nfin=12 delvtrand=0.000000 xl=1.000000e-09
+m4 Y AN VSS VSS nmos_rvt w=324.000000n l=20.000000n nfin=12 delvtrand=0.000000 xl=1.000000e-09
+.ENDS

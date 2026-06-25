@@ -1,0 +1,7 @@
+* Ideal behavioral buffer model for ASAP7 BUFx4
+* Pin order matches CDL: A VDD VSS Y
+* Uses voltage-controlled voltage source (unity gain buffer)
+* Sufficient for clock mesh RC skew analysis
+.SUBCKT BUFx4_ASAP7_75t_R A VDD VSS Y
+Ebuf Y VSS A VSS 1.0
+.ENDS

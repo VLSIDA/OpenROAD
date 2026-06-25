@@ -54,6 +54,26 @@ using odb::dbTechLayerType;
 
 namespace drt {
 
+// Prototype (backside clock routing, option A): a backside layer is
+// "excluded" from the detailed router unless it is one of the layers we
+// reserve for the clock distribution network. BM1..BM4 (and the BV1..BV3
+// cuts between them) are admitted into frTech and routed normally; every
+// other LEF58_BACKSIDE layer (BPR power rail, BV0, BRDL) stays invisible
+// to DRT exactly as before. Frontside layers are never excluded here.
+static bool isExcludedBackside(odb::dbTechLayer* layer)
+{
+  if (layer == nullptr || !layer->isBackside()) {
+    return false;
+  }
+  // BPR + BV0 are admitted so the front->back via column
+  // (M1 -V0- M0 -nTSV- BPR -BV0- BM1 -BV1- BM2) is built from normal adjacent
+  // vias; the clock tree wires still live on BM1..BM4 (BPR carries only the
+  // via crossing plus its power follow-pins). BRDL/BV4 stay excluded.
+  static const std::set<std::string> routable_backside
+      = {"BPR", "BV0", "BM1", "BM2", "BM3", "BM4", "BV1", "BV2", "BV3"};
+  return routable_backside.find(layer->getName()) == routable_backside.end();
+}
+
 io::Parser::Parser(odb::dbDatabase* dbIn,
                    frDesign* designIn,
                    utl::Logger* loggerIn,
@@ -87,9 +107,9 @@ void io::Parser::setTracks(odb::dbBlock* block)
 {
   auto tracks = block->getTrackGrids();
   for (auto track : tracks) {
-    // Skip track grids on backside layers; DRT filters those layers
-    // out of its frTech entirely (see setLayers).
-    if (track->getTechLayer()->isBackside()) {
+    // Skip track grids on non-routable backside layers; DRT filters those
+    // layers out of its frTech entirely (see setLayers).
+    if (isExcludedBackside(track->getTechLayer())) {
       continue;
     }
     if (getTech()->name2layer_.find(track->getTechLayer()->getName())
@@ -209,9 +229,9 @@ void io::Parser::setVias(odb::dbBlock* block)
       const odb::dbViaParams params = via->getViaParams();
       // Skip block vias whose cut/top/bottom layer is on the backside;
       // those layers are filtered out of frTech by setLayers().
-      if (params.getCutLayer()->isBackside()
-          || params.getBottomLayer()->isBackside()
-          || params.getTopLayer()->isBackside()) {
+      if (isExcludedBackside(params.getCutLayer())
+          || isExcludedBackside(params.getBottomLayer())
+          || isExcludedBackside(params.getTopLayer())) {
         continue;
       }
       frLayerNum cutLayerNum = 0;
@@ -361,7 +381,7 @@ void io::Parser::setVias(odb::dbBlock* block)
       // Skip box-defined block vias touching backside layers.
       bool any_backside = false;
       for (auto box : via->getBoxes()) {
-        if (box->getTechLayer()->isBackside()) {
+        if (isExcludedBackside(box->getTechLayer())) {
           any_backside = true;
           break;
         }
@@ -452,7 +472,7 @@ void io::Parser::createNDR(odb::dbTechNonDefaultRule* ndr)
   for (auto& l : lr) {
     // Skip per-layer NDR rules that reference a filtered backside
     // layer; DRT has no frLayer entry for it.
-    if (l->getLayer()->isBackside()) {
+    if (isExcludedBackside(l->getLayer())) {
       continue;
     }
     auto layer = getTech()->getLayer(l->getLayer()->getName());
@@ -464,8 +484,8 @@ void io::Parser::createNDR(odb::dbTechNonDefaultRule* ndr)
   std::vector<odb::dbTechVia*> vias;
   ndr->getUseVias(vias);
   for (auto via : vias) {
-    if (via->getBottomLayer()->isBackside()
-        || via->getTopLayer()->isBackside()) {
+    if (isExcludedBackside(via->getBottomLayer())
+        || isExcludedBackside(via->getTopLayer())) {
       continue;
     }
     auto layer = getTech()->getLayer(via->getBottomLayer()->getName());
@@ -478,7 +498,7 @@ void io::Parser::createNDR(odb::dbTechNonDefaultRule* ndr)
   for (auto via : viaRules) {
     bool any_backside = false;
     for (uint32_t i = 0; i < via->getViaLayerRuleCount(); i++) {
-      if (via->getViaLayerRule(i)->getLayer()->isBackside()) {
+      if (isExcludedBackside(via->getViaLayerRule(i)->getLayer())) {
         any_backside = true;
         break;
       }
@@ -940,9 +960,9 @@ void io::Parser::updateNetRouting(frNet* netIn, odb::dbNet* net)
     for (auto swire : net->getSWires()) {
       for (auto box : swire->getWires()) {
         if (!box->isVia()) {
-          // Skip special-net path segments on backside layers (BPR
-          // followpins, backside stripes); DRT has no frLayer for them.
-          if (box->getTechLayer()->isBackside()) {
+          // Skip special-net path segments on non-routable backside layers
+          // (BPR followpins, backside stripes); DRT has no frLayer for them.
+          if (isExcludedBackside(box->getTechLayer())) {
             continue;
           }
           getSBoxCoords(box, beginX, beginY, endX, endY, width);
@@ -987,14 +1007,14 @@ void io::Parser::updateNetRouting(frNet* netIn, odb::dbNet* net)
           // populated.
           if (box->getTechVia()) {
             viaName = box->getTechVia()->getName();
-            if (box->getTechVia()->getBottomLayer()->isBackside()
-                || box->getTechVia()->getTopLayer()->isBackside()) {
+            if (isExcludedBackside(box->getTechVia()->getBottomLayer())
+                || isExcludedBackside(box->getTechVia()->getTopLayer())) {
               continue;
             }
           } else if (box->getBlockVia()) {
             viaName = box->getBlockVia()->getName();
-            if (box->getBlockVia()->getBottomLayer()->isBackside()
-                || box->getBlockVia()->getTopLayer()->isBackside()) {
+            if (isExcludedBackside(box->getBlockVia()->getBottomLayer())
+                || isExcludedBackside(box->getBlockVia()->getTopLayer())) {
               continue;
             }
           }
@@ -1069,9 +1089,9 @@ static bool updatefrAccessPoint(odb::dbAccessPoint* db_ap,
                                 frAccessPoint* ap,
                                 frTechObject* tech)
 {
-  // Access points on backside layers (e.g. PG taps) are invisible to
-  // the front-side router; report so the caller can drop them.
-  if (db_ap->getLayer()->isBackside()) {
+  // Access points on non-routable backside layers (e.g. PG taps) are
+  // invisible to the front-side router; report so the caller can drop them.
+  if (isExcludedBackside(db_ap->getLayer())) {
     return false;
   }
   ap->setPoint(db_ap->getPoint());
@@ -1159,9 +1179,9 @@ void io::Parser::setBTerms(odb::dbBlock* block)
     int bterm_bottom_layer_idx = std::numeric_limits<int>::max();
     for (auto bpin : term->getBPins()) {
       for (auto box : bpin->getBoxes()) {
-        // BTerms on backside layers (e.g. PG pins on BPR) have no
-        // representation in the filtered DRT layer table; skip them.
-        if (box->getTechLayer()->isBackside()) {
+        // BTerms on non-routable backside layers (e.g. PG pins on BPR) have
+        // no representation in the filtered DRT layer table; skip them.
+        if (isExcludedBackside(box->getTechLayer())) {
           continue;
         }
         frLayerNum layer_idx = getTech()
@@ -1180,7 +1200,7 @@ void io::Parser::setBTerms(odb::dbBlock* block)
     } else {
       for (auto pin : term->getBPins()) {
         for (auto box : pin->getBoxes()) {
-          if (box->getTechLayer()->isBackside()) {
+          if (isExcludedBackside(box->getTechLayer())) {
             continue;
           }
           odb::Rect bbox = box->getBox();
@@ -2645,11 +2665,11 @@ void io::Parser::setLayers(odb::dbTech* db_tech)
 {
   masterSliceLayer_ = nullptr;
   for (auto layer : db_tech->getLayers()) {
-    // Skip layers marked LEF58_BACKSIDE (BPR / BM* / BV* / BRDL on
-    // backside-power PDKs). DRT only routes the front-side stack;
-    // backside layers exist in ODB and survive DEF/GDS round-trip,
-    // but the router treats them as invisible.
-    if (layer->isBackside()) {
+    // Skip non-routable layers marked LEF58_BACKSIDE (BPR power rail, BV0,
+    // BRDL). The clock-routable backside layers (BM1..BM4 + BV1..BV3 cuts)
+    // are admitted into frTech and routed like front-side metal; everything
+    // else backside stays invisible to the router.
+    if (isExcludedBackside(layer)) {
       continue;
     }
     switch (layer->getType().getValue()) {
@@ -2743,6 +2763,10 @@ void io::Parser::setMasters(odb::dbDatabase* db)
                               box->getTechVia()->getName(),
                               master->getName(),
                               _term->getName());
+                // Not in DRT's via table (e.g. nTSV_direct M0<->BM1 inside an
+                // nTSV_tap, which touches the backside). Skip instead of using a
+                // null viaDef below.
+                continue;
               }
               const odb::Point pt = box->getViaXY();
               auto viaDef = getTech()->name2via_[box->getTechVia()->getName()];
@@ -2915,7 +2939,7 @@ void io::Parser::setTechViaRules(odb::dbTech* db_tech)
     // viarule cannot be honored on the front-side stack.
     bool has_backside = false;
     for (int i = 0; i < count; i++) {
-      if (rule->getViaLayerRule(i)->getLayer()->isBackside()) {
+      if (isExcludedBackside(rule->getViaLayerRule(i)->getLayer())) {
         has_backside = true;
         break;
       }
@@ -3074,7 +3098,13 @@ void io::Parser::setTechVias(odb::dbTech* db_tech)
       lNum2Int[lnum] = ++curOrder;
     }
 
-    if (lNum2Int.begin()->first + 2 != (--lNum2Int.end())->first) {
+    // The nTSV intentionally bridges the front-side clock-pin layer (M1) to
+    // the first clock-routable backside layer (BM1); these are far apart in
+    // the linear layer order, so the usual consecutive-layer requirement does
+    // not apply. The via is still built bottom/cut/top correctly (the cut
+    // sorts between the two routing layers), so allow this one by name.
+    if (lNum2Int.begin()->first + 2 != (--lNum2Int.end())->first
+        && via->getName() != "nTSV") {
       logger_->error(
           DRT, 126, "Non-consecutive layers for via {}.", via->getName());
     }
@@ -3162,6 +3192,25 @@ void io::Parser::readTechAndLibs(odb::dbDatabase* db)
                     272,
                     "bottomRoutingLayer {} not found.",
                     tech_layer->getName());
+    }
+  }
+
+  // Backside clock distribution: the clock tree routes WIRES on backside layers
+  // (BM1/BM2) that sit below the front-side MIN_ROUTING_LAYER. DRT only routes
+  // wires within [BOTTOM_ROUTING_LAYER, TOP_ROUTING_LAYER]; layers below BOTTOM
+  // are via-access-only (penalized in findClosestGuide, marked via_only in
+  // genGuides_split, no routing edges in the grid graph). So lower
+  // BOTTOM_ROUTING_LAYER to the clock's min layer, making BM1/BM2 real routing
+  // layers; otherwise the backside clock guides cannot connect (DRT-0218).
+  const int min_clock_layer = block->getMinLayerForClock();
+  if (min_clock_layer > 0) {
+    odb::dbTechLayer* clk_tech_layer = tech->findRoutingLayer(min_clock_layer);
+    frLayer* clk_layer = (clk_tech_layer != nullptr)
+                             ? fr_tech->getLayer(clk_tech_layer->getName())
+                             : nullptr;
+    if (clk_layer != nullptr
+        && clk_layer->getLayerNum() < router_cfg_->BOTTOM_ROUTING_LAYER) {
+      router_cfg_->BOTTOM_ROUTING_LAYER = clk_layer->getLayerNum();
     }
   }
 

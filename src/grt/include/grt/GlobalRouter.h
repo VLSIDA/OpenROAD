@@ -426,6 +426,9 @@ class GlobalRouter
                              int min_routing_layer,
                              int max_routing_layer);
   void connectTopLevelPins(odb::dbNet* db_net, GRoute& route);
+  void connectClockPinsToBackside(odb::dbNet* db_net, GRoute& route);
+  void seedClockPinViaStacks();
+  odb::Point clockPinAnchor(const Pin& pin);
   void addRemainingGuides(NetRouteMap& routes,
                           std::vector<Net*>& nets,
                           int min_routing_layer,

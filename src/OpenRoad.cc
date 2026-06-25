@@ -27,6 +27,7 @@
 #include "cgt/MakeClockGating.h"
 #include "cts/MakeTritoncts.h"
 #include "cts/TritonCTS.h"
+#include "cms/ClockMesh.hh"
 #include "db_sta/MakeDbSta.hh"
 #include "db_sta/dbNetwork.hh"
 #include "db_sta/dbReadVerilog.hh"
@@ -299,6 +300,7 @@ void OpenRoad::init(Tcl_Interp* tcl_interp,
   ram::initRamGen(tcl_interp);
   grt::initTcl(tcl_interp);
   cts::initTritonCts(tcl_interp);
+  cms::initClockMesh(this);
   tap::initTapcell(tcl_interp);
   mpl::initMacroPlacer(tcl_interp);
   exa::initExample(tcl_interp);

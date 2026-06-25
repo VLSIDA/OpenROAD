@@ -341,17 +341,29 @@ void extendGuide(frDesign* design,
  * @param gcell_half_size_horz Half the horizontal size of the gcell
  * @param gcell_half_size_vert Half the vertical size of the gcell
  */
-void fillGuidesUpToZ(const Point3D& best_pin_loc_coords,
+void fillGuidesUpToZ(frDesign* design,
+                     const Point3D& best_pin_loc_coords,
                      const int start_z,
                      const frCoord gcell_half_size_horz,
                      const frCoord gcell_half_size_vert,
                      frNet* net,
                      std::vector<frRect>& guides)
 {
-  const int inc = start_z < best_pin_loc_coords.z() ? 2 : -2;
+  // Walk one layer at a time and place a guide only on routing layers. A fixed
+  // +/-2 step assumes strict routing/cut alternation; that breaks across the
+  // front/back boundary (e.g. the nTSV adds a second consecutive cut between
+  // BPR and M0), where backside and front-side routing layers have opposite
+  // frLayerNum parity. A +/-2 walk would then skip the target layer and loop
+  // forever, so bound the loop by the target instead of exact equality.
+  const int target_z = best_pin_loc_coords.z();
+  const int inc = start_z < target_z ? 1 : -1;
   for (frLayerNum curr_z = start_z + inc;
-       curr_z != best_pin_loc_coords.z() + inc;
+       (inc > 0) ? (curr_z <= target_z) : (curr_z >= target_z);
        curr_z += inc) {
+    if (design->getTech()->getLayer(curr_z)->getType()
+        != odb::dbTechLayerType::ROUTING) {
+      continue;
+    }
     guides.emplace_back(best_pin_loc_coords.x() - gcell_half_size_horz,
                         best_pin_loc_coords.y() - gcell_half_size_vert,
                         best_pin_loc_coords.x() + gcell_half_size_horz,
@@ -631,6 +643,14 @@ bool GuideProcessor::isValidGuideLayerNum(odb::dbGuide* db_guide,
   bool error = false;
   frLayer* layer = getTech()->getLayer(db_guide->getLayer()->getName());
   if (layer == nullptr) {
+    // A guide may land on a backside layer the detailed router intentionally
+    // excludes from its layer table (e.g. the BPR power rail picked up by the
+    // global router's via column across the front/back boundary). Such a guide
+    // cannot be honored on the routable stack; skip it rather than erroring.
+    // The boundary crossing is provided by the nTSV via instead.
+    if (db_guide->getLayer()->isBackside()) {
+      return false;
+    }
     logger_->error(
         DRT, 154, "Cannot find layer {}.", db_guide->getLayer()->getName());
   }
@@ -644,7 +664,11 @@ bool GuideProcessor::isValidGuideLayerNum(odb::dbGuide* db_guide,
     }
     error = true;
   }
-  if (layer_num < router_cfg_->BOTTOM_ROUTING_LAYER) {
+  if (layer_num < router_cfg_->BOTTOM_ROUTING_LAYER
+      && !db_guide->getLayer()->isBackside()) {
+    // Backside clock-routing layers (BM1..BM4) legitimately sit below the
+    // front-side BOTTOM_ROUTING_LAYER, so they are exempt from this check;
+    // their guides are valid routing guides, not just via-access guides.
     // check if this is a via access guide
     if (!getDesign()->getTopBlock()->getGCellPatterns().empty()) {
       auto guide_rect = db_guide->getBox();
@@ -970,7 +994,8 @@ void GuideProcessor::patchGuides_helper(frNet* net,
                               guides);
   // fill the gap between current layer and the best_pin_loc_coords layer with
   // guides
-  fillGuidesUpToZ(best_pin_loc_coords,
+  fillGuidesUpToZ(getDesign(),
+                  best_pin_loc_coords,
                   guide_pt.z(),
                   gcell_half_size_horz,
                   gcell_half_size_vert,

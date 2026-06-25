@@ -1,0 +1,695 @@
+OpenROAD 41f4fc46231f20dfd5c590234c9c8d0e697f51e7 
+Features included (+) or not (-): +GPU +GUI +Python
+This program is licensed under the BSD-3 license. See the LICENSE file for details.
+Components of this program may be licensed under more restrictive licenses which must be honored.
+[INFO ORD-0030] Using 128 thread(s).
+[WARNING STA-1171] /home/wali2/backside/OpenROAD-flow-scripts/flow/platforms/gt2n/lib/gt2_6t_w31_lvt_tt_0p7v25c.lib line 61, default_fanout_load is 0.0.
+[INFO DPL-0006] Core area: 64.20 um^2, Instances area: 19.46 um^2, Utilization: 30.3%
+[INFO DPL-0005] Diamond search max displacement: +/- 500 sites horizontally, +/- 100 rows vertically.
+[INFO DPL-1101] Legalizing using diamond search.
+Movements Summary
+---------------------------------------
+Total cells:                     538
+Diamond Move Success:            538 (100.00%)
+Diamond Move Failure:              0
+Rip-up and replace Success:        0 (  0.00% of diamond failures)
+Rip-up and replace Failure:        0
+Total Placement Failures:          0
+---------------------------------------
+Placement Analysis
+---------------------------------
+total displacement          0.0 u
+average displacement        0.0 u
+max displacement            0.0 u
+original HPWL             544.0 u
+legalized HPWL            557.7 u
+delta HPWL                    3 %
+
+Using clock: core_clock  (mesh on BM3/BM4, backside)
+[INFO CMS-0130] Collected 0 blockage rects (halo = 0 DBU)
+[INFO CMS-0121] Clock mesh parameters: pitch=0.720um, expected 11 H-lines x 11 V-lines, bbox 7.890x7.776um
+[INFO CTS-0050] Root buffer is gt2_6t_buf_x4_w31_lvt.
+[INFO CTS-0051] Sink buffer is gt2_6t_buf_x4_w31_lvt.
+[INFO CTS-0052] The following clock buffers will be used for CTS:
+                    gt2_6t_buf_x4_w31_lvt
+[INFO CTS-0049] Characterization buffer is gt2_6t_buf_x4_w31_lvt.
+[INFO CTS-0001] Running TritonCTS with user-specified clock roots: clk.
+[INFO CTS-0095] Net "clk" found.
+[INFO CTS-0011]  Clock net "clk" for macros has 121 sinks.
+[INFO CTS-0011]  Clock net "clk_regs" for registers has 35 sinks.
+[INFO CTS-0008] TritonCTS found 2 clock nets.
+[INFO CTS-0097] Characterization used 1 buffer(s) types.
+[INFO CTS-0201] 0 blockages from hard placement blockages and placed macros will be used.
+[INFO CTS-0027] Generating H-Tree topology for net clk.
+[INFO CTS-0028]  Total number of sinks: 121.
+[INFO CTS-0060]  Macro  sinks will be clustered in groups of up to 4 and based on buffer max cap.
+[INFO CTS-0030]  Number of static layers: 0.
+[INFO CTS-0020]  Wire segment unit: 1440  dbu (0 um).
+[INFO CTS-0204] A clustering solution was found from clustering size of 4 and max clustering diameter of 3.
+[INFO CTS-0205] Better solution may be possible if either -sink_clustering_size, -sink_clustering_max_diameter, or both options are omitted to enable automatic clustering.
+[INFO CTS-0019]  Total number of sinks after clustering: 31.
+[INFO CTS-0024]  Normalized sink region: [(1.02917, 1.1), (10.7792, 10.85)].
+[INFO CTS-0025]     Width:  9.7500.
+[INFO CTS-0026]     Height: 9.7500.
+ Level 1
+    Direction: Vertical
+    Sinks per sub-region: 16
+    Sub-region size: 9.7500 X 4.8750
+[INFO CTS-0034]     Segment length (rounded): 2.
+ Level 2
+    Direction: Horizontal
+    Sinks per sub-region: 8
+    Sub-region size: 4.8750 X 4.8750
+[INFO CTS-0034]     Segment length (rounded): 2.
+[INFO CTS-0032]  Stop criterion found. Max number of sinks is 15.
+[INFO CTS-0035]  Number of sinks covered: 31.
+[INFO CTS-0201] 0 blockages from hard placement blockages and placed macros will be used.
+[INFO CTS-0027] Generating H-Tree topology for net clk_regs.
+[INFO CTS-0028]  Total number of sinks: 35.
+[INFO CTS-0090]  Sinks will be clustered based on buffer max cap.
+[INFO CTS-0030]  Number of static layers: 0.
+[INFO CTS-0020]  Wire segment unit: 1440  dbu (0 um).
+[INFO CTS-0023]  Original sink region: [(2072, 2016), (16268, 15840)].
+[INFO CTS-0024]  Normalized sink region: [(1.43889, 1.4), (11.2972, 11)].
+[INFO CTS-0025]     Width:  9.8583.
+[INFO CTS-0026]     Height: 9.6000.
+ Level 1
+    Direction: Horizontal
+    Sinks per sub-region: 18
+    Sub-region size: 4.9292 X 9.6000
+[INFO CTS-0034]     Segment length (rounded): 2.
+ Level 2
+    Direction: Vertical
+    Sinks per sub-region: 9
+    Sub-region size: 4.9292 X 4.8000
+[INFO CTS-0034]     Segment length (rounded): 2.
+[INFO CTS-0032]  Stop criterion found. Max number of sinks is 15.
+[INFO CTS-0035]  Number of sinks covered: 35.
+[INFO CTS-0018]     Created 35 clock buffers.
+[INFO CTS-0012]     Minimum number of buffers in the clock path: 2.
+[INFO CTS-0013]     Maximum number of buffers in the clock path: 3.
+[INFO CTS-0015]     Created 35 clock nets.
+[INFO CTS-0016]     Fanout distribution for the current clock = 4:30, 7:1, 8:3..
+[INFO CTS-0017]     Max level of the clock tree: 2.
+[INFO CTS-0018]     Created 5 clock buffers.
+[INFO CTS-0012]     Minimum number of buffers in the clock path: 2.
+[INFO CTS-0013]     Maximum number of buffers in the clock path: 2.
+[INFO CTS-0015]     Created 5 clock nets.
+[INFO CTS-0016]     Fanout distribution for the current clock = 7:1, 8:1, 10:2..
+[INFO CTS-0017]     Max level of the clock tree: 2.
+[INFO CTS-0098] Clock net "clk"
+[INFO CTS-0099]  Sinks 121
+[INFO CTS-0100]  Leaf buffers 30
+[INFO CTS-0101]  Average sink wire length 13.94 um
+[INFO CTS-0102]  Path depth 2 - 3
+[INFO CTS-0207]  Dummy loads inserted 1
+[INFO CTS-0098] Clock net "clk_regs"
+[INFO CTS-0099]  Sinks 37
+[INFO CTS-0100]  Leaf buffers 0
+[INFO CTS-0101]  Average sink wire length 5.14 um
+[INFO CTS-0102]  Path depth 2 - 2
+[INFO CTS-0207]  Dummy loads inserted 2
+[INFO CTS-0033] Balancing latency for clock 
+[INFO CTS-0036]  inserted 0 delay buffers
+[INFO CMS-0120] Created clock mesh: 11 horizontal lines x 11 vertical lines (11 H-segments, 11 V-segments), 121 intersections, 121 vias, 121 buffers placed
+>> saved stage: 1_mesh
+[INFO DPL-0006] Core area: 64.20 um^2, Instances area: 25.44 um^2, Utilization: 39.6%
+[INFO DPL-0005] Diamond search max displacement: +/- 23809 sites horizontally, +/- 6944 rows vertically.
+[INFO DPL-1101] Legalizing using diamond search.
+Movements Summary
+---------------------------------------
+Total cells:                     703
+Diamond Move Success:            703 (100.00%)
+Diamond Move Failure:              0
+Rip-up and replace Success:        0 (  0.00% of diamond failures)
+Rip-up and replace Failure:        0
+Total Placement Failures:          0
+---------------------------------------
+Placement Analysis
+---------------------------------
+total displacement         18.6 u
+average displacement        0.0 u
+max displacement            0.3 u
+original HPWL             671.8 u
+legalized HPWL            682.2 u
+delta HPWL                    2 %
+
+>> saved stage: 2_legalized
+[INFO CMS-0710] Stitched 156 backside pins (buffer outputs + sinks) to mesh net
+>> saved stage: 3_stitched
+>> saved stage: 4_grt
+[INFO DRT-0149] Reading tech and libs.
+[WARNING DRT-0349] LEF58_ENCLOSURE with no CUTCLASS is not supported. Skipping for layer V1
+[WARNING DRT-0349] LEF58_ENCLOSURE with no CUTCLASS is not supported. Skipping for layer V1
+[WARNING DRT-0349] LEF58_ENCLOSURE with no CUTCLASS is not supported. Skipping for layer V2
+[WARNING DRT-0349] LEF58_ENCLOSURE with no CUTCLASS is not supported. Skipping for layer V2
+[WARNING DRT-0349] LEF58_ENCLOSURE with no CUTCLASS is not supported. Skipping for layer V3
+[WARNING DRT-0349] LEF58_ENCLOSURE with no CUTCLASS is not supported. Skipping for layer V3
+[WARNING DRT-0349] LEF58_ENCLOSURE with no CUTCLASS is not supported. Skipping for layer V4
+[WARNING DRT-0349] LEF58_ENCLOSURE with no CUTCLASS is not supported. Skipping for layer V4
+[WARNING DRT-0349] LEF58_ENCLOSURE with no CUTCLASS is not supported. Skipping for layer V5
+[WARNING DRT-0349] LEF58_ENCLOSURE with no CUTCLASS is not supported. Skipping for layer V5
+[WARNING DRT-0349] LEF58_ENCLOSURE with no CUTCLASS is not supported. Skipping for layer V6
+[WARNING DRT-0349] LEF58_ENCLOSURE with no CUTCLASS is not supported. Skipping for layer V6
+[WARNING DRT-0349] LEF58_ENCLOSURE with no CUTCLASS is not supported. Skipping for layer V7
+[WARNING DRT-0349] LEF58_ENCLOSURE with no CUTCLASS is not supported. Skipping for layer V7
+[WARNING DRT-0349] LEF58_ENCLOSURE with no CUTCLASS is not supported. Skipping for layer V8
+[WARNING DRT-0349] LEF58_ENCLOSURE with no CUTCLASS is not supported. Skipping for layer V8
+[WARNING DRT-0124] Via BV4 with unused layer BV4_0 will be ignored.
+[WARNING DRT-0124] Via BRDL with unused layer BV4_0 will be ignored.
+[WARNING DRT-0124] Via BM4 with unused layer BV4_0 will be ignored.
+[WARNING DRT-0124] Via BV3 with unused layer BV3_0 will be ignored.
+[WARNING DRT-0124] Via BM4 with unused layer BV3_0 will be ignored.
+[WARNING DRT-0124] Via BM3 with unused layer BV3_0 will be ignored.
+[WARNING DRT-0124] Via BV2 with unused layer BV2_0 will be ignored.
+[WARNING DRT-0124] Via BM3 with unused layer BV2_0 will be ignored.
+[WARNING DRT-0124] Via BM2 with unused layer BV2_0 will be ignored.
+[WARNING DRT-0124] Via BV1 with unused layer BV1_0 will be ignored.
+[WARNING DRT-0124] Via BM2 with unused layer BV1_0 will be ignored.
+[WARNING DRT-0124] Via BM1 with unused layer BV1_0 will be ignored.
+[WARNING DRT-0124] Via BV0 with unused layer BV0_0 will be ignored.
+[WARNING DRT-0124] Via BM1 with unused layer BV0_0 will be ignored.
+[WARNING DRT-0124] Via BPR with unused layer BV0_0 will be ignored.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_and2_x1_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_and2_x1_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_and2_x2_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_and2_x2_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_and2_x3_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_and2_x3_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_and2_x4_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_and2_x4_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_and3_x1_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_and3_x1_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_ao211_x1_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_ao211_x1_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_ao21_x1_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_ao21_x1_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_ao22_x1_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_ao22_x1_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_ao31_x1_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_ao31_x1_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_ao32_x1_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_ao32_x1_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_ao33_x1_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_ao33_x1_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_aoi211_x1_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_aoi211_x1_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_aoi21_x1_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_aoi21_x1_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_aoi22_x1_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_aoi22_x1_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_aoi31_x1_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_aoi31_x1_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_aoi32_x1_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_aoi32_x1_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_aoi33_x1_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_aoi33_x1_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_buf_x1_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_buf_x1_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_buf_x10_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_buf_x10_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_buf_x12_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_buf_x12_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_buf_x2_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_buf_x2_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_buf_x3_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_buf_x3_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_buf_x4_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_buf_x4_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_buf_x6_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_buf_x6_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_buf_x8_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_buf_x8_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_decapcc_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_decapcc_w31_lvt/vss.
+[WARNING DRT-0122] Layer BM2 is skipped for gt2_6t_dffasync_x1_w31_lvt/CLK.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_dffasync_x1_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_dffasync_x1_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_dffasync_x1_w31_lvt/vss.
+[WARNING DRT-0122] Layer BM2 is skipped for gt2_6t_dffasync_x2_w31_lvt/CLK.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_dffasync_x2_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_dffasync_x2_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_dffasync_x2_w31_lvt/vss.
+[WARNING DRT-0122] Layer BM2 is skipped for gt2_6t_dffasync_x4_w31_lvt/CLK.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_dffasync_x4_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_dffasync_x4_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_dffasync_x4_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_filler_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_filler_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_inv_x1_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_inv_x1_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_inv_x10_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_inv_x10_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_inv_x12_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_inv_x12_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_inv_x2_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_inv_x2_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_inv_x3_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_inv_x3_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_inv_x4_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_inv_x4_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_inv_x6_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_inv_x6_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_inv_x8_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_inv_x8_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_mux2_x1_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_mux2_x1_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_mux2_x1_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_nand2_x1_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_nand2_x1_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_nand2_x2_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_nand2_x2_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_nand2_x3_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_nand2_x3_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_nand2_x4_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_nand2_x4_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_nand3_x1_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_nand3_x1_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_nor2_x1_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_nor2_x1_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_nor2_x2_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_nor2_x2_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_nor2_x3_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_nor2_x3_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_nor2_x4_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_nor2_x4_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_nor3_x1_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_nor3_x1_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_oa211_x1_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_oa211_x1_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_oa21_x1_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_oa21_x1_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_oa22_x1_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_oa22_x1_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_oa31_x1_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_oa31_x1_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_oa32_x1_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_oa32_x1_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_oa33_x1_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_oa33_x1_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_oai211_x1_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_oai211_x1_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_oai21_x1_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_oai21_x1_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_oai22_x1_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_oai22_x1_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_oai31_x1_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_oai31_x1_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_oai32_x1_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_oai32_x1_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_oai33_x1_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_oai33_x1_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_or2_x1_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_or2_x1_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_or2_x2_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_or2_x2_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_or2_x3_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_or2_x3_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_or2_x4_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_or2_x4_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_or3_x1_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_or3_x1_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_tap_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_tap_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_tiehigh_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_tiehigh_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_tielow_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_tielow_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_xnor2_x1_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_xnor2_x1_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_xor2_x1_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for gt2_6t_xor2_x1_w31_lvt/vss.
+[WARNING DRT-0122] Layer BM2 is skipped for mesh_gt2_6t_buf_x1_w31_lvt/Y.
+[WARNING DRT-0122] Layer BPR is skipped for mesh_gt2_6t_buf_x1_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for mesh_gt2_6t_buf_x1_w31_lvt/vss.
+[WARNING DRT-0122] Layer BPR is skipped for mesh_gt2_6t_buf_x2_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for mesh_gt2_6t_buf_x2_w31_lvt/vss.
+[WARNING DRT-0122] Layer BM2 is skipped for mesh_gt2_6t_buf_x2_w31_lvt/Y.
+[WARNING DRT-0122] Layer BPR is skipped for mesh_gt2_6t_buf_x3_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for mesh_gt2_6t_buf_x3_w31_lvt/vss.
+[WARNING DRT-0122] Layer BM2 is skipped for mesh_gt2_6t_buf_x3_w31_lvt/Y.
+[WARNING DRT-0122] Layer BPR is skipped for mesh_gt2_6t_buf_x4_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for mesh_gt2_6t_buf_x4_w31_lvt/vss.
+[WARNING DRT-0122] Layer BM2 is skipped for mesh_gt2_6t_buf_x4_w31_lvt/Y.
+[WARNING DRT-0122] Layer BPR is skipped for mesh_gt2_6t_buf_x6_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for mesh_gt2_6t_buf_x6_w31_lvt/vss.
+[WARNING DRT-0122] Layer BM2 is skipped for mesh_gt2_6t_buf_x6_w31_lvt/Y.
+[WARNING DRT-0122] Layer BPR is skipped for mesh_gt2_6t_buf_x8_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for mesh_gt2_6t_buf_x8_w31_lvt/vss.
+[WARNING DRT-0122] Layer BM2 is skipped for mesh_gt2_6t_buf_x8_w31_lvt/Y.
+[WARNING DRT-0122] Layer BPR is skipped for mesh_gt2_6t_buf_x10_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for mesh_gt2_6t_buf_x10_w31_lvt/vss.
+[WARNING DRT-0122] Layer BM2 is skipped for mesh_gt2_6t_buf_x10_w31_lvt/Y.
+[WARNING DRT-0122] Layer BPR is skipped for mesh_gt2_6t_buf_x12_w31_lvt/vdd.
+[WARNING DRT-0122] Layer BPR is skipped for mesh_gt2_6t_buf_x12_w31_lvt/vss.
+[WARNING DRT-0122] Layer BM2 is skipped for mesh_gt2_6t_buf_x12_w31_lvt/Y.
+
+Units:                2000
+Number of layers:     31
+Number of macros:     79
+Number of vias:       14
+Number of viarulegen: 14
+
+[INFO DRT-0150] Reading design.
+
+Design:                   gcd
+Die area:                 ( 0 0 ) ( 18274 18274 )
+Number of track patterns: 30
+Number of DEF vias:       0
+Number of components:     841
+Number of terminals:      56
+Number of snets:          3
+Number of nets:           615
+
+[INFO DRT-0167] List of default vias:
+  Layer V2
+    default via: V2_0
+  Layer V3
+    default via: V3_0
+  Layer V4
+    default via: V4_0
+  Layer V5
+    default via: V5_0
+  Layer V6
+    default via: V6_0
+  Layer V7
+    default via: V7_0
+  Layer V8
+    default via: V8_0
+  Layer V9
+    default via: V9_0
+  Layer V10
+    default via: V10_0
+  Layer V11
+    default via: V11_0
+  Layer V12
+    default via: V12_0
+  Layer V13
+    default via: V13_0
+[INFO DRT-0162] Library cell analysis.
+[INFO DRT-0163] Instance analysis.
+[INFO DRT-0164] Number of unique instances = 106.
+[INFO DRT-0168] Init region query.
+[INFO DRT-0024]   Complete SDCON.
+[INFO DRT-0024]   Complete VSD.
+[INFO DRT-0024]   Complete M0.
+[INFO DRT-0024]   Complete V0.
+[INFO DRT-0024]   Complete M1.
+[INFO DRT-0024]   Complete V1.
+[INFO DRT-0024]   Complete M2.
+[INFO DRT-0024]   Complete V2.
+[INFO DRT-0024]   Complete M3.
+[INFO DRT-0024]   Complete V3.
+[INFO DRT-0024]   Complete M4.
+[INFO DRT-0024]   Complete V4.
+[INFO DRT-0024]   Complete M5.
+[INFO DRT-0024]   Complete V5.
+[INFO DRT-0024]   Complete M6.
+[INFO DRT-0024]   Complete V6.
+[INFO DRT-0024]   Complete M7.
+[INFO DRT-0024]   Complete V7.
+[INFO DRT-0024]   Complete M8.
+[INFO DRT-0024]   Complete V8.
+[INFO DRT-0024]   Complete M9.
+[INFO DRT-0024]   Complete V9.
+[INFO DRT-0024]   Complete M10.
+[INFO DRT-0024]   Complete V10.
+[INFO DRT-0024]   Complete M11.
+[INFO DRT-0024]   Complete V11.
+[INFO DRT-0024]   Complete M12.
+[INFO DRT-0024]   Complete V12.
+[INFO DRT-0024]   Complete M13.
+[INFO DRT-0024]   Complete V13.
+[INFO DRT-0024]   Complete RDL.
+[INFO DRT-0033] SDCON shape region query size = 0.
+[INFO DRT-0033] VSD shape region query size = 0.
+[INFO DRT-0033] M0 shape region query size = 5205.
+[INFO DRT-0033] V0 shape region query size = 0.
+[INFO DRT-0033] M1 shape region query size = 3232.
+[INFO DRT-0033] V1 shape region query size = 0.
+[INFO DRT-0033] M2 shape region query size = 28.
+[INFO DRT-0033] V2 shape region query size = 0.
+[INFO DRT-0033] M3 shape region query size = 26.
+[INFO DRT-0033] V3 shape region query size = 0.
+[INFO DRT-0033] M4 shape region query size = 0.
+[INFO DRT-0033] V4 shape region query size = 0.
+[INFO DRT-0033] M5 shape region query size = 0.
+[INFO DRT-0033] V5 shape region query size = 0.
+[INFO DRT-0033] M6 shape region query size = 0.
+[INFO DRT-0033] V6 shape region query size = 0.
+[INFO DRT-0033] M7 shape region query size = 0.
+[INFO DRT-0033] V7 shape region query size = 0.
+[INFO DRT-0033] M8 shape region query size = 0.
+[INFO DRT-0033] V8 shape region query size = 0.
+[INFO DRT-0033] M9 shape region query size = 0.
+[INFO DRT-0033] V9 shape region query size = 0.
+[INFO DRT-0033] M10 shape region query size = 0.
+[INFO DRT-0033] V10 shape region query size = 0.
+[INFO DRT-0033] M11 shape region query size = 0.
+[INFO DRT-0033] V11 shape region query size = 0.
+[INFO DRT-0033] M12 shape region query size = 0.
+[INFO DRT-0033] V12 shape region query size = 0.
+[INFO DRT-0033] M13 shape region query size = 0.
+[INFO DRT-0033] V13 shape region query size = 0.
+[INFO DRT-0033] RDL shape region query size = 0.
+[INFO DRT-0165] Start pin access.
+[INFO DRT-0078]   Complete 575 pins.
+[INFO DRT-0079]   Complete 100 unique inst patterns.
+[INFO DRT-0081]   Complete 105 unique inst patterns.
+[INFO DRT-0084]   Complete 478 groups.
+#scanned instances     = 841
+#unique  instances     = 105
+#stdCellGenAp          = 3165
+#stdCellValidPlanarAp  = 1404
+#stdCellValidViaAp     = 1803
+#stdCellPinNoAp        = 0
+#stdCellPinCnt         = 1913
+#instTermValidViaApCnt = 0
+#macroGenAp            = 0
+#macroValidPlanarAp    = 0
+#macroValidViaAp       = 0
+#macroNoAp             = 0
+[INFO DRT-0166] Complete pin access.
+[INFO DRT-0267] cpu time = 00:00:21, elapsed time = 00:00:01, memory = 311.56 (MB), peak = 283.85 (MB)
+
+[INFO DRT-0157] Number of guides:     4107
+
+[INFO DRT-0169] Post process guides.
+[INFO DRT-0176] GCELLGRID X 0 DO 21 STEP 840 ;
+[INFO DRT-0177] GCELLGRID Y 0 DO 21 STEP 840 ;
+[INFO DRT-0028]   Complete SDCON.
+[INFO DRT-0028]   Complete VSD.
+[INFO DRT-0028]   Complete M0.
+[INFO DRT-0028]   Complete V0.
+[INFO DRT-0028]   Complete M1.
+[INFO DRT-0028]   Complete V1.
+[INFO DRT-0028]   Complete M2.
+[INFO DRT-0028]   Complete V2.
+[INFO DRT-0028]   Complete M3.
+[INFO DRT-0028]   Complete V3.
+[INFO DRT-0028]   Complete M4.
+[INFO DRT-0028]   Complete V4.
+[INFO DRT-0028]   Complete M5.
+[INFO DRT-0028]   Complete V5.
+[INFO DRT-0028]   Complete M6.
+[INFO DRT-0028]   Complete V6.
+[INFO DRT-0028]   Complete M7.
+[INFO DRT-0028]   Complete V7.
+[INFO DRT-0028]   Complete M8.
+[INFO DRT-0028]   Complete V8.
+[INFO DRT-0028]   Complete M9.
+[INFO DRT-0028]   Complete V9.
+[INFO DRT-0028]   Complete M10.
+[INFO DRT-0028]   Complete V10.
+[INFO DRT-0028]   Complete M11.
+[INFO DRT-0028]   Complete V11.
+[INFO DRT-0028]   Complete M12.
+[INFO DRT-0028]   Complete V12.
+[INFO DRT-0028]   Complete M13.
+[INFO DRT-0028]   Complete V13.
+[INFO DRT-0028]   Complete RDL.
+[INFO DRT-0178] Init guide query.
+[INFO DRT-0035]   Complete SDCON (guide).
+[INFO DRT-0035]   Complete VSD (guide).
+[INFO DRT-0035]   Complete M0 (guide).
+[INFO DRT-0035]   Complete V0 (guide).
+[INFO DRT-0035]   Complete M1 (guide).
+[INFO DRT-0035]   Complete V1 (guide).
+[INFO DRT-0035]   Complete M2 (guide).
+[INFO DRT-0035]   Complete V2 (guide).
+[INFO DRT-0035]   Complete M3 (guide).
+[INFO DRT-0035]   Complete V3 (guide).
+[INFO DRT-0035]   Complete M4 (guide).
+[INFO DRT-0035]   Complete V4 (guide).
+[INFO DRT-0035]   Complete M5 (guide).
+[INFO DRT-0035]   Complete V5 (guide).
+[INFO DRT-0035]   Complete M6 (guide).
+[INFO DRT-0035]   Complete V6 (guide).
+[INFO DRT-0035]   Complete M7 (guide).
+[INFO DRT-0035]   Complete V7 (guide).
+[INFO DRT-0035]   Complete M8 (guide).
+[INFO DRT-0035]   Complete V8 (guide).
+[INFO DRT-0035]   Complete M9 (guide).
+[INFO DRT-0035]   Complete V9 (guide).
+[INFO DRT-0035]   Complete M10 (guide).
+[INFO DRT-0035]   Complete V10 (guide).
+[INFO DRT-0035]   Complete M11 (guide).
+[INFO DRT-0035]   Complete V11 (guide).
+[INFO DRT-0035]   Complete M12 (guide).
+[INFO DRT-0035]   Complete V12 (guide).
+[INFO DRT-0035]   Complete M13 (guide).
+[INFO DRT-0035]   Complete V13 (guide).
+[INFO DRT-0035]   Complete RDL (guide).
+[INFO DRT-0036] SDCON guide region query size = 0.
+[INFO DRT-0036] VSD guide region query size = 0.
+[INFO DRT-0036] M0 guide region query size = 0.
+[INFO DRT-0036] V0 guide region query size = 0.
+[INFO DRT-0036] M1 guide region query size = 1512.
+[INFO DRT-0036] V1 guide region query size = 0.
+[INFO DRT-0036] M2 guide region query size = 1173.
+[INFO DRT-0036] V2 guide region query size = 0.
+[INFO DRT-0036] M3 guide region query size = 536.
+[INFO DRT-0036] V3 guide region query size = 0.
+[INFO DRT-0036] M4 guide region query size = 29.
+[INFO DRT-0036] V4 guide region query size = 0.
+[INFO DRT-0036] M5 guide region query size = 13.
+[INFO DRT-0036] V5 guide region query size = 0.
+[INFO DRT-0036] M6 guide region query size = 0.
+[INFO DRT-0036] V6 guide region query size = 0.
+[INFO DRT-0036] M7 guide region query size = 0.
+[INFO DRT-0036] V7 guide region query size = 0.
+[INFO DRT-0036] M8 guide region query size = 0.
+[INFO DRT-0036] V8 guide region query size = 0.
+[INFO DRT-0036] M9 guide region query size = 0.
+[INFO DRT-0036] V9 guide region query size = 0.
+[INFO DRT-0036] M10 guide region query size = 0.
+[INFO DRT-0036] V10 guide region query size = 0.
+[INFO DRT-0036] M11 guide region query size = 0.
+[INFO DRT-0036] V11 guide region query size = 0.
+[INFO DRT-0036] M12 guide region query size = 0.
+[INFO DRT-0036] V12 guide region query size = 0.
+[INFO DRT-0036] M13 guide region query size = 0.
+[INFO DRT-0036] V13 guide region query size = 0.
+[INFO DRT-0036] RDL guide region query size = 0.
+[INFO DRT-0179] Init gr pin query.
+[INFO DRT-0267] cpu time = 00:00:00, elapsed time = 00:00:00, memory = 311.62 (MB), peak = 283.85 (MB)
+[INFO DRT-0245] skipped writing guide updates to database.
+[INFO DRT-0181] Start track assignment.
+[INFO DRT-0184] Done with 2061 vertical wires in 1 frboxes and 1202 horizontal wires in 1 frboxes.
+[INFO DRT-0186] Done with 297 vertical wires in 1 frboxes and 396 horizontal wires in 1 frboxes.
+[INFO DRT-0182] Complete track assignment.
+[INFO DRT-0267] cpu time = 00:00:00, elapsed time = 00:00:00, memory = 317.71 (MB), peak = 289.85 (MB)
+[INFO DRT-0187] Start routing data preparation.
+[INFO DRT-0267] cpu time = 00:00:00, elapsed time = 00:00:00, memory = 317.77 (MB), peak = 289.85 (MB)
+[INFO DRT-0194] Start detail routing.
+[INFO DRT-0195] Start 0th optimization iteration.
+    Completing 10% with 0 violations.
+    elapsed time = 00:00:00, memory = 876.56 (MB).
+    Completing 20% with 0 violations.
+    elapsed time = 00:00:00, memory = 720.35 (MB).
+    Completing 30% with 0 violations.
+    elapsed time = 00:00:00, memory = 564.61 (MB).
+    Completing 40% with 0 violations.
+    elapsed time = 00:00:00, memory = 400.25 (MB).
+    Completing 50% with 22 violations.
+    elapsed time = 00:00:02, memory = 713.05 (MB).
+    Completing 60% with 22 violations.
+    elapsed time = 00:00:02, memory = 467.66 (MB).
+    Completing 70% with 40 violations.
+    elapsed time = 00:00:05, memory = 793.53 (MB).
+    Completing 80% with 40 violations.
+    elapsed time = 00:00:05, memory = 539.46 (MB).
+    Completing 100% with 86 violations.
+    elapsed time = 00:00:11, memory = 586.40 (MB).
+[INFO DRT-0199]   Number of violations = 167.
+Viol/Layer          M1     M2     V2     M3
+Corner Spacing       0     64      0      0
+Metal Spacing        0      7      0      3
+Recheck              7     55      0     19
+Short                0      1      4      0
+eolKeepOut           0      7      0      0
+[INFO DRT-0267] cpu time = 00:00:33, elapsed time = 00:00:12, memory = 1370.34 (MB), peak = 1342.21 (MB)
+Total wire length = 834 um.
+Total wire length on LAYER M0 = 0 um.
+Total wire length on LAYER M1 = 0 um.
+Total wire length on LAYER M2 = 439 um.
+Total wire length on LAYER M3 = 364 um.
+Total wire length on LAYER M4 = 12 um.
+Total wire length on LAYER M5 = 17 um.
+Total wire length on LAYER M6 = 0 um.
+Total wire length on LAYER M7 = 0 um.
+Total wire length on LAYER M8 = 0 um.
+Total wire length on LAYER M9 = 0 um.
+Total wire length on LAYER M10 = 0 um.
+Total wire length on LAYER M11 = 0 um.
+Total wire length on LAYER M12 = 0 um.
+Total wire length on LAYER M13 = 0 um.
+Total wire length on LAYER RDL = 0 um.
+Total number of vias = 4074.
+Up-via summary (total 4074):
+
+--------------
+ SDCON       0
+    M0       0
+    M1    1962
+    M2    2046
+    M3      42
+    M4      24
+    M5       0
+    M6       0
+    M7       0
+    M8       0
+    M9       0
+   M10       0
+   M11       0
+   M12       0
+   M13       0
+--------------
+      4074
+
+
+[INFO DRT-0198] Complete detail routing.
+Total wire length = 834 um.
+Total wire length on LAYER M0 = 0 um.
+Total wire length on LAYER M1 = 0 um.
+Total wire length on LAYER M2 = 439 um.
+Total wire length on LAYER M3 = 364 um.
+Total wire length on LAYER M4 = 12 um.
+Total wire length on LAYER M5 = 17 um.
+Total wire length on LAYER M6 = 0 um.
+Total wire length on LAYER M7 = 0 um.
+Total wire length on LAYER M8 = 0 um.
+Total wire length on LAYER M9 = 0 um.
+Total wire length on LAYER M10 = 0 um.
+Total wire length on LAYER M11 = 0 um.
+Total wire length on LAYER M12 = 0 um.
+Total wire length on LAYER M13 = 0 um.
+Total wire length on LAYER RDL = 0 um.
+Total number of vias = 4074.
+Up-via summary (total 4074):
+
+--------------
+ SDCON       0
+    M0       0
+    M1    1962
+    M2    2046
+    M3      42
+    M4      24
+    M5       0
+    M6       0
+    M7       0
+    M8       0
+    M9       0
+   M10       0
+   M11       0
+   M12       0
+   M13       0
+--------------
+      4074
+
+
+[INFO DRT-0267] cpu time = 00:00:33, elapsed time = 00:00:12, memory = 1370.34 (MB), peak = 1342.21 (MB)
+
+[INFO DRT-0180] Post processing.
+>> saved stage: 5_drt
+Done: gcd backside mesh (BM3/BM4), special-wire stubs. RCX/SPICE skipped.

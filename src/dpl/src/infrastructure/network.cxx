@@ -90,6 +90,11 @@ Pin* Network::addPin(odb::dbITerm* term)
     for (auto pin : term->getMTerm()->getMPins()) {
       for (auto box : pin->getGeometry()) {
         auto layer = box->getTechLayer();
+        // Via boxes inside a pin port (e.g. the nTSV_tap feed-through) have no
+        // routing layer -- skip them instead of dereferencing a null layer.
+        if (layer == nullptr) {
+          continue;
+        }
         if (layer->getType() != odb::dbTechLayerType::Value::ROUTING) {
           continue;
         }

@@ -455,6 +455,28 @@ void FlexGridGraph::init(const frDesign* design,
   initEdges(
       design, xMap, yMap, zMap, routeBBox, initDR);  // add edges and edgeCost
   ap_locs_.clear();
+
+  // Backside clock: if the tech has any backside ROUTING layer, record the
+  // lowest non-backside ROUTING layer (M1) as the threshold above which an
+  // internal clock net is forbidden to route. If there are no backside
+  // routing layers the feature stays disabled (-1) and has zero impact.
+  bottomFrontRoutingLNum_ = -1;
+  bool hasBacksideRouting = false;
+  frLayerNum lowestFrontRouting = -1;
+  for (auto& layer : getTech()->getLayers()) {
+    if (layer->getType() != dbTechLayerType::ROUTING) {
+      continue;
+    }
+    if (layer->isBackside()) {
+      hasBacksideRouting = true;
+    } else if (lowestFrontRouting < 0
+               || layer->getLayerNum() < lowestFrontRouting) {
+      lowestFrontRouting = layer->getLayerNum();
+    }
+  }
+  if (hasBacksideRouting) {
+    bottomFrontRoutingLNum_ = lowestFrontRouting;
+  }
 }
 
 // initialization helpers
