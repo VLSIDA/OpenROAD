@@ -32,6 +32,10 @@ class SizeUpCandidate : public MoveCandidate
                   sta::LibertyCell* replacement);
 
   // === MoveCandidate API ====================================================
+  // Shared neighbor-aware estimate (estimatorEvaluate): up-size only if the net
+  // arrival improvement -- already accounting for the extra load this larger
+  // cell puts on its fanin drivers -- clears the guardband.
+  Estimate estimate() override;
   MoveResult apply() override;
   MoveType type() const override { return MoveType::kSizeUp; }
 
