@@ -32,7 +32,7 @@ Estimate SizeUpCandidate::estimate()
   // estimatorEvaluate spans the target stage plus a fanin/fanout level, so the
   // returned arrival improvement is already net of the extra input load this
   // larger cell puts on its fanin drivers.
-  return estimatorEvaluate(replacement_, kDefaultDelayLevels, slackGuardband());
+  return estimatorEvaluate(replacement_, kDefaultDelayLevels);
 }
 
 MoveResult SizeUpCandidate::apply()

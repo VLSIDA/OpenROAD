@@ -9,8 +9,31 @@
 #include "rsz/Resizer.hh"
 #include "sta/Delay.hh"
 #include "sta/Liberty.hh"
+#include "sta/Network.hh"
+#include "sta/NetworkClass.hh"
+#include "sta/Path.hh"
 
 namespace rsz {
+
+float MoveGenerator::driverDelayDelta(const float drive_resistance,
+                                      const sta::LibertyPort* old_port,
+                                      const sta::LibertyPort* new_port,
+                                      const sta::MinMax* min_max)
+{
+  return drive_resistance
+         * (new_port->capacitance(min_max) - old_port->capacitance(min_max));
+}
+
+float MoveGenerator::driveResistanceAt(const sta::Path* driver_path) const
+{
+  if (driver_path == nullptr) {
+    return 0.0f;
+  }
+  sta::Pin* pin = driver_path->pin(resizer_.staState());
+  const sta::LibertyPort* port
+      = pin != nullptr ? resizer_.network()->libertyPort(pin) : nullptr;
+  return port != nullptr ? port->driveResistance() : 0.0f;
+}
 
 const sta::LibertyPort* MoveGenerator::findScenePort(
     const sta::LibertyCell* cell,

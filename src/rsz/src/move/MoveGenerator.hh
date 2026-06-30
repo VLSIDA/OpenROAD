@@ -14,6 +14,8 @@
 namespace sta {
 class LibertyCell;
 class LibertyPort;
+class MinMax;
+class Path;
 }  // namespace sta
 
 namespace rsz {
@@ -109,6 +111,21 @@ class MoveGenerator
                         const sta::LibertyCell* rhs,
                         const std::string& drvr_port_name,
                         int lib_ap) const;
+
+  // === Shared incremental-delay helpers ====================================
+  // Lumped-RC delay change of a driver (with the given drive_resistance) when
+  // the load pin it drives changes from old_port to new_port:
+  //   drive_resistance * (cap(new_port) - cap(old_port))
+  // Positive => the driver slows (new pin presents more cap).  Shared by any
+  // move that re-points or resizes a load pin (pin swap, cell swap, buffering,
+  // ...).  Cell-swap moves that already score via DelayEstimator delay_levels
+  // must not also call this (it would double-count the fanin stage).
+  static float driverDelayDelta(float drive_resistance,
+                                const sta::LibertyPort* old_port,
+                                const sta::LibertyPort* new_port,
+                                const sta::MinMax* min_max);
+  // Drive resistance of the cell driving the net at driver_path (0 if none).
+  float driveResistanceAt(const sta::Path* driver_path) const;
 
   // === Shared generator dependencies =======================================
   Resizer& resizer_;

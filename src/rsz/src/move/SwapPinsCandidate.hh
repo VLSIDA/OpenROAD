@@ -21,22 +21,14 @@ namespace rsz {
 //
 // When a cell has symmetric input arcs (determined by Boolean functional
 // equivalence), moving the critical-path signal to a faster arc can reduce
-// delay without changing the netlist topology.  estimate() compares the
-// pre-computed current_delay and swap_delay; apply() rewires the two input
-// nets via Resizer::swapPins.
+// delay without changing the netlist topology.  The generator precomputes the
+// net improvement -- the gate output-arc gain MINUS the change in the critical
+// input net's driver delay (the swapped pins can have different input caps,
+// e.g. a tapered stack) -- and estimate() funnels it through the shared
+// accept rule.  apply() rewires the two input nets via Resizer::swapPins.
 class SwapPinsCandidate : public MoveCandidate
 {
  public:
-  // === Delay comparison data ===============================================
-  // Pre-computed delay pair.  current_delay is the arc delay through the
-  // existing input pin; swap_delay is the delay through the alternative
-  // symmetric pin.  The score is the positive difference (improvement).
-  struct DelayState
-  {
-    float current_delay{0.0f};
-    float swap_delay{0.0f};
-  };
-
   // === Construction =========================================================
   SwapPinsCandidate(Resizer& resizer,
                     const Target& target,
@@ -44,8 +36,7 @@ class SwapPinsCandidate : public MoveCandidate
                     sta::LibertyPort* drvr_port,
                     sta::LibertyPort* input_port,
                     sta::LibertyPort* swap_port,
-                    float current_delay,
-                    float swap_delay);
+                    float net_improvement);
 
   // === MoveCandidate API ====================================================
   Estimate estimate() override;
@@ -58,7 +49,7 @@ class SwapPinsCandidate : public MoveCandidate
   sta::LibertyPort* drvr_port_{nullptr};
   sta::LibertyPort* input_port_{nullptr};
   sta::LibertyPort* swap_port_{nullptr};
-  DelayState delay_state_;
+  float net_improvement_{0.0f};
 };
 
 }  // namespace rsz

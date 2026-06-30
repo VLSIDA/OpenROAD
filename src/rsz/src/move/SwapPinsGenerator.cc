@@ -143,14 +143,26 @@ std::vector<std::unique_ptr<MoveCandidate>> SwapPinsGenerator::buildCandidates(
     return candidates;
   }
 
+  // Output-arc gain from routing the critical signal through the faster pin,
+  // minus the change in the critical input net's driver delay: the swap moves
+  // that net from input_port to swap_port, and commutative pins can have
+  // different input caps (e.g. a tapered transistor stack), so its driver now
+  // sees a different load.  driverDelayDelta is the shared primitive.
+  const float output_gain = current_delay - swap_delay;
+  const float fanin_delay_change
+      = driverDelayDelta(driveResistanceAt(target.prevDriverPath(resizer_)),
+                         input_port,
+                         swap_port,
+                         min_max);
+  const float net_improvement = output_gain - fanin_delay_change;
+
   candidates.push_back(std::make_unique<SwapPinsCandidate>(resizer_,
                                                            target,
                                                            drvr,
                                                            drvr_port,
                                                            input_port,
                                                            swap_port,
-                                                           current_delay,
-                                                           swap_delay));
+                                                           net_improvement));
   return candidates;
 }
 

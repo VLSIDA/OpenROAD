@@ -45,27 +45,26 @@ class MoveCandidate
   const Target& target() const { return target_; }
   MoveResult rejectedMove() const;
 
-  // === Shared accept/reject evaluation (cell-swap moves) ====================
+  // === Shared accept/reject decision (all moves) ============================
   //
-  // Consistent, neighbor-aware estimate shared by the cell-swap moves (size-up,
-  // size-down-fanout, vt-swap).  It builds a DelayEstimator context that spans
-  // the target stage plus `delay_levels` fanin and fanout stages, then scores
-  // swapping in `candidate_cell`.  Because the context includes the neighbor
-  // stages, the returned arrival improvement is already net of the extra load
-  // this move places on its fanin drivers (or the drive it removes downstream),
-  // so a move that helps the target but hurts a neighbor more is not legal.
-  //
-  // Unlike a live-STA measurement this never mutates the database or rebuilds
-  // the STA search, so it is safe to call from the legacy repair loop (which
-  // caches Path pointers) and from MT worker threads.
-  //
-  // The move is legal iff the estimator deems it valid AND the net arrival
-  // improvement exceeds `min_improvement` (the guardband, so marginal moves
-  // that leave no post-route headroom are rejected).  score = arrival
-  // improvement.
+  // The single, unified accept rule: a move is legal iff its predicted net
+  // arrival improvement -- already net of neighbor cost -- clears the
+  // guardband.  EVERY move funnels its prediction through here so the criterion
+  // is identical across move classes; only the way each move predicts its net
+  // improvement differs (cell-swap via the DelayEstimator, pin-swap via the
+  // arc + fanin-cap model, topology via its own incremental model).
+  // score = the predicted net improvement.
+  Estimate acceptByImprovement(float net_improvement) const;
+
+  // Cell-swap prediction helper.  Builds a DelayEstimator context spanning the
+  // target stage plus `delay_levels` fanin and fanout stages, scores swapping
+  // in `candidate_cell`, and applies acceptByImprovement.  Because the context
+  // includes the neighbor stages, the arrival improvement is already net of the
+  // extra load this move places on its fanin drivers (or the drive it removes
+  // downstream).  Never mutates the database or rebuilds the STA search, so it
+  // is safe in the legacy repair loop (which caches Path pointers) and MT.
   Estimate estimatorEvaluate(const sta::LibertyCell* candidate_cell,
-                             int delay_levels,
-                             float min_improvement);
+                             int delay_levels);
 
   // Configured neighbor-cost guardband: the minimum net arrival improvement a
   // move must show to be accepted (env RSZ_SLACK_GUARDBAND, default 0).

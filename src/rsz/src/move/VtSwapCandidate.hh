@@ -34,6 +34,10 @@ class VtSwapCandidate : public MoveCandidate
                   sta::LibertyCell* best_cell);
 
   // === MoveCandidate API ====================================================
+  // Shared neighbor-aware estimate: a VT swap is a same-footprint cell swap, so
+  // estimatorEvaluate scores it net of fanin/fanout cost (the swap changes
+  // drive strength and pin caps).
+  Estimate estimate() override;
   MoveResult apply() override;
   MoveType type() const override { return MoveType::kVtSwap; }
 

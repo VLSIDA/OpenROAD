@@ -35,10 +35,17 @@ float MoveCandidate::slackGuardband()
   return static_cast<float>(std::atof(env));
 }
 
+Estimate MoveCandidate::acceptByImprovement(const float net_improvement) const
+{
+  // The one shared criterion: clear the guardband.  score carries the raw
+  // improvement so policy ranking stays consistent even for rejected moves.
+  return {.legal = net_improvement > slackGuardband(),
+          .score = net_improvement};
+}
+
 Estimate MoveCandidate::estimatorEvaluate(
     const sta::LibertyCell* candidate_cell,
-    const int delay_levels,
-    const float min_improvement)
+    const int delay_levels)
 {
   // Build a context spanning the target stage plus delay_levels fanin/fanout
   // stages so the estimate is net of neighbor cost.  Read-only w.r.t. STA, so
@@ -52,11 +59,10 @@ Estimate MoveCandidate::estimatorEvaluate(
 
   const DelayEstimate delay_est
       = DelayEstimator::estimate(context.value(), candidate_cell);
-  // Keep the raw score even for rejected moves so policy ranking stays
-  // consistent.
-  const bool legal
-      = delay_est.legal && delay_est.arrival_impr > min_improvement;
-  return {.legal = legal, .score = delay_est.arrival_impr};
+  if (!delay_est.legal) {
+    return {.legal = false, .score = delay_est.arrival_impr};
+  }
+  return acceptByImprovement(delay_est.arrival_impr);
 }
 
 }  // namespace rsz
