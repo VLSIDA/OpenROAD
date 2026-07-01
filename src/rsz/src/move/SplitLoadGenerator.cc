@@ -165,9 +165,40 @@ std::vector<std::unique_ptr<MoveCandidate>> SplitLoadGenerator::generate(
     return candidates;
   }
 
+  // The critical load stays on the driver; splitting moves the less-critical
+  // loads behind a new buffer, so the driver's load drops by their input caps
+  // minus the buffer's input cap.  The arrival improvement is that net relief
+  // through the driver's resistance (the split buffer's own delay lands on the
+  // non-critical moved loads, not the critical path).
+  const sta::MinMax* min_max = target.minMax(resizer_);
+  const sta::LibertyPort* drvr_out_port
+      = resizer_.network()->libertyPort(drvr_pin);
+  const float driver_res
+      = drvr_out_port != nullptr ? drvr_out_port->driveResistance() : 0.0f;
+  float moved_cap = 0.0f;
+  for (const sta::Pin* load : *load_pins) {
+    const sta::LibertyPort* lp = resizer_.network()->libertyPort(load);
+    if (lp != nullptr) {
+      moved_cap += lp->capacitance(min_max);
+    }
+  }
+  sta::LibertyPort* buffer_in = nullptr;
+  sta::LibertyPort* buffer_out = nullptr;
+  buffer_cell->bufferPorts(buffer_in, buffer_out);
+  const float buffer_in_cap
+      = buffer_in != nullptr ? buffer_in->capacitance(min_max) : 0.0f;
+  const float net_improvement
+      = driverDelayDelta(driver_res, moved_cap - buffer_in_cap);
+
   const odb::Point drvr_loc = resizer_.dbNetwork()->location(drvr_pin);
-  candidates.push_back(std::make_unique<SplitLoadCandidate>(
-      resizer_, target, drvr_net, buffer_cell, drvr_loc, std::move(load_pins)));
+  candidates.push_back(
+      std::make_unique<SplitLoadCandidate>(resizer_,
+                                           target,
+                                           drvr_net,
+                                           buffer_cell,
+                                           drvr_loc,
+                                           std::move(load_pins),
+                                           net_improvement));
   return candidates;
 }
 

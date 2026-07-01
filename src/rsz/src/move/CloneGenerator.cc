@@ -233,18 +233,36 @@ std::vector<std::unique_ptr<MoveCandidate>> CloneGenerator::generate(
 
   sta::LibertyCell* clone_cell = chooseCloneCell(resizer_, original_cell);
 
+  // The critical load stays on the original driver; cloning moves the
+  // less-critical loads off it, relieving its output load by their input caps.
+  // The arrival improvement is that load relief through the driver's
+  // resistance.
+  const sta::MinMax* min_max = target.minMax(resizer_);
+  const sta::LibertyPort* drvr_out_port
+      = resizer_.network()->libertyPort(drvr_pin);
+  const float driver_res
+      = drvr_out_port != nullptr ? drvr_out_port->driveResistance() : 0.0f;
+  float moved_cap = 0.0f;
+  for (const sta::Pin* load : moved_loads) {
+    const sta::LibertyPort* lp = resizer_.network()->libertyPort(load);
+    if (lp != nullptr) {
+      moved_cap += lp->capacitance(min_max);
+    }
+  }
+  const float net_improvement = driverDelayDelta(driver_res, moved_cap);
+
   const odb::Point clone_loc
       = computeCloneLocation(resizer_, drvr_pin, fanout_slacks);
-  candidates.push_back(
-      std::make_unique<CloneCandidate>(resizer_,
-                                       target,
-                                       drvr_pin,
-                                       drvr_inst,
-                                       parent,
-                                       original_cell,
-                                       clone_cell,
-                                       clone_loc,
-                                       std::move(moved_loads)));
+  candidates.push_back(std::make_unique<CloneCandidate>(resizer_,
+                                                        target,
+                                                        drvr_pin,
+                                                        drvr_inst,
+                                                        parent,
+                                                        original_cell,
+                                                        clone_cell,
+                                                        clone_loc,
+                                                        std::move(moved_loads),
+                                                        net_improvement));
   return candidates;
 }
 

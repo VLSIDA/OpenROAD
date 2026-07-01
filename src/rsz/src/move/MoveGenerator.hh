@@ -124,6 +124,11 @@ class MoveGenerator
                                 const sta::LibertyPort* old_port,
                                 const sta::LibertyPort* new_port,
                                 const sta::MinMax* min_max);
+  // Raw form for topology moves that change a net's load by adding/removing
+  // load capacitance (not swapping a single port): drive_resistance * delta_cap
+  // = the driver's delay change.  Passing the removed load cap as a positive
+  // delta_cap therefore gives the arrival improvement from relieving that load.
+  static float driverDelayDelta(float drive_resistance, float delta_cap);
   // Drive resistance of the cell driving the net at driver_path (0 if none).
   float driveResistanceAt(const sta::Path* driver_path) const;
 

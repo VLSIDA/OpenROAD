@@ -24,6 +24,12 @@ float MoveGenerator::driverDelayDelta(const float drive_resistance,
          * (new_port->capacitance(min_max) - old_port->capacitance(min_max));
 }
 
+float MoveGenerator::driverDelayDelta(const float drive_resistance,
+                                      const float delta_cap)
+{
+  return drive_resistance * delta_cap;
+}
+
 float MoveGenerator::driveResistanceAt(const sta::Path* driver_path) const
 {
   if (driver_path == nullptr) {

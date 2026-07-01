@@ -32,7 +32,8 @@ CloneCandidate::CloneCandidate(Resizer& resizer,
                                sta::LibertyCell* original_cell,
                                sta::LibertyCell* clone_cell,
                                const odb::Point& clone_loc,
-                               std::vector<sta::Pin*> moved_loads)
+                               std::vector<sta::Pin*> moved_loads,
+                               const float net_improvement)
     : MoveCandidate(resizer, target),
       drvr_pin_(drvr_pin),
       drvr_inst_(drvr_inst),
@@ -40,8 +41,14 @@ CloneCandidate::CloneCandidate(Resizer& resizer,
       original_cell_(original_cell),
       clone_cell_(clone_cell),
       clone_loc_(clone_loc),
-      moved_loads_(std::move(moved_loads))
+      moved_loads_(std::move(moved_loads)),
+      net_improvement_(net_improvement)
 {
+}
+
+Estimate CloneCandidate::estimate()
+{
+  return acceptByImprovement(net_improvement_);
 }
 
 MoveResult CloneCandidate::apply()

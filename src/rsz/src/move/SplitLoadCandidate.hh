@@ -34,10 +34,14 @@ class SplitLoadCandidate : public MoveCandidate
                      sta::Net* drvr_net,
                      sta::LibertyCell* buffer_cell,
                      const odb::Point& drvr_loc,
-                     std::unique_ptr<sta::PinSet> load_pins);
+                     std::unique_ptr<sta::PinSet> load_pins,
+                     float net_improvement);
   ~SplitLoadCandidate() override;
 
   // === MoveCandidate API ====================================================
+  // Shared accept rule: splitting relieves the critical driver's load; the
+  // generator predicts the resulting arrival improvement.
+  Estimate estimate() override;
   MoveResult apply() override;
   MoveType type() const override { return MoveType::kSplitLoad; }
 
@@ -52,6 +56,7 @@ class SplitLoadCandidate : public MoveCandidate
   sta::LibertyCell* buffer_cell_{nullptr};
   odb::Point drvr_loc_;
   std::unique_ptr<sta::PinSet> load_pins_;
+  float net_improvement_{0.0f};
 };
 
 }  // namespace rsz
