@@ -40,6 +40,12 @@ class MoveCandidate
   virtual MoveResult apply() = 0;
   virtual MoveType type() const = 0;
 
+  // The neighbor-cost guardband: the minimum net improvement (or extra slack
+  // headroom) a move must leave to be accepted (env RSZ_SLACK_GUARDBAND,
+  // default 0).  Public so generators that gate via their own slack estimate
+  // (e.g. unbuffer's estimatedSlackOK) can apply the same guardband.
+  static float slackGuardband();
+
  protected:
   MoveCandidate(Resizer& resizer, const Target& target);
   const Target& target() const { return target_; }
@@ -65,10 +71,6 @@ class MoveCandidate
   // is safe in the legacy repair loop (which caches Path pointers) and MT.
   Estimate estimatorEvaluate(const sta::LibertyCell* candidate_cell,
                              int delay_levels);
-
-  // Configured neighbor-cost guardband: the minimum net arrival improvement a
-  // move must show to be accepted (env RSZ_SLACK_GUARDBAND, default 0).
-  static float slackGuardband();
 
   // Default fanin/fanout depth captured by estimatorEvaluate.
   static constexpr int kDefaultDelayLevels = 1;

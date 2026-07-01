@@ -226,7 +226,13 @@ bool passesCapGuard(UnbufferSelectionContext& ctx)
 
 bool passesSlackGuard(const UnbufferSelectionContext& ctx)
 {
-  SlackEstimatorParams params(ctx.setup_slack_margin, ctx.slack_scene);
+  // estimatedSlackOK is already neighbor-aware (it estimates the merged-net
+  // slack, accounting for the upstream driver's increased load).  Add the
+  // shared guardband to the margin so unbuffer leaves the same post-route
+  // headroom as the other moves' acceptByImprovement.
+  SlackEstimatorParams params(
+      ctx.setup_slack_margin + MoveCandidate::slackGuardband(),
+      ctx.slack_scene);
   params.driver_pin = ctx.drvr_pin;
   params.prev_driver_pin = ctx.prev_drvr_pin;
   params.driver_input_pin = ctx.drvr_input_pin;
