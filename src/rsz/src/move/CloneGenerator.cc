@@ -249,7 +249,7 @@ std::vector<std::unique_ptr<MoveCandidate>> CloneGenerator::generate(
       moved_cap += lp->capacitance(min_max);
     }
   }
-  const float net_improvement = driverDelayDelta(driver_res, moved_cap);
+  const float delta_improvement = driverDelayDelta(driver_res, moved_cap);
 
   const odb::Point clone_loc
       = computeCloneLocation(resizer_, drvr_pin, fanout_slacks);
@@ -262,7 +262,7 @@ std::vector<std::unique_ptr<MoveCandidate>> CloneGenerator::generate(
                                                         clone_cell,
                                                         clone_loc,
                                                         std::move(moved_loads),
-                                                        net_improvement));
+                                                        delta_improvement));
   return candidates;
 }
 

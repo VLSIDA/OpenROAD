@@ -35,12 +35,12 @@ float MoveCandidate::slackGuardband()
   return static_cast<float>(std::atof(env));
 }
 
-Estimate MoveCandidate::acceptByImprovement(const float net_improvement) const
+Estimate MoveCandidate::acceptByImprovement(const float delta_improvement) const
 {
   // The one shared criterion: clear the guardband.  score carries the raw
   // improvement so policy ranking stays consistent even for rejected moves.
-  return {.legal = net_improvement > slackGuardband(),
-          .score = net_improvement};
+  return {.legal = delta_improvement > slackGuardband(),
+          .score = delta_improvement};
 }
 
 Estimate MoveCandidate::estimatorEvaluate(

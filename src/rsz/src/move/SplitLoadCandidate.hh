@@ -35,7 +35,7 @@ class SplitLoadCandidate : public MoveCandidate
                      sta::LibertyCell* buffer_cell,
                      const odb::Point& drvr_loc,
                      std::unique_ptr<sta::PinSet> load_pins,
-                     float net_improvement);
+                     float delta_improvement);
   ~SplitLoadCandidate() override;
 
   // === MoveCandidate API ====================================================
@@ -56,7 +56,7 @@ class SplitLoadCandidate : public MoveCandidate
   sta::LibertyCell* buffer_cell_{nullptr};
   odb::Point drvr_loc_;
   std::unique_ptr<sta::PinSet> load_pins_;
-  float net_improvement_{0.0f};
+  float delta_improvement_{0.0f};
 };
 
 }  // namespace rsz

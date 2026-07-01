@@ -60,7 +60,7 @@ class MoveCandidate
   // improvement differs (cell-swap via the DelayEstimator, pin-swap via the
   // arc + fanin-cap model, topology via its own incremental model).
   // score = the predicted net improvement.
-  Estimate acceptByImprovement(float net_improvement) const;
+  Estimate acceptByImprovement(float delta_improvement) const;
 
   // Cell-swap prediction helper.  Builds a DelayEstimator context spanning the
   // target stage plus `delay_levels` fanin and fanout stages, scores swapping

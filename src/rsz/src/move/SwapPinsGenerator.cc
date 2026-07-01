@@ -154,7 +154,7 @@ std::vector<std::unique_ptr<MoveCandidate>> SwapPinsGenerator::buildCandidates(
                          input_port,
                          swap_port,
                          min_max);
-  const float net_improvement = output_gain - fanin_delay_change;
+  const float delta_improvement = output_gain - fanin_delay_change;
 
   candidates.push_back(std::make_unique<SwapPinsCandidate>(resizer_,
                                                            target,
@@ -162,7 +162,7 @@ std::vector<std::unique_ptr<MoveCandidate>> SwapPinsGenerator::buildCandidates(
                                                            drvr_port,
                                                            input_port,
                                                            swap_port,
-                                                           net_improvement));
+                                                           delta_improvement));
   return candidates;
 }
 

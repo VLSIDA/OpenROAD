@@ -36,7 +36,7 @@ class SwapPinsCandidate : public MoveCandidate
                     sta::LibertyPort* drvr_port,
                     sta::LibertyPort* input_port,
                     sta::LibertyPort* swap_port,
-                    float net_improvement);
+                    float delta_improvement);
 
   // === MoveCandidate API ====================================================
   Estimate estimate() override;
@@ -49,7 +49,7 @@ class SwapPinsCandidate : public MoveCandidate
   sta::LibertyPort* drvr_port_{nullptr};
   sta::LibertyPort* input_port_{nullptr};
   sta::LibertyPort* swap_port_{nullptr};
-  float net_improvement_{0.0f};
+  float delta_improvement_{0.0f};
 };
 
 }  // namespace rsz

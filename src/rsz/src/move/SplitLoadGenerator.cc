@@ -187,7 +187,7 @@ std::vector<std::unique_ptr<MoveCandidate>> SplitLoadGenerator::generate(
   buffer_cell->bufferPorts(buffer_in, buffer_out);
   const float buffer_in_cap
       = buffer_in != nullptr ? buffer_in->capacitance(min_max) : 0.0f;
-  const float net_improvement
+  const float delta_improvement
       = driverDelayDelta(driver_res, moved_cap - buffer_in_cap);
 
   const odb::Point drvr_loc = resizer_.dbNetwork()->location(drvr_pin);
@@ -198,7 +198,7 @@ std::vector<std::unique_ptr<MoveCandidate>> SplitLoadGenerator::generate(
                                            buffer_cell,
                                            drvr_loc,
                                            std::move(load_pins),
-                                           net_improvement));
+                                           delta_improvement));
   return candidates;
 }
 

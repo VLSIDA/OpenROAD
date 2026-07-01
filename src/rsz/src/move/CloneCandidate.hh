@@ -41,7 +41,7 @@ class CloneCandidate : public MoveCandidate
                  sta::LibertyCell* clone_cell,
                  const odb::Point& clone_loc,
                  std::vector<sta::Pin*> moved_loads,
-                 float net_improvement);
+                 float delta_improvement);
 
   // === MoveCandidate API ====================================================
   // Shared accept rule: cloning relieves the critical driver's load; the
@@ -70,7 +70,7 @@ class CloneCandidate : public MoveCandidate
   sta::Net* out_net_{nullptr};
   odb::Point clone_loc_;
   std::vector<sta::Pin*> moved_loads_;
-  float net_improvement_{0.0f};
+  float delta_improvement_{0.0f};
 };
 
 }  // namespace rsz

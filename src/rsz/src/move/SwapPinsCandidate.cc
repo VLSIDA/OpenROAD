@@ -21,21 +21,21 @@ SwapPinsCandidate::SwapPinsCandidate(Resizer& resizer,
                                      sta::LibertyPort* drvr_port,
                                      sta::LibertyPort* input_port,
                                      sta::LibertyPort* swap_port,
-                                     const float net_improvement)
+                                     const float delta_improvement)
     : MoveCandidate(resizer, target),
       drvr_(drvr),
       drvr_port_(drvr_port),
       input_port_(input_port),
       swap_port_(swap_port),
-      net_improvement_(net_improvement)
+      delta_improvement_(delta_improvement)
 {
 }
 
 Estimate SwapPinsCandidate::estimate()
 {
-  // net_improvement_ is the output-arc gain net of the critical input net's
+  // delta_improvement_ is the output-arc gain minus the critical input's
   // driver-delay change; funnel through the shared accept rule.
-  return acceptByImprovement(net_improvement_);
+  return acceptByImprovement(delta_improvement_);
 }
 
 MoveResult SwapPinsCandidate::apply()

@@ -26,13 +26,13 @@ SplitLoadCandidate::SplitLoadCandidate(Resizer& resizer,
                                        sta::LibertyCell* buffer_cell,
                                        const odb::Point& drvr_loc,
                                        std::unique_ptr<sta::PinSet> load_pins,
-                                       const float net_improvement)
+                                       const float delta_improvement)
     : MoveCandidate(resizer, target),
       drvr_net_(drvr_net),
       buffer_cell_(buffer_cell),
       drvr_loc_(drvr_loc),
       load_pins_(std::move(load_pins)),
-      net_improvement_(net_improvement)
+      delta_improvement_(delta_improvement)
 {
 }
 
@@ -40,7 +40,7 @@ SplitLoadCandidate::~SplitLoadCandidate() = default;
 
 Estimate SplitLoadCandidate::estimate()
 {
-  return acceptByImprovement(net_improvement_);
+  return acceptByImprovement(delta_improvement_);
 }
 
 MoveResult SplitLoadCandidate::apply()
