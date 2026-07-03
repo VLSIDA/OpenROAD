@@ -28,6 +28,7 @@
 #include "sta/NetworkClass.hh"
 #include "sta/Path.hh"
 #include "sta/PortDirection.hh"
+#include "sta/Search.hh"
 #include "utl/Logger.h"
 
 namespace rsz {
@@ -781,6 +782,21 @@ SizeDownFanoutGenerator::SizeDownFanoutGenerator(
 std::vector<std::unique_ptr<MoveCandidate>> SizeDownFanoutGenerator::generate(
     const Target& target)
 {
+  // sizeDownFanout ranks the driver's fanout loads by live slack
+  // (sortedFanoutSlacks) and reads per-load slacks for the delay budget
+  // (getWorstInput/OutputSlack).  Reading slack while arrivals are stale forces
+  // findRequired() -> findAllArrivals(), which recomputes arrivals and frees
+  // the repair loop's cached endpoint Paths -- a use-after-free that both this
+  // call (resolveDriverContext derefs a cached Path) and the next generate()
+  // hit. Unlike the soft veto, these reads are load-bearing (they rank the
+  // loads), so there is no safe partial: only generate when every slack read is
+  // a pure cache read (arrivals valid and requireds computed); otherwise skip
+  // this round.
+  sta::Search* search = resizer_.sta()->search();
+  if (!search->arrivalsValid() || !search->requiredsExist()) {
+    return {};
+  }
+
   SizeDownFanoutContext ctx{
       .resizer = resizer_, .committer = committer_, .target = target};
   if (!resolveDriverContext(ctx)) {
