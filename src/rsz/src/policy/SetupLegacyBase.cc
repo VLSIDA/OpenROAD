@@ -197,8 +197,11 @@ void SetupLegacyBase::buildMainMoveSequence(const bool log_sequence)
     pushMoveIfEnabled(!config_.skip_vt_swap && hasVtSwapCells(),
                       MoveType::kVtSwap);
     move_sequence_.push_back(MoveType::kSizeUp);
-    pushMoveIfEnabled(!config_.skip_size_down_fanout,
-                      MoveType::kSizeDownFanout);
+    // sizeDownFanout is migrated + soft-veto-wired but left OUT of the default
+    // LEGACY sequence: its generator has latent STA-query crashes on some
+    // netlists (being hardened separately).  Re-enable by adding the
+    // pushMoveIfEnabled(!skip_size_down_fanout, kSizeDownFanout) line here, or
+    // request it via an explicit -sequence.
     pushMoveIfEnabled(!config_.skip_pin_swap, MoveType::kSwapPins);
     pushMoveIfEnabled(!config_.skip_buffering, MoveType::kBuffer);
     pushMoveIfEnabled(!config_.skip_gate_cloning, MoveType::kClone);
