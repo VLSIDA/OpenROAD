@@ -172,9 +172,8 @@ std::vector<std::unique_ptr<MoveCandidate>> SwapPinsGenerator::buildCandidates(
         input_port->capacitance(min_max) - swap_port->capacitance(min_max));
     if (other_delta > 0.0f) {
       sta::Vertex* v = resizer_.graph()->pinLoadVertex(swap_pin);
-      if (v != nullptr) {
-        const float slack_before = sta::delayAsFloat(
-            resizer_.sta()->slack(v, resizer_.maxAnalysisMode()));
+      float slack_before = 0.0f;
+      if (cachedSlack(v, slack_before)) {
         swap_impacts.push_back({slack_before, other_delta});
       }
     }

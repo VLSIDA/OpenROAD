@@ -18,8 +18,29 @@
 #include "sta/NetworkClass.hh"
 #include "sta/Path.hh"
 #include "sta/PortDirection.hh"
+#include "sta/Search.hh"
 
 namespace rsz {
+
+bool MoveGenerator::cachedSlack(sta::Vertex* vertex, float& slack_out) const
+{
+  // Only read the slack when it is a pure cache read: arrivals valid (nothing
+  // pending) AND requireds already computed.  Then sta()->slack() ->
+  // findRequired does no arrival recompute, so it neither frees the repair
+  // loop's cached Paths (the use-after-free) nor pays a full-timing pass inside
+  // the generation loop. Otherwise omit the neighbor (treat as no harm) --
+  // keeps the soft veto both loop-safe and cheap.
+  if (vertex == nullptr) {
+    return false;
+  }
+  sta::Search* search = resizer_.sta()->search();
+  if (!search->arrivalsValid() || !search->requiredsExist()) {
+    return false;
+  }
+  slack_out = sta::delayAsFloat(
+      resizer_.sta()->slack(vertex, resizer_.maxAnalysisMode()));
+  return true;
+}
 
 float MoveGenerator::driverDelayDelta(const float drive_resistance,
                                       const sta::LibertyPort* old_port,
@@ -113,9 +134,12 @@ std::vector<NeighborImpact> MoveGenerator::faninSlowdownImpacts(
     if (load_vertex == nullptr) {
       continue;
     }
-    // Snapshot the neighbor's current slack so the accept decision is pure.
-    const float slack_before = sta::delayAsFloat(
-        resizer_.sta()->slack(load_vertex, resizer_.maxAnalysisMode()));
+    // Snapshot the neighbor's slack only if it can be read without forcing a
+    // timing recompute; otherwise omit the neighbor (treat as no harm).
+    float slack_before = 0.0f;
+    if (!cachedSlack(load_vertex, slack_before)) {
+      continue;
+    }
     impacts.push_back({slack_before, driverDelayDelta(drive_res, delta_cap)});
   }
   return impacts;

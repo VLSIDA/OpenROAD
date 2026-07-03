@@ -137,6 +137,13 @@ class MoveGenerator
   float driveResistanceAt(const sta::Path* driver_path) const;
   // Drive resistance of the cell driving `net` (0 if none/undriven).
   float netDriveResistance(const sta::Net* net) const;
+  // Snapshot a vertex's slack ONLY if it is a pure cache read (arrivals valid
+  // and requireds already computed).  Returns false otherwise -- so the
+  // soft-veto neighbor read never triggers a findRequired()/findAllArrivals()
+  // recompute (which both frees the repair loop's cached Paths -- a
+  // use-after-free -- and costs a full timing pass in the generation loop).
+  // Keeps generation loop-safe.
+  bool cachedSlack(sta::Vertex* vertex, float& slack_out) const;
 
   // Feasibility impacts on the fanin nets of `inst` when its input-pin loads
   // grow.  Resize: pass old_cell and new_cell (per-pin delta = new - old).

@@ -202,10 +202,9 @@ std::vector<std::unique_ptr<MoveCandidate>> SplitLoadGenerator::generate(
   float worst_moved_slack = sta::INF;
   for (const sta::Pin* load : *load_pins) {
     sta::Vertex* v = resizer_.graph()->pinLoadVertex(load);
-    if (v != nullptr) {
-      worst_moved_slack = std::min(worst_moved_slack,
-                                   sta::delayAsFloat(resizer_.sta()->slack(
-                                       v, resizer_.maxAnalysisMode())));
+    float load_slack = 0.0f;
+    if (cachedSlack(v, load_slack)) {
+      worst_moved_slack = std::min(worst_moved_slack, load_slack);
     }
   }
   std::vector<NeighborImpact> impacts;
