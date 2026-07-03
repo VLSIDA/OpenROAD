@@ -4,6 +4,8 @@
 #include "VtSwapCandidate.hh"
 
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "MoveCandidate.hh"
 #include "OptimizerTypes.hh"
@@ -22,18 +24,24 @@ VtSwapCandidate::VtSwapCandidate(Resizer& resizer,
                                  sta::Pin* drvr_pin,
                                  sta::Instance* inst,
                                  sta::LibertyCell* curr_cell,
-                                 sta::LibertyCell* best_cell)
+                                 sta::LibertyCell* best_cell,
+                                 std::vector<NeighborImpact> fanin_impacts)
     : MoveCandidate(resizer, target),
       drvr_pin_(drvr_pin),
       inst_(inst),
       curr_cell_(curr_cell),
-      best_cell_(best_cell)
+      best_cell_(best_cell),
+      fanin_impacts_(std::move(fanin_impacts))
 {
 }
 
 Estimate VtSwapCandidate::estimate()
 {
-  return estimatorEvaluate(best_cell_, kDefaultDelayLevels);
+  // Same-footprint cell swap: estimatorEvaluate already nets the on-path fanin
+  // cost; the feasibility gate additionally guards every fanin driver whose pin
+  // cap grows when the swapped-in VT flavor is larger.
+  return applyFeasibility(estimatorEvaluate(best_cell_, kDefaultDelayLevels),
+                          fanin_impacts_);
 }
 
 MoveResult VtSwapCandidate::apply()

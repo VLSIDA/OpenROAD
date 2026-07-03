@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <vector>
+
 #include "OptimizerTypes.hh"
 #include "rsz/Resizer.hh"
 
@@ -74,6 +76,33 @@ class MoveCandidate
 
   // Default fanin/fanout depth captured by estimatorEvaluate.
   static constexpr int kDefaultDelayLevels = 1;
+
+  // === Shared feasibility ("don't give up more than you gain") =============
+  //
+  // The improvement score answers "does this help the target?".  Feasibility
+  // answers the orthogonal question "how much timing did we sacrifice on OTHER
+  // neighbors to get it?".  A move can be improving yet a poor trade (e.g.
+  // sizeUp helps its path but overloads its off-path fanin drivers; swapPins
+  // speeds the critical pin but sinks the other pin's net).
+  //
+  // Each move's generator declares the neighbors it perturbs as NeighborImpact
+  // {slack_before, delay_delta}.  Feasibility is a SCALE-FREE ratio: the
+  // NEGATIVE slack the worst neighbor is pushed into, over the gain.  Only
+  // slack driven below zero counts -- a neighbor with slack to spare absorbs
+  // the delay and is not harmed -- so the "given up" per neighbor is
+  //   max(0, delay_delta - max(0, slack_before)).
+  // 10% means we newly violated by a tenth of what we gained (fine); 100% means
+  // we gave back the whole gain (worthless).  A move is rejected when the ratio
+  // exceeds RSZ_FEAS_RATIO.  A ratio is used precisely so no absolute,
+  // per-design/tech threshold needs tuning.  Opt-in via RSZ_MOVE_FEASIBILITY.
+  // slack_before is snapshotted in the generator, so estimate() does pure
+  // arithmetic -- no live STA -- keeping it snapshot-pure and MT-safe.
+  static bool neighborFeasibilityEnabled();
+  static float feasibilityRatio();
+  // Turn `estimate` infeasible when the feasibility gate is on and the neighbor
+  // slack sacrificed exceeds feasibilityRatio() of the gain.  No-op when off.
+  Estimate applyFeasibility(Estimate estimate,
+                            const std::vector<NeighborImpact>& impacts) const;
 
   // === Candidate identity ===================================================
   Resizer& resizer_;

@@ -33,7 +33,8 @@ CloneCandidate::CloneCandidate(Resizer& resizer,
                                sta::LibertyCell* clone_cell,
                                const odb::Point& clone_loc,
                                std::vector<sta::Pin*> moved_loads,
-                               const float delta_improvement)
+                               const float delta_improvement,
+                               std::vector<NeighborImpact> fanin_impacts)
     : MoveCandidate(resizer, target),
       drvr_pin_(drvr_pin),
       drvr_inst_(drvr_inst),
@@ -42,13 +43,17 @@ CloneCandidate::CloneCandidate(Resizer& resizer,
       clone_cell_(clone_cell),
       clone_loc_(clone_loc),
       moved_loads_(std::move(moved_loads)),
-      delta_improvement_(delta_improvement)
+      delta_improvement_(delta_improvement),
+      fanin_impacts_(std::move(fanin_impacts))
 {
 }
 
 Estimate CloneCandidate::estimate()
 {
-  return acceptByImprovement(delta_improvement_);
+  // Driver relief is the benefit; the feasibility gate guards the fanin drivers
+  // the clone's duplicated input pins additionally load.
+  return applyFeasibility(acceptByImprovement(delta_improvement_),
+                          fanin_impacts_);
 }
 
 MoveResult CloneCandidate::apply()

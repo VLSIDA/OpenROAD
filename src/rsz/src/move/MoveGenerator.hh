@@ -12,10 +12,13 @@
 #include "rsz/Resizer.hh"
 
 namespace sta {
+class Instance;
 class LibertyCell;
 class LibertyPort;
 class MinMax;
+class Net;
 class Path;
+class Vertex;
 }  // namespace sta
 
 namespace rsz {
@@ -132,6 +135,26 @@ class MoveGenerator
 
   // Drive resistance of the cell driving the net at driver_path (0 if none).
   float driveResistanceAt(const sta::Path* driver_path) const;
+  // Drive resistance of the cell driving `net` (0 if none/undriven).
+  float netDriveResistance(const sta::Net* net) const;
+
+  // Feasibility impacts on the fanin nets of `inst` when its input-pin loads
+  // grow.  Resize: pass old_cell and new_cell (per-pin delta = new - old).
+  // Added duplicate (clone): pass old_cell == nullptr (delta = new_cell's full
+  // input cap).  Each impact snapshots the fanin driver's slack and the extra
+  // RC delay this move imposes on it, so the shared feasibility gate can decide
+  // with no live STA.
+  //
+  // skip_pin excludes the ON-PATH input pin: its slack already equals the
+  // endpoint being repaired, so charging it would self-veto every move; and the
+  // on-path stage cost is already evaluated by the improvement score.  Only
+  // off-path fanins need the do-no-harm gate.
+  std::vector<NeighborImpact> faninSlowdownImpacts(
+      sta::Instance* inst,
+      const sta::LibertyCell* old_cell,
+      const sta::LibertyCell* new_cell,
+      const sta::MinMax* min_max,
+      const sta::Pin* skip_pin = nullptr) const;
 
   // === Shared generator dependencies =======================================
   Resizer& resizer_;

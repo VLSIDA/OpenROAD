@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "MoveCandidate.hh"
@@ -59,8 +60,17 @@ std::vector<std::unique_ptr<MoveCandidate>> SizeUpGenerator::generate(
     return candidates;
   }
 
+  // A bigger cell presents more input-pin cap to every fanin net, slowing each
+  // fanin driver.  Feasibility guards the OFF-path fanins (the on-path one is
+  // already evaluated by the estimator and would self-veto).
+  const sta::Path* in_path = target.inputPath(resizer_);
+  const sta::Pin* on_path_input
+      = in_path != nullptr ? in_path->pin(resizer_.staState()) : nullptr;
+  std::vector<NeighborImpact> fanin_impacts = faninSlowdownImpacts(
+      inst, drvr_port->libertyCell(), replacement, min_max, on_path_input);
+
   candidates.push_back(std::make_unique<SizeUpCandidate>(
-      resizer_, target, drvr_pin, inst, replacement));
+      resizer_, target, drvr_pin, inst, replacement, std::move(fanin_impacts)));
   return candidates;
 }
 

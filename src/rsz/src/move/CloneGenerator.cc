@@ -251,18 +251,29 @@ std::vector<std::unique_ptr<MoveCandidate>> CloneGenerator::generate(
   }
   const float delta_improvement = driverDelayDelta(driver_res, moved_cap);
 
+  // The clone duplicates the driver's input pins onto the same fanin nets, so
+  // every fanin driver gains the clone cell's input cap.  Feasibility guards
+  // the OFF-path fanins (skip the on-path input, which would self-veto).
+  const sta::Path* in_path = target.inputPath(resizer_);
+  const sta::Pin* on_path_input
+      = in_path != nullptr ? in_path->pin(resizer_.staState()) : nullptr;
+  std::vector<NeighborImpact> fanin_impacts = faninSlowdownImpacts(
+      drvr_inst, /*old_cell=*/nullptr, clone_cell, min_max, on_path_input);
+
   const odb::Point clone_loc
       = computeCloneLocation(resizer_, drvr_pin, fanout_slacks);
-  candidates.push_back(std::make_unique<CloneCandidate>(resizer_,
-                                                        target,
-                                                        drvr_pin,
-                                                        drvr_inst,
-                                                        parent,
-                                                        original_cell,
-                                                        clone_cell,
-                                                        clone_loc,
-                                                        std::move(moved_loads),
-                                                        delta_improvement));
+  candidates.push_back(
+      std::make_unique<CloneCandidate>(resizer_,
+                                       target,
+                                       drvr_pin,
+                                       drvr_inst,
+                                       parent,
+                                       original_cell,
+                                       clone_cell,
+                                       clone_loc,
+                                       std::move(moved_loads),
+                                       delta_improvement,
+                                       std::move(fanin_impacts)));
   return candidates;
 }
 

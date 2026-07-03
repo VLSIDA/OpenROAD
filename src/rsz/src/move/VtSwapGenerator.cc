@@ -5,6 +5,7 @@
 
 #include <memory>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 #include "MoveCandidate.hh"
@@ -16,6 +17,7 @@
 #include "sta/LibertyClass.hh"
 #include "sta/Network.hh"
 #include "sta/NetworkClass.hh"
+#include "sta/Path.hh"
 
 namespace rsz {
 
@@ -46,8 +48,22 @@ std::vector<std::unique_ptr<MoveCandidate>> VtSwapGenerator::generate(
     return candidates;
   }
 
-  candidates.push_back(std::make_unique<VtSwapCandidate>(
-      resizer_, target, drvr_pin, inst, curr_cell, best_cell));
+  // A larger VT flavor raises input-pin caps, slowing every fanin driver;
+  // feasibility guards the OFF-path fanins (skip the on-path input pin).
+  const sta::Path* in_path = target.inputPath(resizer_);
+  const sta::Pin* on_path_input
+      = in_path != nullptr ? in_path->pin(resizer_.staState()) : nullptr;
+  std::vector<NeighborImpact> fanin_impacts = faninSlowdownImpacts(
+      inst, curr_cell, best_cell, target.minMax(resizer_), on_path_input);
+
+  candidates.push_back(
+      std::make_unique<VtSwapCandidate>(resizer_,
+                                        target,
+                                        drvr_pin,
+                                        inst,
+                                        curr_cell,
+                                        best_cell,
+                                        std::move(fanin_impacts)));
   return candidates;
 }
 

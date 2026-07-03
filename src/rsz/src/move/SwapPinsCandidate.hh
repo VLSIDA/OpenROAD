@@ -4,6 +4,8 @@
 #pragma once
 
 #include <memory>
+#include <utility>
+#include <vector>
 
 #include "MoveCandidate.hh"
 #include "OptimizerTypes.hh"
@@ -36,7 +38,8 @@ class SwapPinsCandidate : public MoveCandidate
                     sta::LibertyPort* drvr_port,
                     sta::LibertyPort* input_port,
                     sta::LibertyPort* swap_port,
-                    float delta_improvement);
+                    float delta_improvement,
+                    std::vector<NeighborImpact> swap_impacts = {});
 
   // === MoveCandidate API ====================================================
   Estimate estimate() override;
@@ -50,6 +53,9 @@ class SwapPinsCandidate : public MoveCandidate
   sta::LibertyPort* input_port_{nullptr};
   sta::LibertyPort* swap_port_{nullptr};
   float delta_improvement_{0.0f};
+  // Both swapped nets' drivers (incl. the "other" pin's net that the score does
+  // not evaluate) for the feasibility gate.
+  std::vector<NeighborImpact> swap_impacts_;
 };
 
 }  // namespace rsz

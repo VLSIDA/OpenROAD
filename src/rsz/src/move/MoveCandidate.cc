@@ -3,8 +3,10 @@
 
 #include "MoveCandidate.hh"
 
+#include <algorithm>
 #include <cstdlib>
 #include <optional>
+#include <vector>
 
 #include "DelayEstimator.hh"
 #include "OptimizerTypes.hh"
@@ -41,6 +43,52 @@ Estimate MoveCandidate::acceptByImprovement(const float delta_improvement) const
   // improvement so policy ranking stays consistent even for rejected moves.
   return {.legal = delta_improvement > slackGuardband(),
           .score = delta_improvement};
+}
+
+bool MoveCandidate::neighborFeasibilityEnabled()
+{
+  static const bool enabled = std::getenv("RSZ_MOVE_FEASIBILITY") != nullptr;
+  return enabled;
+}
+
+float MoveCandidate::feasibilityRatio()
+{
+  static const float ratio = []() {
+    const char* env = std::getenv("RSZ_FEAS_RATIO");
+    return env != nullptr ? static_cast<float>(std::atof(env)) : 1.0f;
+  }();
+  return ratio;
+}
+
+Estimate MoveCandidate::applyFeasibility(
+    Estimate estimate,
+    const std::vector<NeighborImpact>& impacts) const
+{
+  if (!estimate.legal || !neighborFeasibilityEnabled() || impacts.empty()) {
+    return estimate;
+  }
+  // Scale-free soft veto: reject when the WORST single neighbor is pushed too
+  // far into violation relative to the gain.  Only NEGATIVE slack counts -- a
+  // neighbor with slack to spare absorbs the extra delay and is not harmed; the
+  // "given up" is the part of delay_delta that drives its slack below zero:
+  //   max(0, delay_delta - max(0, slack_before)).
+  // Per-neighbor (not summed): each sits on a different path.  gain
+  // (estimate.score) is the predicted improvement to the critical net.  All
+  // terms are snapshots/analytic -- no live STA.
+  const float gain = estimate.score;
+  if (gain <= 0.0f) {
+    return estimate;  // acceptByImprovement already required gain > guardband
+  }
+  float worst_given_up = 0.0f;
+  for (const NeighborImpact& impact : impacts) {
+    const float absorbed = std::max(0.0f, impact.slack_before);
+    const float negative_harm = std::max(0.0f, impact.delay_delta - absorbed);
+    worst_given_up = std::max(worst_given_up, negative_harm);
+  }
+  if (worst_given_up > gain * feasibilityRatio()) {
+    estimate.legal = false;
+  }
+  return estimate;
 }
 
 Estimate MoveCandidate::estimatorEvaluate(

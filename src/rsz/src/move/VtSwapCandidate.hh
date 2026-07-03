@@ -4,6 +4,8 @@
 #pragma once
 
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "MoveCandidate.hh"
 #include "OptimizerTypes.hh"
@@ -31,7 +33,8 @@ class VtSwapCandidate : public MoveCandidate
                   sta::Pin* drvr_pin,
                   sta::Instance* inst,
                   sta::LibertyCell* curr_cell,
-                  sta::LibertyCell* best_cell);
+                  sta::LibertyCell* best_cell,
+                  std::vector<NeighborImpact> fanin_impacts = {});
 
   // === MoveCandidate API ====================================================
   // Shared neighbor-aware estimate: a VT swap is a same-footprint cell swap, so
@@ -51,6 +54,8 @@ class VtSwapCandidate : public MoveCandidate
   sta::Instance* inst_{nullptr};
   sta::LibertyCell* curr_cell_{nullptr};
   sta::LibertyCell* best_cell_{nullptr};
+  // Off-path fanin drivers this swap would slow (feasibility gate input).
+  std::vector<NeighborImpact> fanin_impacts_;
 };
 
 }  // namespace rsz

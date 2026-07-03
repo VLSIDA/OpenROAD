@@ -16,11 +16,14 @@
 #include "MoveGenerator.hh"
 #include "OptimizerTypes.hh"
 #include "SwapPinsCandidate.hh"
+#include "db_sta/dbNetwork.hh"
 #include "db_sta/dbSta.hh"
 #include "rsz/Resizer.hh"
 #include "sta/ArcDelayCalc.hh"
 #include "sta/Delay.hh"
 #include "sta/FuncExpr.hh"
+#include "sta/Graph.hh"
+#include "sta/GraphClass.hh"
 #include "sta/GraphDelayCalc.hh"
 #include "sta/Liberty.hh"
 #include "sta/LibertyClass.hh"
@@ -156,13 +159,36 @@ std::vector<std::unique_ptr<MoveCandidate>> SwapPinsGenerator::buildCandidates(
                          min_max);
   const float delta_improvement = output_gain - fanin_delay_change;
 
-  candidates.push_back(std::make_unique<SwapPinsCandidate>(resizer_,
-                                                           target,
-                                                           drvr,
-                                                           drvr_port,
-                                                           input_port,
-                                                           swap_port,
-                                                           delta_improvement));
+  // Feasibility guards the OFF-path net the score does not evaluate: the swap
+  // moves the net currently on swap_port over to input_port, so that net's
+  // driver now sees input_port's cap and can be pushed critical.  (The on-path
+  // net moving input_port -> swap_port is already evaluated via
+  // fanin_delay_change and would self-veto, so it is not charged here.)
+  std::vector<NeighborImpact> swap_impacts;
+  sta::Pin* swap_pin = resizer_.dbNetwork()->findPin(drvr, swap_port->name());
+  if (swap_pin != nullptr) {
+    const float other_delta = driverDelayDelta(
+        netDriveResistance(resizer_.network()->net(swap_pin)),
+        input_port->capacitance(min_max) - swap_port->capacitance(min_max));
+    if (other_delta > 0.0f) {
+      sta::Vertex* v = resizer_.graph()->pinLoadVertex(swap_pin);
+      if (v != nullptr) {
+        const float slack_before = sta::delayAsFloat(
+            resizer_.sta()->slack(v, resizer_.maxAnalysisMode()));
+        swap_impacts.push_back({slack_before, other_delta});
+      }
+    }
+  }
+
+  candidates.push_back(
+      std::make_unique<SwapPinsCandidate>(resizer_,
+                                          target,
+                                          drvr,
+                                          drvr_port,
+                                          input_port,
+                                          swap_port,
+                                          delta_improvement,
+                                          std::move(swap_impacts)));
   return candidates;
 }
 

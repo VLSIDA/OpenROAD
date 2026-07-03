@@ -3,6 +3,9 @@
 
 #include "SizeUpCandidate.hh"
 
+#include <utility>
+#include <vector>
+
 #include "MoveCandidate.hh"
 #include "OptimizerTypes.hh"
 #include "rsz/Resizer.hh"
@@ -19,11 +22,13 @@ SizeUpCandidate::SizeUpCandidate(Resizer& resizer,
                                  const Target& target,
                                  sta::Pin* drvr_pin,
                                  sta::Instance* inst,
-                                 sta::LibertyCell* replacement)
+                                 sta::LibertyCell* replacement,
+                                 std::vector<NeighborImpact> fanin_impacts)
     : MoveCandidate(resizer, target),
       drvr_pin_(drvr_pin),
       inst_(inst),
-      replacement_(replacement)
+      replacement_(replacement),
+      fanin_impacts_(std::move(fanin_impacts))
 {
 }
 
@@ -31,8 +36,11 @@ Estimate SizeUpCandidate::estimate()
 {
   // estimatorEvaluate spans the target stage plus a fanin/fanout level, so the
   // returned arrival improvement is already net of the extra input load this
-  // larger cell puts on its fanin drivers.
-  return estimatorEvaluate(replacement_, kDefaultDelayLevels);
+  // larger cell puts on its *on-path* fanin driver.  The feasibility gate adds
+  // the do-no-harm check over ALL fanin drivers: a larger cell can push an
+  // off-path fanin below the endpoint we are repairing.
+  return applyFeasibility(estimatorEvaluate(replacement_, kDefaultDelayLevels),
+                          fanin_impacts_);
 }
 
 MoveResult SizeUpCandidate::apply()

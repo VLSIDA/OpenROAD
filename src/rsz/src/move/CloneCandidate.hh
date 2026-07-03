@@ -41,11 +41,13 @@ class CloneCandidate : public MoveCandidate
                  sta::LibertyCell* clone_cell,
                  const odb::Point& clone_loc,
                  std::vector<sta::Pin*> moved_loads,
-                 float delta_improvement);
+                 float delta_improvement,
+                 std::vector<NeighborImpact> fanin_impacts = {});
 
   // === MoveCandidate API ====================================================
   // Shared accept rule: cloning relieves the critical driver's load; the
-  // generator predicts the resulting arrival improvement.
+  // generator predicts the resulting arrival improvement.  The feasibility gate
+  // additionally checks the fanin drivers the clone's duplicated inputs load.
   Estimate estimate() override;
   MoveResult apply() override;
   MoveType type() const override { return MoveType::kClone; }
@@ -71,6 +73,8 @@ class CloneCandidate : public MoveCandidate
   odb::Point clone_loc_;
   std::vector<sta::Pin*> moved_loads_;
   float delta_improvement_{0.0f};
+  // Fanin drivers the clone's duplicated input pins load (feasibility gate).
+  std::vector<NeighborImpact> fanin_impacts_;
 };
 
 }  // namespace rsz

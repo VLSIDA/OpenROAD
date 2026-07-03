@@ -3,6 +3,9 @@
 
 #pragma once
 
+#include <utility>
+#include <vector>
+
 #include "MoveCandidate.hh"
 #include "OptimizerTypes.hh"
 #include "rsz/Resizer.hh"
@@ -29,7 +32,8 @@ class SizeUpCandidate : public MoveCandidate
                   const Target& target,
                   sta::Pin* drvr_pin,
                   sta::Instance* inst,
-                  sta::LibertyCell* replacement);
+                  sta::LibertyCell* replacement,
+                  std::vector<NeighborImpact> fanin_impacts = {});
 
   // === MoveCandidate API ====================================================
   // Shared neighbor-aware estimate (estimatorEvaluate): up-size only if the net
@@ -51,6 +55,8 @@ class SizeUpCandidate : public MoveCandidate
   sta::Instance* inst_{nullptr};
   sta::LibertyCell* current_cell_{nullptr};
   sta::LibertyCell* replacement_{nullptr};
+  // Off-path fanin drivers this up-size would slow (feasibility gate input).
+  std::vector<NeighborImpact> fanin_impacts_;
 };
 
 }  // namespace rsz

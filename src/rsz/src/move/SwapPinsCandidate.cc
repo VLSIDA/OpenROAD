@@ -3,6 +3,9 @@
 
 #include "SwapPinsCandidate.hh"
 
+#include <utility>
+#include <vector>
+
 #include "MoveCandidate.hh"
 #include "OptimizerTypes.hh"
 #include "rsz/Resizer.hh"
@@ -21,21 +24,26 @@ SwapPinsCandidate::SwapPinsCandidate(Resizer& resizer,
                                      sta::LibertyPort* drvr_port,
                                      sta::LibertyPort* input_port,
                                      sta::LibertyPort* swap_port,
-                                     const float delta_improvement)
+                                     const float delta_improvement,
+                                     std::vector<NeighborImpact> swap_impacts)
     : MoveCandidate(resizer, target),
       drvr_(drvr),
       drvr_port_(drvr_port),
       input_port_(input_port),
       swap_port_(swap_port),
-      delta_improvement_(delta_improvement)
+      delta_improvement_(delta_improvement),
+      swap_impacts_(std::move(swap_impacts))
 {
 }
 
 Estimate SwapPinsCandidate::estimate()
 {
   // delta_improvement_ is the output-arc gain minus the critical input's
-  // driver-delay change; funnel through the shared accept rule.
-  return acceptByImprovement(delta_improvement_);
+  // driver-delay change; funnel through the shared accept rule.  The
+  // feasibility gate additionally guards the OTHER swapped net's driver, which
+  // the score does not evaluate.
+  return applyFeasibility(acceptByImprovement(delta_improvement_),
+                          swap_impacts_);
 }
 
 MoveResult SwapPinsCandidate::apply()

@@ -334,6 +334,20 @@ struct Estimate
   float score{0.0f};
 };
 
+// One neighbor a move perturbs (an off-path fanin driver whose load grows, the
+// other pin of a swap, ...), captured as a snapshot so the accept decision
+// needs no live STA.  The feasibility check counts only the NEGATIVE slack a
+// move creates: a neighbor with slack to spare (slack_before >= delay_delta)
+// absorbs the extra delay and suffers no harm; only the part that drives slack
+// below zero -- max(0, delay_delta - max(0, slack_before)) -- is "given up",
+// and the move is rejected when that exceeds a ratio of the gain (see
+// applyFeasibility).
+struct NeighborImpact
+{
+  float slack_before{0.0f};  // neighbor's slack before the move (snapshot)
+  float delay_delta{0.0f};   // added delay this move imposes (>0 => slower)
+};
+
 // Result of applying one candidate ECO (MoveCandidate::apply()).  The
 // committer consumes this to keep move accounting and tracker reports in sync
 // with what actually changed on OpenDB/STA.
