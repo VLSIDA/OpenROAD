@@ -3,6 +3,9 @@
 
 #pragma once
 
+#include <utility>
+#include <vector>
+
 #include "MoveCandidate.hh"
 #include "OptimizerTypes.hh"
 #include "rsz/Resizer.hh"
@@ -32,13 +35,16 @@ class SizeDownFanoutCandidate : public MoveCandidate
                           sta::LibertyCell* current_cell,
                           sta::LibertyCell* replacement,
                           sta::Slack slack,
-                          float delta_improvement);
+                          float delta_improvement,
+                          std::vector<NeighborImpact> impacts = {});
 
   // === MoveCandidate API ====================================================
   // Shrinking a non-critical fanout load removes input cap from the critical
-  // driver's net; the generator predicts the resulting driver-delay relief and
-  // funnels it through the shared accept rule (feasibility -- the load gate's
-  // own budget/cap/slew -- is already screened in the generator).
+  // driver's net; the generator predicts the resulting driver-delay relief
+  // (gain) and funnels it through the shared accept rule + soft veto.  The
+  // perturbed neighbor is the shrunk gate itself: its own stage delay grows,
+  // charged against its slack budget.  (The generator also pre-screens the swap
+  // against that budget when selecting the cell.)
   Estimate estimate() override;
   MoveResult apply() override;
   MoveType type() const override { return MoveType::kSizeDownFanout; }
@@ -52,6 +58,8 @@ class SizeDownFanoutCandidate : public MoveCandidate
   sta::LibertyCell* replacement_{nullptr};
   sta::Slack slack_{0.0};
   float delta_improvement_{0.0f};
+  // The shrunk gate's own stage-delay increase vs its slack budget.
+  std::vector<NeighborImpact> impacts_;
 };
 
 }  // namespace rsz

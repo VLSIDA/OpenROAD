@@ -669,11 +669,19 @@ std::unique_ptr<MoveCandidate> buildCandidate(const SizeDownFanoutContext& ctx,
 
   // Arrival improvement to the critical path = the driver relief from the cap
   // removed off its net (positive removed-cap delta -> positive improvement),
-  // consistent with clone/splitLoad.  The load gate's own path stays within
-  // budget by construction (selectReplacementCell's feasibility screen).
+  // consistent with clone/splitLoad.
   const float delta_improvement = MoveGenerator::driverDelayDelta(
       ctx.drvr_port->driveResistance(),
       load_ctx.input_cap - candidateInputCap(load_ctx, replacement));
+
+  // Soft-veto harm: the shrunk gate's own worst stage-delay increase, charged
+  // against its slack budget (the same quantities selectReplacementCell screens
+  // with, now expressed as a NeighborImpact for the shared ratio gate).
+  const float worst_delay_change
+      = computeWorstDelayChange(ctx, load_ctx, profile, replacement);
+  std::vector<NeighborImpact> impacts;
+  impacts.push_back({static_cast<float>(delayAsFloat(load_ctx.delay_budget)),
+                     worst_delay_change});
 
   return std::make_unique<SizeDownFanoutCandidate>(ctx.resizer,
                                                    ctx.target,
@@ -683,7 +691,8 @@ std::unique_ptr<MoveCandidate> buildCandidate(const SizeDownFanoutContext& ctx,
                                                    load_ctx.load_cell,
                                                    replacement,
                                                    load_ctx.load_slack,
-                                                   delta_improvement);
+                                                   delta_improvement,
+                                                   std::move(impacts));
 }
 
 std::vector<std::unique_ptr<MoveCandidate>> buildCandidates(

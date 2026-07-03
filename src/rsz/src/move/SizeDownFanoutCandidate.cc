@@ -3,6 +3,9 @@
 
 #include "SizeDownFanoutCandidate.hh"
 
+#include <utility>
+#include <vector>
+
 #include "MoveCandidate.hh"
 #include "OptimizerTypes.hh"
 #include "rsz/Resizer.hh"
@@ -15,15 +18,17 @@ namespace rsz {
 
 using utl::RSZ;
 
-SizeDownFanoutCandidate::SizeDownFanoutCandidate(Resizer& resizer,
-                                                 const Target& target,
-                                                 sta::Pin* drvr_pin,
-                                                 sta::Instance* inst,
-                                                 sta::Pin* load_pin,
-                                                 sta::LibertyCell* current_cell,
-                                                 sta::LibertyCell* replacement,
-                                                 sta::Slack slack,
-                                                 const float delta_improvement)
+SizeDownFanoutCandidate::SizeDownFanoutCandidate(
+    Resizer& resizer,
+    const Target& target,
+    sta::Pin* drvr_pin,
+    sta::Instance* inst,
+    sta::Pin* load_pin,
+    sta::LibertyCell* current_cell,
+    sta::LibertyCell* replacement,
+    sta::Slack slack,
+    const float delta_improvement,
+    std::vector<NeighborImpact> impacts)
     : MoveCandidate(resizer, target),
       drvr_pin_(drvr_pin),
       inst_(inst),
@@ -31,13 +36,16 @@ SizeDownFanoutCandidate::SizeDownFanoutCandidate(Resizer& resizer,
       current_cell_(current_cell),
       replacement_(replacement),
       slack_(slack),
-      delta_improvement_(delta_improvement)
+      delta_improvement_(delta_improvement),
+      impacts_(std::move(impacts))
 {
 }
 
 Estimate SizeDownFanoutCandidate::estimate()
 {
-  return acceptByImprovement(delta_improvement_);
+  // Gain = driver relief; the soft veto guards the shrunk gate's own path
+  // (its stage delay grows) against its slack budget.
+  return applyFeasibility(acceptByImprovement(delta_improvement_), impacts_);
 }
 
 MoveResult SizeDownFanoutCandidate::apply()
