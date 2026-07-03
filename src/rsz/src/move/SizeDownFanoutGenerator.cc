@@ -495,8 +495,11 @@ float computeDriverDelayDelta(const SizeDownFanoutContext& ctx,
                               const SizeDownFanoutLoadContext& load_ctx,
                               sta::LibertyCell* swappable)
 {
-  return -ctx.drvr_port->driveResistance()
-         * (load_ctx.input_cap - candidateInputCap(load_ctx, swappable));
+  // Driver's delay change from the load-cap delta (negative => driver faster,
+  // since size-down lowers the load's input cap).  Shared lumped-RC primitive.
+  return MoveGenerator::driverDelayDelta(
+      ctx.drvr_port->driveResistance(),
+      candidateInputCap(load_ctx, swappable) - load_ctx.input_cap);
 }
 
 float computeWorstDelayChange(const SizeDownFanoutContext& ctx,
@@ -664,6 +667,14 @@ std::unique_ptr<MoveCandidate> buildCandidate(const SizeDownFanoutContext& ctx,
     return nullptr;
   }
 
+  // Arrival improvement to the critical path = the driver relief from the cap
+  // removed off its net (positive removed-cap delta -> positive improvement),
+  // consistent with clone/splitLoad.  The load gate's own path stays within
+  // budget by construction (selectReplacementCell's feasibility screen).
+  const float delta_improvement = MoveGenerator::driverDelayDelta(
+      ctx.drvr_port->driveResistance(),
+      load_ctx.input_cap - candidateInputCap(load_ctx, replacement));
+
   return std::make_unique<SizeDownFanoutCandidate>(ctx.resizer,
                                                    ctx.target,
                                                    ctx.drvr_pin,
@@ -671,7 +682,8 @@ std::unique_ptr<MoveCandidate> buildCandidate(const SizeDownFanoutContext& ctx,
                                                    load_ctx.load_pin,
                                                    load_ctx.load_cell,
                                                    replacement,
-                                                   load_ctx.load_slack);
+                                                   load_ctx.load_slack,
+                                                   delta_improvement);
 }
 
 std::vector<std::unique_ptr<MoveCandidate>> buildCandidates(

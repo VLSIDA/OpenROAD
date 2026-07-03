@@ -31,9 +31,15 @@ class SizeDownFanoutCandidate : public MoveCandidate
                           sta::Pin* load_pin,
                           sta::LibertyCell* current_cell,
                           sta::LibertyCell* replacement,
-                          sta::Slack slack);
+                          sta::Slack slack,
+                          float delta_improvement);
 
   // === MoveCandidate API ====================================================
+  // Shrinking a non-critical fanout load removes input cap from the critical
+  // driver's net; the generator predicts the resulting driver-delay relief and
+  // funnels it through the shared accept rule (feasibility -- the load gate's
+  // own budget/cap/slew -- is already screened in the generator).
+  Estimate estimate() override;
   MoveResult apply() override;
   MoveType type() const override { return MoveType::kSizeDownFanout; }
 
@@ -45,6 +51,7 @@ class SizeDownFanoutCandidate : public MoveCandidate
   sta::LibertyCell* current_cell_{nullptr};
   sta::LibertyCell* replacement_{nullptr};
   sta::Slack slack_{0.0};
+  float delta_improvement_{0.0f};
 };
 
 }  // namespace rsz

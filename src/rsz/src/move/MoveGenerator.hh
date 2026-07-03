@@ -96,22 +96,6 @@ class MoveGenerator
       const Target& target)
       = 0;
 
- protected:
-  // === Target-view requirements ============================================
-
-  // Since kPathDriver is the most common, set it as the default required view.
-  // If a derived MoveGenerator requires other views, override this.
-  virtual TargetViewMask requiredViews() const { return kPathDriverView; }
-
-  // === Shared Liberty-cell ordering helpers ================================
-  const sta::LibertyPort* findScenePort(const sta::LibertyCell* cell,
-                                        const std::string& port_name,
-                                        int lib_ap) const;
-  bool strongerCellLess(const sta::LibertyCell* lhs,
-                        const sta::LibertyCell* rhs,
-                        const std::string& drvr_port_name,
-                        int lib_ap) const;
-
   // === Shared incremental-delay helpers ====================================
   // Lumped-RC delay change of a driver (with the given drive_resistance) when
   // the load pin it drives changes from old_port to new_port:
@@ -129,6 +113,23 @@ class MoveGenerator
   // = the driver's delay change.  Passing the removed load cap as a positive
   // delta_cap therefore gives the arrival improvement from relieving that load.
   static float driverDelayDelta(float drive_resistance, float delta_cap);
+
+ protected:
+  // === Target-view requirements ============================================
+
+  // Since kPathDriver is the most common, set it as the default required view.
+  // If a derived MoveGenerator requires other views, override this.
+  virtual TargetViewMask requiredViews() const { return kPathDriverView; }
+
+  // === Shared Liberty-cell ordering helpers ================================
+  const sta::LibertyPort* findScenePort(const sta::LibertyCell* cell,
+                                        const std::string& port_name,
+                                        int lib_ap) const;
+  bool strongerCellLess(const sta::LibertyCell* lhs,
+                        const sta::LibertyCell* rhs,
+                        const std::string& drvr_port_name,
+                        int lib_ap) const;
+
   // Drive resistance of the cell driving the net at driver_path (0 if none).
   float driveResistanceAt(const sta::Path* driver_path) const;
 

@@ -22,15 +22,22 @@ SizeDownFanoutCandidate::SizeDownFanoutCandidate(Resizer& resizer,
                                                  sta::Pin* load_pin,
                                                  sta::LibertyCell* current_cell,
                                                  sta::LibertyCell* replacement,
-                                                 sta::Slack slack)
+                                                 sta::Slack slack,
+                                                 const float delta_improvement)
     : MoveCandidate(resizer, target),
       drvr_pin_(drvr_pin),
       inst_(inst),
       load_pin_(load_pin),
       current_cell_(current_cell),
       replacement_(replacement),
-      slack_(slack)
+      slack_(slack),
+      delta_improvement_(delta_improvement)
 {
+}
+
+Estimate SizeDownFanoutCandidate::estimate()
+{
+  return acceptByImprovement(delta_improvement_);
 }
 
 MoveResult SizeDownFanoutCandidate::apply()

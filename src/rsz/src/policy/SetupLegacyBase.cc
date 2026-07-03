@@ -197,9 +197,8 @@ void SetupLegacyBase::buildMainMoveSequence(const bool log_sequence)
     pushMoveIfEnabled(!config_.skip_vt_swap && hasVtSwapCells(),
                       MoveType::kVtSwap);
     move_sequence_.push_back(MoveType::kSizeUp);
-    if (!config_.skip_size_down_fanout) {
-      // Disabled by default for legacy parity.
-    }
+    pushMoveIfEnabled(!config_.skip_size_down_fanout,
+                      MoveType::kSizeDownFanout);
     pushMoveIfEnabled(!config_.skip_pin_swap, MoveType::kSwapPins);
     pushMoveIfEnabled(!config_.skip_buffering, MoveType::kBuffer);
     pushMoveIfEnabled(!config_.skip_gate_cloning, MoveType::kClone);
