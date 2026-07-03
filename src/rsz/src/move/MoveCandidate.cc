@@ -47,15 +47,21 @@ Estimate MoveCandidate::acceptByImprovement(const float delta_improvement) const
 
 bool MoveCandidate::neighborFeasibilityEnabled()
 {
-  static const bool enabled = std::getenv("RSZ_MOVE_FEASIBILITY") != nullptr;
+  // On by default; set RSZ_MOVE_FEASIBILITY=0 to disable.
+  static const bool enabled = []() {
+    const char* env = std::getenv("RSZ_MOVE_FEASIBILITY");
+    return env == nullptr || std::atoi(env) != 0;
+  }();
   return enabled;
 }
 
 float MoveCandidate::feasibilityRatio()
 {
+  // Default is the validated operating point (see the eval note in the shared
+  // feasibility commit); override with RSZ_FEAS_RATIO.
   static const float ratio = []() {
     const char* env = std::getenv("RSZ_FEAS_RATIO");
-    return env != nullptr ? static_cast<float>(std::atof(env)) : 1.0f;
+    return env != nullptr ? static_cast<float>(std::atof(env)) : 0.3f;
   }();
   return ratio;
 }

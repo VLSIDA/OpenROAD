@@ -93,10 +93,10 @@ class MoveCandidate
   //   max(0, delay_delta - max(0, slack_before)).
   // 10% means we newly violated by a tenth of what we gained (fine); 100% means
   // we gave back the whole gain (worthless).  A move is rejected when the ratio
-  // exceeds RSZ_FEAS_RATIO.  A ratio is used precisely so no absolute,
-  // per-design/tech threshold needs tuning.  Opt-in via RSZ_MOVE_FEASIBILITY.
-  // slack_before is snapshotted in the generator, so estimate() does pure
-  // arithmetic -- no live STA -- keeping it snapshot-pure and MT-safe.
+  // exceeds RSZ_FEAS_RATIO (default 0.3).  A ratio is used precisely so no
+  // absolute, per-design/tech threshold needs tuning.  On by default; disable
+  // with RSZ_MOVE_FEASIBILITY=0.  slack_before is snapshotted in the generator,
+  // so estimate() does pure arithmetic -- no live STA -- snapshot-pure/MT-safe.
   static bool neighborFeasibilityEnabled();
   static float feasibilityRatio();
   // Turn `estimate` infeasible when the feasibility gate is on and the neighbor
