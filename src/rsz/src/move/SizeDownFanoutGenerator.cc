@@ -90,6 +90,9 @@ bool resolveDriverContext(SizeDownFanoutContext& ctx)
     return false;
   }
 
+  if (ctx.target.endpoint_path == nullptr) {
+    return false;
+  }
   ctx.drvr_port = ctx.resizer.network()->libertyPort(ctx.drvr_pin);
   ctx.scene = ctx.target.endpoint_path->scene(ctx.resizer.sta());
   ctx.min_max = ctx.target.endpoint_path->minMax(ctx.resizer.sta());
@@ -177,17 +180,25 @@ bool resolveLoadContext(const SizeDownFanoutContext& ctx,
 
   load_ctx.load_slack = load_slack;
   load_ctx.lib_ap = ctx.scene->libertyIndex(ctx.min_max);
-  load_ctx.input_cap = static_cast<const sta::LibertyPort*>(load_ctx.load_port)
-                           ->scenePort(load_ctx.lib_ap)
-                           ->capacitance();
+  const sta::LibertyPort* scene_load_port
+      = static_cast<const sta::LibertyPort*>(load_ctx.load_port)
+            ->scenePort(load_ctx.lib_ap);
+  if (scene_load_port == nullptr) {
+    return false;  // load port not characterized on this corner
+  }
+  load_ctx.input_cap = scene_load_port->capacitance();
   return true;
 }
 
 sta::ArcDelay getWorstIntrinsicDelay(const sta::LibertyPort* input_port)
 {
   sta::ArcDelay max_intrinsic = -sta::INF;
-  sta::TimingArcSetSeq arc_sets
-      = input_port->libertyCell()->timingArcSets(input_port, nullptr);
+  const sta::LibertyCell* cell
+      = input_port != nullptr ? input_port->libertyCell() : nullptr;
+  if (cell == nullptr) {
+    return sta::ArcDelay(0.0f);
+  }
+  sta::TimingArcSetSeq arc_sets = cell->timingArcSets(input_port, nullptr);
   for (const sta::TimingArcSet* arc_set : arc_sets) {
     for (const sta::TimingArc* arc : arc_set->arcs()) {
       const sta::ArcDelay intrinsic = arc->intrinsicDelay();
@@ -267,11 +278,14 @@ float computeElmoreSlewFactor(const SizeDownFanoutContext& ctx,
                               sta::LibertyPort* output_port,
                               const float output_load_cap)
 {
-  const sta::Slew slew
-      = ctx.resizer.sta()->slew(ctx.resizer.graph()->pinLoadVertex(output_pin),
-                                sta::RiseFallBoth::riseFall(),
-                                ctx.resizer.sta()->scenes(),
-                                ctx.resizer.maxAnalysisMode());
+  sta::Vertex* load_vertex = ctx.resizer.graph()->pinLoadVertex(output_pin);
+  if (load_vertex == nullptr || output_port == nullptr) {
+    return 0.0f;
+  }
+  const sta::Slew slew = ctx.resizer.sta()->slew(load_vertex,
+                                                 sta::RiseFallBoth::riseFall(),
+                                                 ctx.resizer.sta()->scenes(),
+                                                 ctx.resizer.maxAnalysisMode());
   const float output_res = output_port->driveResistance();
   if (output_res <= 0.0f || output_load_cap <= 0.0f) {
     return 0.0f;
@@ -321,23 +335,26 @@ sta::LibertyCellSeq rankSwappableCells(
             : ctx.resizer.getSwappableCells(load_ctx.load_cell);
 
   if (swappable_cells.size() > 1) {
-    sort(&swappable_cells,
-         [&load_ctx, load_port_name](const sta::LibertyCell* cell1,
-                                     const sta::LibertyCell* cell2) {
-           const sta::LibertyPort* port1
-               = static_cast<const sta::LibertyPort*>(
-                     cell1->findLibertyPort(load_port_name))
-                     ->scenePort(load_ctx.lib_ap);
-           const sta::LibertyPort* port2
-               = static_cast<const sta::LibertyPort*>(
-                     cell2->findLibertyPort(load_port_name))
-                     ->scenePort(load_ctx.lib_ap);
-           const float cap1 = port1->capacitance();
-           const float cap2 = port2->capacitance();
-           const sta::ArcDelay intrinsic1 = getWorstIntrinsicDelay(port1);
-           const sta::ArcDelay intrinsic2 = getWorstIntrinsicDelay(port2);
-           return std::tie(cap1, intrinsic2) < std::tie(cap2, intrinsic1);
-         });
+    sort(
+        &swappable_cells,
+        [&load_ctx, load_port_name](const sta::LibertyCell* cell1,
+                                    const sta::LibertyCell* cell2) {
+          const sta::LibertyPort* lib1 = cell1->findLibertyPort(load_port_name);
+          const sta::LibertyPort* lib2 = cell2->findLibertyPort(load_port_name);
+          const sta::LibertyPort* port1
+              = lib1 != nullptr ? lib1->scenePort(load_ctx.lib_ap) : nullptr;
+          const sta::LibertyPort* port2
+              = lib2 != nullptr ? lib2->scenePort(load_ctx.lib_ap) : nullptr;
+          // Cells missing this port can't be a valid downsize; order them last.
+          if (port1 == nullptr || port2 == nullptr) {
+            return port1 != nullptr;
+          }
+          const float cap1 = port1->capacitance();
+          const float cap2 = port2->capacitance();
+          const sta::ArcDelay intrinsic1 = getWorstIntrinsicDelay(port1);
+          const sta::ArcDelay intrinsic2 = getWorstIntrinsicDelay(port2);
+          return std::tie(cap1, intrinsic2) < std::tie(cap2, intrinsic1);
+        });
   }
 
   return swappable_cells;
@@ -376,26 +393,34 @@ SizeDownFanoutOutputProfile buildOutputProfile(
     const SizeDownFanoutLoadContext& load_ctx)
 {
   SizeDownFanoutOutputProfile profile;
-  profile.output_pins = getOutputPins(ctx, load_ctx.load_inst);
-  profile.output_caps.reserve(profile.output_pins.size());
-  profile.output_slew_factors.reserve(profile.output_pins.size());
-  profile.output_delays.reserve(profile.output_pins.size());
-  profile.output_port_names.reserve(profile.output_pins.size());
+  const std::vector<const sta::Pin*> all_output_pins
+      = getOutputPins(ctx, load_ctx.load_inst);
+  profile.output_pins.reserve(all_output_pins.size());
+  profile.output_caps.reserve(all_output_pins.size());
+  profile.output_slew_factors.reserve(all_output_pins.size());
+  profile.output_delays.reserve(all_output_pins.size());
+  profile.output_port_names.reserve(all_output_pins.size());
 
-  for (const sta::Pin* output_pin : profile.output_pins) {
+  for (const sta::Pin* output_pin : all_output_pins) {
     sta::LibertyPort* output_port
         = ctx.resizer.network()->libertyPort(output_pin);
+    sta::Vertex* load_vertex = ctx.resizer.graph()->pinLoadVertex(output_pin);
+    // Skip outputs we can't model; keeps every profile vector index-aligned.
+    if (output_port == nullptr || load_vertex == nullptr) {
+      continue;
+    }
+    profile.output_pins.push_back(output_pin);
     profile.output_port_names.push_back(output_port->name());
 
     const float output_load_cap = ctx.resizer.sta()->graphDelayCalc()->loadCap(
         output_pin, ctx.scene, ctx.min_max);
     profile.output_caps.push_back(output_load_cap);
 
-    const float output_slew = ctx.resizer.sta()->slew(
-        ctx.resizer.graph()->pinLoadVertex(output_pin),
-        sta::RiseFallBoth::riseFall(),
-        ctx.resizer.sta()->scenes(),
-        ctx.resizer.maxAnalysisMode());
+    const float output_slew
+        = ctx.resizer.sta()->slew(load_vertex,
+                                  sta::RiseFallBoth::riseFall(),
+                                  ctx.resizer.sta()->scenes(),
+                                  ctx.resizer.maxAnalysisMode());
     profile.output_slew_factors.push_back(
         computeElmoreSlewFactor(ctx, output_pin, output_port, output_load_cap));
 
@@ -456,10 +481,13 @@ sta::Slack computeDelayBudget(const SizeDownFanoutContext& ctx,
 float candidateInputCap(const SizeDownFanoutLoadContext& load_ctx,
                         sta::LibertyCell* cell)
 {
-  return static_cast<const sta::LibertyPort*>(
-             cell->findLibertyPort(load_ctx.load_port->name()))
-      ->scenePort(load_ctx.lib_ap)
-      ->capacitance();
+  const sta::LibertyPort* port
+      = cell->findLibertyPort(load_ctx.load_port->name());
+  const sta::LibertyPort* scene_port
+      = port != nullptr ? port->scenePort(load_ctx.lib_ap) : nullptr;
+  // A swappable cell missing/uncharacterized on this port cannot be a valid
+  // downsize; report worst cap so isWorseCapOrArea never selects it.
+  return scene_port != nullptr ? scene_port->capacitance() : sta::INF;
 }
 
 bool isWorseCapOrArea(const SizeDownFanoutLoadContext& load_ctx,
@@ -478,6 +506,12 @@ bool violatesOutputLimits(const SizeDownFanoutContext& ctx,
   for (size_t i = 0; i < profile.output_pins.size(); ++i) {
     sta::LibertyPort* output_port
         = swappable->findLibertyPort(profile.output_port_names[i]);
+    // A swappable lacking one of the load's output ports is not a legal
+    // replacement; treat as violating so it is skipped (and so the later delay
+    // checks never dereference a null port).
+    if (output_port == nullptr) {
+      return true;
+    }
     if (checkMaxCapViolation(
             ctx, profile.output_pins[i], output_port, profile.output_caps[i])
         || checkMaxSlewViolation(ctx,
@@ -514,6 +548,9 @@ float computeWorstDelayChange(const SizeDownFanoutContext& ctx,
        ++output_index) {
     sta::LibertyPort* output_port
         = swappable->findLibertyPort(profile.output_port_names[output_index]);
+    if (output_port == nullptr) {
+      continue;
+    }
     const float new_load_delay = ctx.resizer.gateDelay(
         output_port, profile.output_caps[output_index], ctx.scene, ctx.min_max);
     const float delay_change
@@ -537,8 +574,13 @@ bool fitsDelayBudget(const SizeDownFanoutContext& ctx,
       = computeWorstDelayChange(ctx, load_ctx, profile, swappable);
   sta::LibertyPort* first_output_port
       = swappable->findLibertyPort(profile.output_port_names[0]);
-  const float first_new_load_delay = ctx.resizer.gateDelay(
-      first_output_port, profile.output_caps[0], ctx.scene, ctx.min_max);
+  const float first_new_load_delay
+      = first_output_port != nullptr
+            ? static_cast<float>(ctx.resizer.gateDelay(first_output_port,
+                                                       profile.output_caps[0],
+                                                       ctx.scene,
+                                                       ctx.min_max))
+            : 0.0f;
 
   debugPrint(
       ctx.resizer.logger(),
@@ -651,6 +693,9 @@ std::unique_ptr<MoveCandidate> buildCandidate(const SizeDownFanoutContext& ctx,
   const sta::LibertyCellSeq swappable_cells = rankSwappableCells(ctx, load_ctx);
   logSwappableCells(ctx, load_ctx, swappable_cells);
   const SizeDownFanoutOutputProfile profile = buildOutputProfile(ctx, load_ctx);
+  if (profile.output_pins.empty()) {
+    return nullptr;  // no modelable output: selection/scoring index [0]
+  }
   sta::LibertyCell* replacement
       = selectReplacementCell(ctx, load_ctx, swappable_cells, profile);
   if (replacement == nullptr) {
