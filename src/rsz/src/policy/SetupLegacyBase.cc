@@ -610,11 +610,15 @@ bool SetupLegacyBase::tryCandidateSequence(
   for (auto& candidate : candidates) {
     const Estimate estimate = candidate->estimate();
     if (!estimate.legal) {
+      committer_.recordEstimateReject(generator.type(),
+                                      estimate.feasibility_vetoed);
       continue;
     }
 
     committer_.trackMoveAttempt(target.driver_pin, generator.type());
     const MoveResult result = committer_.commit(*candidate);
+    committer_.recordCommitOutcome(
+        generator.type(), result.accepted, estimate.score);
     if (!result.accepted) {
       continue;
     }

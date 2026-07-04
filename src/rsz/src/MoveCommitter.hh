@@ -5,6 +5,7 @@
 
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <stack>
 #include <string>
@@ -125,6 +126,18 @@ class MoveCommitter
   void acceptPendingMoves();
   void rejectPendingMoves();
 
+  // === Per-move-type funnel statistics =====================================
+  // Record the outcome of one candidate evaluation for move-effectiveness and
+  // soft-veto reporting.  recordEstimateReject: estimate() returned illegal
+  // (vetoed == true when the neighbor soft veto flipped it, else the
+  // improvement guardband).  recordCommitOutcome: estimate() was legal so the
+  // move was applied; accepted == false means the journal rolled it back
+  // (actual timing regressed); score is the predicted improvement of an
+  // accepted move.
+  void recordEstimateReject(MoveType type, bool vetoed);
+  void recordCommitOutcome(MoveType type, bool accepted, float score);
+  void printMoveFunnel(const char* title) const;
+
   int pendingMoves(MoveType type) const;
   int committedMoves(MoveType type) const;
   int summaryCommittedMoves(MoveType type) const;
@@ -166,6 +179,21 @@ class MoveCommitter
   std::array<int, kTypeCount> pending_by_type_{};
   std::array<int, kTypeCount> committed_by_type_{};
   std::array<int, kTypeCount> summary_carried_by_type_{};
+
+  // Candidate-evaluation funnel per move type (see recordEstimateReject /
+  // recordCommitOutcome).  evaluated == veto_reject + improve_reject +
+  // committed; committed == rolled_back + accepted.
+  struct MoveFunnelStat
+  {
+    int64_t evaluated{0};
+    int64_t veto_reject{0};
+    int64_t improve_reject{0};
+    int64_t committed{0};
+    int64_t rolled_back{0};
+    int64_t accepted{0};
+    double gain_sum{0.0};  // summed predicted score of accepted moves
+  };
+  std::array<MoveFunnelStat, kTypeCount> funnel_by_type_{};
   std::array<std::unordered_multiset<sta::Instance*>, kTypeCount>
       pending_instances_by_type_{};
   std::array<std::unordered_set<sta::Instance*>, kTypeCount>

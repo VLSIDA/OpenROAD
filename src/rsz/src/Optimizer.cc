@@ -208,6 +208,10 @@ bool Optimizer::run()
     last_policy = std::move(policy);
   }
 
+  // Per-move-type candidate funnel (accept/reject/veto/rollback +
+  // effectiveness).
+  committer_.printMoveFunnel("Move funnel (per type):");
+
   // Final report
   return last_policy->finalizeAndReport(setup_context.initial_design_area);
 }

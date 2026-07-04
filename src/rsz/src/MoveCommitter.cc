@@ -7,6 +7,7 @@
 #include <array>
 #include <cassert>
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <stack>
 #include <string>
@@ -631,6 +632,83 @@ void MoveCommitter::rejectPendingMoves()
 
   rejectTrackedMoves();
   logCommittedTotals();
+}
+
+void MoveCommitter::recordEstimateReject(const MoveType type, const bool vetoed)
+{
+  MoveFunnelStat& s = funnel_by_type_[typeIndex(type)];
+  s.evaluated++;
+  if (vetoed) {
+    s.veto_reject++;
+  } else {
+    s.improve_reject++;
+  }
+}
+
+void MoveCommitter::recordCommitOutcome(const MoveType type,
+                                        const bool accepted,
+                                        const float score)
+{
+  MoveFunnelStat& s = funnel_by_type_[typeIndex(type)];
+  s.evaluated++;
+  s.committed++;
+  if (accepted) {
+    s.accepted++;
+    s.gain_sum += score;
+  } else {
+    s.rolled_back++;
+  }
+}
+
+void MoveCommitter::printMoveFunnel(const char* title) const
+{
+  utl::Logger* logger = resizer_.logger();
+  int64_t total_eval = 0;
+  for (const MoveFunnelStat& s : funnel_by_type_) {
+    total_eval += s.evaluated;
+  }
+  if (total_eval == 0) {
+    return;
+  }
+  logger->info(RSZ, 3220, "{}", title);
+  logger->info(RSZ,
+               3221,
+               "{:>16} {:>9} {:>7} {:>6} {:>8} {:>7} {:>7} {:>7} {:>6} {:>11}",
+               "move",
+               "eval",
+               "veto",
+               "veto%",
+               "imprRej",
+               "commit",
+               "rollbk",
+               "accept",
+               "acc%",
+               "avgGain");
+  for (size_t i = 0; i < kTypeCount; ++i) {
+    const MoveFunnelStat& s = funnel_by_type_[i];
+    if (s.evaluated == 0) {
+      continue;
+    }
+    const double ev = static_cast<double>(s.evaluated);
+    const double veto_pct = 100.0 * s.veto_reject / ev;
+    const double acc_pct = 100.0 * s.accepted / ev;
+    const double avg_gain
+        = s.accepted > 0 ? s.gain_sum / static_cast<double>(s.accepted) : 0.0;
+    logger->info(RSZ,
+                 3222,
+                 "{:>16} {:>9} {:>7} {:>5.1f}% {:>8} {:>7} {:>7} {:>7} "
+                 "{:>5.1f}% {:>11.4g}",
+                 moveName(static_cast<MoveType>(i)),
+                 s.evaluated,
+                 s.veto_reject,
+                 veto_pct,
+                 s.improve_reject,
+                 s.committed,
+                 s.rolled_back,
+                 s.accepted,
+                 acc_pct,
+                 avg_gain);
+  }
 }
 
 int MoveCommitter::pendingMoves(const MoveType type) const

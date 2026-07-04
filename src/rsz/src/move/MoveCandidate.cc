@@ -93,6 +93,7 @@ Estimate MoveCandidate::applyFeasibility(
   }
   if (worst_given_up > gain * feasibilityRatio()) {
     estimate.legal = false;
+    estimate.feasibility_vetoed = true;
   }
   return estimate;
 }

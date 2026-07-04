@@ -332,6 +332,10 @@ struct Estimate
 {
   bool legal{false};
   float score{0.0f};
+  // Set when the candidate was legal by improvement but the neighbor
+  // feasibility soft veto (applyFeasibility) flipped it illegal.  Lets the
+  // policy attribute the rejection reason for move-funnel statistics.
+  bool feasibility_vetoed{false};
 };
 
 // One neighbor a move perturbs (an off-path fanin driver whose load grows, the
