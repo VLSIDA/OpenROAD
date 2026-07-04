@@ -16,6 +16,7 @@
 #include <limits>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <ranges>
 #include <set>
@@ -4979,6 +4980,102 @@ void Resizer::cloneClkInverter(sta::Instance* inv)
 }
 
 ////////////////////////////////////////////////////////////////
+
+void Resizer::recordMoveFeasibilityRatio(const MoveType type, const float ratio)
+{
+  const std::lock_guard<std::mutex> lock(move_feasibility_ratios_mutex_);
+  move_feasibility_ratios_[static_cast<size_t>(type)].push_back(ratio);
+}
+
+void Resizer::resetMoveFeasibilityRatios()
+{
+  const std::lock_guard<std::mutex> lock(move_feasibility_ratios_mutex_);
+  for (std::vector<float>& samples : move_feasibility_ratios_) {
+    samples.clear();
+  }
+}
+
+void Resizer::reportMoveFeasibilityRatios()
+{
+  const std::lock_guard<std::mutex> lock(move_feasibility_ratios_mutex_);
+  bool any = false;
+  for (const std::vector<float>& samples : move_feasibility_ratios_) {
+    if (!samples.empty()) {
+      any = true;
+      break;
+    }
+  }
+  if (!any) {
+    return;
+  }
+
+  // Candidate thresholds to report the "would-veto" fraction at, so a veto-off
+  // run tells you directly how aggressive each ratio is per move type/tech.
+  static constexpr std::array<float, 5> kThresholds
+      = {0.1f, 0.2f, 0.3f, 0.5f, 1.0f};
+
+  logger_->info(RSZ,
+                3223,
+                "Move feasibility-ratio distribution (harm/gain per evaluated "
+                "move; veto fires when ratio > threshold):");
+  logger_->info(
+      RSZ,
+      3224,
+      "{:>16} {:>7} {:>8} {:>8} {:>8} {:>8} {:>8} | veto%@ {:>5} {:>5} {:>5} "
+      "{:>5} {:>5}",
+      "move",
+      "count",
+      "p50",
+      "p75",
+      "p90",
+      "p95",
+      "max",
+      kThresholds[0],
+      kThresholds[1],
+      kThresholds[2],
+      kThresholds[3],
+      kThresholds[4]);
+
+  for (size_t i = 0; i < move_feasibility_ratios_.size(); ++i) {
+    std::vector<float>& samples = move_feasibility_ratios_[i];
+    if (samples.empty()) {
+      continue;
+    }
+    std::ranges::sort(samples);
+    const size_t n = samples.size();
+    const auto pct = [&](const double p) {
+      const size_t idx
+          = std::min(n - 1, static_cast<size_t>(p * static_cast<double>(n)));
+      return samples[idx];
+    };
+    std::array<double, kThresholds.size()> veto_frac = {};
+    for (size_t t = 0; t < kThresholds.size(); ++t) {
+      size_t over = 0;
+      for (const float r : samples) {
+        if (r > kThresholds[t]) {
+          ++over;
+        }
+      }
+      veto_frac[t] = 100.0 * static_cast<double>(over) / static_cast<double>(n);
+    }
+    logger_->info(RSZ,
+                  3225,
+                  "{:>16} {:>7} {:>8.3g} {:>8.3g} {:>8.3g} {:>8.3g} {:>8.3g} | "
+                  "       {:>4.0f}% {:>4.0f}% {:>4.0f}% {:>4.0f}% {:>4.0f}%",
+                  moveName(static_cast<MoveType>(i)),
+                  n,
+                  pct(0.50),
+                  pct(0.75),
+                  pct(0.90),
+                  pct(0.95),
+                  samples.back(),
+                  veto_frac[0],
+                  veto_frac[1],
+                  veto_frac[2],
+                  veto_frac[3],
+                  veto_frac[4]);
+  }
+}
 
 bool Resizer::repairSetup(double setup_margin,
                           double repair_tns_end_percent,

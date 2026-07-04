@@ -10,6 +10,7 @@
 #include <functional>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <set>
 #include <string>
@@ -364,6 +365,19 @@ class Resizer : public sta::dbStaState, public sta::dbNetworkObserver
   // Rebuffer one net (for testing).
   // resizerPreamble() required.
   void rebufferNet(const sta::Pin* drvr_pin);
+
+  // Neighbor-feasibility ratio statistics.  Each evaluated neighbor-aware move
+  // (and rebuffering) records the harm/gain ratio it exhibits via
+  // recordMoveFeasibilityRatio -- even when the soft veto is disabled -- so a
+  // veto-off run captures the ratio distribution over the moves the baseline
+  // actually makes.  reportMoveFeasibilityRatios prints per-move-type
+  // percentiles and the fraction that each candidate threshold would veto (the
+  // data used to pick/tune the ratio per technology);
+  // resetMoveFeasibilityRatios clears the samples at the start of an optimizer
+  // run.
+  void recordMoveFeasibilityRatio(MoveType type, float ratio);
+  void resetMoveFeasibilityRatios();
+  void reportMoveFeasibilityRatios();
 
   ////////////////////////////////////////////////////////////////
 
@@ -930,6 +944,13 @@ class Resizer : public sta::dbStaState, public sta::dbNetworkObserver
   sta::VertexSet findFanouts(sta::VertexSet& reg_outs);
   bool isRegOutput(sta::Vertex* vertex);
   ////////////////////////////////////////////////////////////////
+
+  // Neighbor-feasibility harm/gain ratio samples per move type, collected
+  // across one optimizer run for tuning statistics (see
+  // recordMoveFeasibilityRatio).
+  std::array<std::vector<float>, static_cast<size_t>(MoveType::kCount)>
+      move_feasibility_ratios_;
+  std::mutex move_feasibility_ratios_mutex_;
 
   // Components
   std::unique_ptr<RecoverPower> recover_power_;

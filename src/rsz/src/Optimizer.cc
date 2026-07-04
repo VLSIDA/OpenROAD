@@ -167,6 +167,7 @@ bool Optimizer::run()
   // Common initialize
   resizer_.runRepairSetupPreamble();
   committer_.init();
+  resizer_.resetMoveFeasibilityRatios();
 
   // Keep incremental parasitics enabled across the full optimizer run so every
   // policy sees the same ECO invalidation/update behavior.
@@ -209,8 +210,9 @@ bool Optimizer::run()
   }
 
   // Per-move-type candidate funnel (accept/reject/veto/rollback +
-  // effectiveness).
+  // effectiveness) and the neighbor-feasibility harm/gain ratio distribution.
   committer_.printMoveFunnel("Move funnel (per type):");
+  resizer_.reportMoveFeasibilityRatios();
 
   // Final report
   return last_policy->finalizeAndReport(setup_context.initial_design_area);

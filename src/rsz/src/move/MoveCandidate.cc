@@ -70,7 +70,7 @@ Estimate MoveCandidate::applyFeasibility(
     Estimate estimate,
     const std::vector<NeighborImpact>& impacts) const
 {
-  if (!estimate.legal || !neighborFeasibilityEnabled() || impacts.empty()) {
+  if (!estimate.legal || impacts.empty()) {
     return estimate;
   }
   // Scale-free soft veto: reject when the WORST single neighbor is pushed too
@@ -91,7 +91,14 @@ Estimate MoveCandidate::applyFeasibility(
     const float negative_harm = std::max(0.0f, impact.delay_delta - absorbed);
     worst_given_up = std::max(worst_given_up, negative_harm);
   }
-  if (worst_given_up > gain * feasibilityRatio()) {
+  // The harm/gain ratio this candidate exhibits.  Always record it (even when
+  // the veto is disabled) so a veto-off run captures the distribution of ratios
+  // over the moves the baseline actually makes -- the data used to pick/tune
+  // the threshold per technology.
+  const float ratio = worst_given_up / gain;
+  estimate.feasibility_ratio = ratio;
+  resizer_.recordMoveFeasibilityRatio(type(), ratio);
+  if (neighborFeasibilityEnabled() && ratio > feasibilityRatio()) {
     estimate.legal = false;
     estimate.feasibility_vetoed = true;
   }
