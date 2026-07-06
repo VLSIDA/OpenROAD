@@ -58,34 +58,6 @@ using BnetSeq = BufferedNetSeq;
 using BnetPtr = BufferedNetPtr;
 using BnetMetrics = BufferedNet::Metrics;
 
-namespace {
-
-// Neighbor-feasibility knobs, mirrored from MoveCandidate so the
-// buffer/rebuffer fanout veto shares the same controls as the other moves:
-// RSZ_MOVE_FEASIBILITY disables it, RSZ_FEAS_RATIO is the harm/gain threshold
-// (default 0.3). Duplicated (rather than shared) to keep the Rebuffer engine
-// decoupled from the move framework; unify via Resizer if/when the ratio
-// becomes run-scoped.
-bool neighborFeasibilityEnabled()
-{
-  static const bool enabled = []() {
-    const char* env = std::getenv("RSZ_MOVE_FEASIBILITY");
-    return env == nullptr || std::atoi(env) != 0;
-  }();
-  return enabled;
-}
-
-float feasibilityRatio()
-{
-  static const float ratio = []() {
-    const char* env = std::getenv("RSZ_FEAS_RATIO");
-    return env != nullptr ? static_cast<float>(std::atof(env)) : 0.3f;
-  }();
-  return ratio;
-}
-
-}  // namespace
-
 Rebuffer::Rebuffer(Resizer* resizer) : resizer_(resizer)
 {
 }
@@ -2422,9 +2394,8 @@ bool Rebuffer::rebufferHarmsFanouts(const BnetPtr& bnet,
   // it would veto the very repairs we want.  Buffering also relieves the
   // driver, an improvement (driver_gain) shared by every fanout, so the net
   // extra delay a positive-slack fanout suffers is its branch buffer delay
-  // minus that shared gain.  Same negative-harm/gain rule as the other moves:
-  // veto when the worst such fanout is pushed more than a ratio of the driver
-  // gain into violation.
+  // minus that shared gain.  Same negative-harm rule as the other moves: only
+  // the part that drives a positive-slack fanout below zero is "given up".
   double worst_given_up = 0.0;
   for (const auto& [slack_before, branch_buf_delay] : leaves) {
     if (slack_before <= 0.0) {
@@ -2434,12 +2405,19 @@ bool Rebuffer::rebufferHarmsFanouts(const BnetPtr& bnet,
     const double negative_harm = std::max(0.0, net_added_delay - slack_before);
     worst_given_up = std::max(worst_given_up, negative_harm);
   }
-  // Record the harm/gain ratio for tuning statistics (even when the veto is
-  // disabled, so a veto-off run captures the distribution over baseline moves).
-  const double ratio = worst_given_up / gain;
-  resizer_->recordMoveFeasibilityRatio(MoveType::kBuffer,
-                                       static_cast<float>(ratio));
-  return ratio > feasibilityRatio();
+  // Record the raw (gain, harm) pair for tuning statistics (even when the
+  // veto is disabled, so a veto-off run captures the joint distribution over
+  // baseline moves).  Accept metric: net = gain - lambda * worst_harm; veto
+  // when net <= 0 (a difference, not a harm/gain ratio, so a tiny driver gain
+  // cannot blow the metric up).
+  resizer_->recordMoveFeasibility(MoveType::kBuffer,
+                                  static_cast<float>(gain),
+                                  static_cast<float>(worst_given_up));
+  return worst_given_up > 0.0
+         && gain
+                    - resizer_->feasibilityLambda(MoveType::kBuffer)
+                          * worst_given_up
+                <= 0.0;
 }
 
 int Rebuffer::rebufferPin(const sta::Pin* drvr_pin)
@@ -2544,7 +2522,7 @@ int Rebuffer::rebufferPin(const sta::Pin* drvr_pin)
     const FixedDelay driver_gain
         = slackAtDriverPin(bnet) - pre_buffer_drvr_slack;
     const bool harms_fanouts = rebufferHarmsFanouts(bnet, driver_gain);
-    if (neighborFeasibilityEnabled() && harms_fanouts) {
+    if (resizer_->moveFeasibilityVetoActive() && harms_fanouts) {
       debugPrint(logger_,
                  RSZ,
                  "rebuffer",

@@ -86,21 +86,29 @@ class MoveCandidate
   // speeds the critical pin but sinks the other pin's net).
   //
   // Each move's generator declares the neighbors it perturbs as NeighborImpact
-  // {slack_before, delay_delta}.  Feasibility is a SCALE-FREE ratio: the
-  // NEGATIVE slack the worst neighbor is pushed into, over the gain.  Only
-  // slack driven below zero counts -- a neighbor with slack to spare absorbs
-  // the delay and is not harmed -- so the "given up" per neighbor is
+  // {slack_before, delay_delta}.  Only slack driven below zero counts -- a
+  // neighbor with slack to spare absorbs the delay and is not harmed -- so the
+  // "given up" per neighbor is
   //   max(0, delay_delta - max(0, slack_before)).
-  // 10% means we newly violated by a tenth of what we gained (fine); 100% means
-  // we gave back the whole gain (worthless).  A move is rejected when the ratio
-  // exceeds RSZ_FEAS_RATIO (default 0.3).  A ratio is used precisely so no
-  // absolute, per-design/tech threshold needs tuning.  On by default; disable
-  // with RSZ_MOVE_FEASIBILITY=0.  slack_before is snapshotted in the generator,
-  // so estimate() does pure arithmetic -- no live STA -- snapshot-pure/MT-safe.
-  static bool neighborFeasibilityEnabled();
-  static float feasibilityRatio();
-  // Turn `estimate` infeasible when the feasibility gate is on and the neighbor
-  // slack sacrificed exceeds feasibilityRatio() of the gain.  No-op when off.
+  // The accept metric is the NET slack delta over the worst neighbor:
+  //   net = gain - lambda * worst_given_up;   veto when net <= 0.
+  // A difference of same-unit quantities, NOT a harm/gain ratio: a ratio blows
+  // up when the gain is tiny (tiny gain + moderate harm scored the same as a
+  // genuinely destructive move), whereas net stays well-behaved and the tech's
+  // time scale cancels in the comparison.  lambda (default 1 = "never give up
+  // more than you gain") is the only knob, dimensionless; see
+  // Resizer::feasibilityLambda.
+  //
+  // The veto only ACTS in endgame phases (Resizer::moveFeasibilityVetoActive):
+  // during breadth repair, collateral harm is temporary -- the repair loop
+  // legitimately worsens neighbors and the damaged-endpoint requeue re-repairs
+  // them -- so a per-move veto there blocks the closure-driving moves (the
+  // hard-veto lesson).  Sample pairs are recorded in every phase regardless.
+  // slack_before is snapshotted in the generator, so estimate() does pure
+  // arithmetic -- no live STA -- snapshot-pure/MT-safe.
+  //
+  // Turn `estimate` infeasible when the veto is active and the net slack delta
+  // gain - lambda*worst_harm is <= 0 (gave up at least as much as gained).
   Estimate applyFeasibility(Estimate estimate,
                             const std::vector<NeighborImpact>& impacts) const;
 

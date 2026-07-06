@@ -45,27 +45,6 @@ Estimate MoveCandidate::acceptByImprovement(const float delta_improvement) const
           .score = delta_improvement};
 }
 
-bool MoveCandidate::neighborFeasibilityEnabled()
-{
-  // On by default; set RSZ_MOVE_FEASIBILITY=0 to disable.
-  static const bool enabled = []() {
-    const char* env = std::getenv("RSZ_MOVE_FEASIBILITY");
-    return env == nullptr || std::atoi(env) != 0;
-  }();
-  return enabled;
-}
-
-float MoveCandidate::feasibilityRatio()
-{
-  // Default is the validated operating point (see the eval note in the shared
-  // feasibility commit); override with RSZ_FEAS_RATIO.
-  static const float ratio = []() {
-    const char* env = std::getenv("RSZ_FEAS_RATIO");
-    return env != nullptr ? static_cast<float>(std::atof(env)) : 0.3f;
-  }();
-  return ratio;
-}
-
 Estimate MoveCandidate::applyFeasibility(
     Estimate estimate,
     const std::vector<NeighborImpact>& impacts) const
@@ -91,14 +70,17 @@ Estimate MoveCandidate::applyFeasibility(
     const float negative_harm = std::max(0.0f, impact.delay_delta - absorbed);
     worst_given_up = std::max(worst_given_up, negative_harm);
   }
-  // The harm/gain ratio this candidate exhibits.  Always record it (even when
-  // the veto is disabled) so a veto-off run captures the distribution of ratios
-  // over the moves the baseline actually makes -- the data used to pick/tune
-  // the threshold per technology.
-  const float ratio = worst_given_up / gain;
-  estimate.feasibility_ratio = ratio;
-  resizer_.recordMoveFeasibilityRatio(type(), ratio);
-  if (neighborFeasibilityEnabled() && ratio > feasibilityRatio()) {
+  // Accept metric: NET slack delta, net = gain - lambda * worst_harm; veto
+  // when net <= 0.  A difference (not a harm/gain ratio) so a tiny gain cannot
+  // blow the metric up -- tiny gain + real harm is net-negative (correctly
+  // rejected), tiny gain + tiny harm is ~neutral (kept).  Record the raw
+  // (gain, harm) pair even when the veto is disabled so a veto-off run
+  // captures the joint distribution for offline metric tuning.
+  resizer_.recordMoveFeasibility(type(), gain, worst_given_up);
+  const float net = gain - resizer_.feasibilityLambda(type()) * worst_given_up;
+  estimate.feasibility_net = net;
+  if (resizer_.moveFeasibilityVetoActive() && worst_given_up > 0.0f
+      && net <= 0.0f) {
     estimate.legal = false;
     estimate.feasibility_vetoed = true;
   }

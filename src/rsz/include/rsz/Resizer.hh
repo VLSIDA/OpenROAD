@@ -366,18 +366,41 @@ class Resizer : public sta::dbStaState, public sta::dbNetworkObserver
   // resizerPreamble() required.
   void rebufferNet(const sta::Pin* drvr_pin);
 
-  // Neighbor-feasibility ratio statistics.  Each evaluated neighbor-aware move
-  // (and rebuffering) records the harm/gain ratio it exhibits via
-  // recordMoveFeasibilityRatio -- even when the soft veto is disabled -- so a
-  // veto-off run captures the ratio distribution over the moves the baseline
-  // actually makes.  reportMoveFeasibilityRatios prints per-move-type
-  // percentiles and the fraction that each candidate threshold would veto (the
-  // data used to pick/tune the ratio per technology);
-  // resetMoveFeasibilityRatios clears the samples at the start of an optimizer
-  // run.
-  void recordMoveFeasibilityRatio(MoveType type, float ratio);
-  void resetMoveFeasibilityRatios();
-  void reportMoveFeasibilityRatios();
+  // Neighbor-feasibility statistics.  Each evaluated neighbor-aware move (and
+  // rebuffering) records the raw (gain, worst neighbor harm) pair it exhibits
+  // via recordMoveFeasibility -- even when the soft veto is disabled -- so a
+  // veto-off run captures the joint distribution over the moves the baseline
+  // actually makes, and any candidate accept metric can be evaluated offline
+  // from one profiling pass.  reportMoveFeasibility prints per-move-type net
+  // (gain - harm) percentiles and the fraction each candidate lambda would
+  // veto; resetMoveFeasibility clears samples at the optimizer-run start.
+  void recordMoveFeasibility(MoveType type, float gain, float harm);
+  void resetMoveFeasibility();
+  void reportMoveFeasibility();
+
+  // Neighbor-feasibility soft-veto strictness for one move type.  The accept
+  // metric is the NET slack delta: net = gain - lambda * worst_harm; the move
+  // is vetoed when net <= 0.  lambda is dimensionless and scale-free in a way
+  // the old harm/gain ratio was not: a tiny gain cannot blow the metric up,
+  // it just makes net ~ -lambda*harm (correctly rejected when harm is real,
+  // ~neutral when harm is also tiny).  lambda = 1 (default) means "never give
+  // up more than you gain"; >1 is more conservative, <1 more permissive.
+  // Global override: RSZ_FEAS_LAMBDA; per-move: RSZ_FEAS_LAMBDAS (comma-
+  // separated move-token=lambda pairs, e.g. "sizeup=1,buffer=2").
+  float feasibilityLambda(MoveType type);
+
+  // The veto is gated to the ENDGAME: during breadth repair, collateral
+  // neighbor harm is temporary -- the damaged-endpoint requeue pass re-repairs
+  // it -- so a per-move veto there blocks exactly the closure-driving moves
+  // (the hard-veto lesson).  The veto only guards harm made where no later
+  // pass exists to fix it.  RSZ_MOVE_FEASIBILITY: 0 = never veto, 1/unset =
+  // endgame phases only (LAST_GASP, CRIT_VT_SWAP), 2 = always (for A/B).
+  // Sample recording is unaffected -- pairs are collected in every phase.
+  void setMoveFeasibilityLatePhase(const bool late)
+  {
+    move_feasibility_late_phase_ = late;
+  }
+  bool moveFeasibilityVetoActive() const;
 
   ////////////////////////////////////////////////////////////////
 
@@ -945,12 +968,23 @@ class Resizer : public sta::dbStaState, public sta::dbNetworkObserver
   bool isRegOutput(sta::Vertex* vertex);
   ////////////////////////////////////////////////////////////////
 
-  // Neighbor-feasibility harm/gain ratio samples per move type, collected
-  // across one optimizer run for tuning statistics (see
-  // recordMoveFeasibilityRatio).
-  std::array<std::vector<float>, static_cast<size_t>(MoveType::kCount)>
-      move_feasibility_ratios_;
-  std::mutex move_feasibility_ratios_mutex_;
+  // Neighbor-feasibility (gain, worst harm) sample pairs per move type,
+  // collected across one optimizer run for tuning statistics (see
+  // recordMoveFeasibility).
+  std::array<std::vector<std::pair<float, float>>,
+             static_cast<size_t>(MoveType::kCount)>
+      move_feasibility_samples_;
+  std::mutex move_feasibility_mutex_;
+
+  // Per-move-type soft-veto lambdas, parsed once from RSZ_FEAS_LAMBDA(S).
+  // A negative entry means "no per-move override; use the default".
+  std::once_flag feasibility_lambda_init_;
+  std::array<float, static_cast<size_t>(MoveType::kCount)>
+      feasibility_lambda_by_type_{};
+  float feasibility_lambda_default_ = 1.0f;
+  // True while an endgame phase (LAST_GASP, CRIT_VT_SWAP) runs; see
+  // moveFeasibilityVetoActive.
+  bool move_feasibility_late_phase_ = false;
 
   // Components
   std::unique_ptr<RecoverPower> recover_power_;

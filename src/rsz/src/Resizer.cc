@@ -12,6 +12,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <fstream>
 #include <iterator>
 #include <limits>
 #include <map>
@@ -4981,25 +4982,80 @@ void Resizer::cloneClkInverter(sta::Instance* inv)
 
 ////////////////////////////////////////////////////////////////
 
-void Resizer::recordMoveFeasibilityRatio(const MoveType type, const float ratio)
+float Resizer::feasibilityLambda(const MoveType type)
 {
-  const std::lock_guard<std::mutex> lock(move_feasibility_ratios_mutex_);
-  move_feasibility_ratios_[static_cast<size_t>(type)].push_back(ratio);
+  std::call_once(feasibility_lambda_init_, [this]() {
+    // Global default: RSZ_FEAS_LAMBDA (falls back to 1.0 = "never give up
+    // more than you gain").
+    if (const char* env = std::getenv("RSZ_FEAS_LAMBDA")) {
+      feasibility_lambda_default_ = static_cast<float>(std::atof(env));
+    }
+    // No per-move override until RSZ_FEAS_LAMBDAS provides one.
+    feasibility_lambda_by_type_.fill(-1.0f);
+    // Per-move overrides: "token=lambda" pairs, e.g. "sizeup=1,buffer=2".
+    if (const char* env = std::getenv("RSZ_FEAS_LAMBDAS")) {
+      std::stringstream ss(env);
+      std::string item;
+      while (std::getline(ss, item, ',')) {
+        const size_t eq = item.find('=');
+        if (eq == std::string::npos) {
+          continue;
+        }
+        const std::string token = item.substr(0, eq);
+        const float lambda
+            = static_cast<float>(std::atof(item.c_str() + eq + 1));
+        try {
+          feasibility_lambda_by_type_[static_cast<size_t>(
+              moveTypeFromString(token))]
+              = lambda;
+        } catch (const std::invalid_argument&) {
+          logger_->warn(
+              RSZ, 3226, "RSZ_FEAS_LAMBDAS: unknown move token '{}'", token);
+        }
+      }
+    }
+  });
+  const float per_move = feasibility_lambda_by_type_[static_cast<size_t>(type)];
+  return per_move >= 0.0f ? per_move : feasibility_lambda_default_;
 }
 
-void Resizer::resetMoveFeasibilityRatios()
+bool Resizer::moveFeasibilityVetoActive() const
 {
-  const std::lock_guard<std::mutex> lock(move_feasibility_ratios_mutex_);
-  for (std::vector<float>& samples : move_feasibility_ratios_) {
+  // RSZ_MOVE_FEASIBILITY: 0 = never, 1/unset = endgame phases only, 2 = always.
+  static const int mode = []() {
+    const char* env = std::getenv("RSZ_MOVE_FEASIBILITY");
+    return env != nullptr ? std::atoi(env) : 1;
+  }();
+  if (mode == 0) {
+    return false;
+  }
+  if (mode >= 2) {
+    return true;
+  }
+  return move_feasibility_late_phase_;
+}
+
+void Resizer::recordMoveFeasibility(const MoveType type,
+                                    const float gain,
+                                    const float harm)
+{
+  const std::lock_guard<std::mutex> lock(move_feasibility_mutex_);
+  move_feasibility_samples_[static_cast<size_t>(type)].emplace_back(gain, harm);
+}
+
+void Resizer::resetMoveFeasibility()
+{
+  const std::lock_guard<std::mutex> lock(move_feasibility_mutex_);
+  for (auto& samples : move_feasibility_samples_) {
     samples.clear();
   }
 }
 
-void Resizer::reportMoveFeasibilityRatios()
+void Resizer::reportMoveFeasibility()
 {
-  const std::lock_guard<std::mutex> lock(move_feasibility_ratios_mutex_);
+  const std::lock_guard<std::mutex> lock(move_feasibility_mutex_);
   bool any = false;
-  for (const std::vector<float>& samples : move_feasibility_ratios_) {
+  for (const auto& samples : move_feasibility_samples_) {
     if (!samples.empty()) {
       any = true;
       break;
@@ -5009,71 +5065,88 @@ void Resizer::reportMoveFeasibilityRatios()
     return;
   }
 
-  // Candidate thresholds to report the "would-veto" fraction at, so a veto-off
-  // run tells you directly how aggressive each ratio is per move type/tech.
-  static constexpr std::array<float, 5> kThresholds
-      = {0.1f, 0.2f, 0.3f, 0.5f, 1.0f};
+  // Optional raw-sample dump: append "moveName gain harm" lines so several
+  // designs (each its own file) can be pooled offline, and any candidate
+  // accept metric (net, ratio, WNS-floor, ...) evaluated against the same
+  // population without rerunning.
+  if (const char* dump_path = std::getenv("RSZ_FEAS_DUMP")) {
+    std::ofstream dump(dump_path, std::ios::app);
+    if (dump.is_open()) {
+      for (size_t i = 0; i < move_feasibility_samples_.size(); ++i) {
+        const char* name = moveName(static_cast<MoveType>(i));
+        for (const auto& [gain, harm] : move_feasibility_samples_[i]) {
+          dump << name << ' ' << gain << ' ' << harm << '\n';
+        }
+      }
+    }
+  }
+
+  // Candidate lambdas to report the "would-veto" fraction at (veto when
+  // gain - lambda*harm <= 0).  lambda 3.33 ~= the old ratio-0.3 strictness.
+  static constexpr std::array<float, 4> kLambdas = {0.5f, 1.0f, 2.0f, 3.33f};
 
   logger_->info(RSZ,
                 3223,
-                "Move feasibility-ratio distribution (harm/gain per evaluated "
-                "move; veto fires when ratio > threshold):");
+                "Move feasibility net (gain - harm, seconds) distribution; "
+                "veto fires when gain - lambda*harm <= 0:");
   logger_->info(
       RSZ,
       3224,
-      "{:>16} {:>7} {:>8} {:>8} {:>8} {:>8} {:>8} | veto%@ {:>5} {:>5} {:>5} "
-      "{:>5} {:>5}",
+      "{:>16} {:>7} {:>9} {:>9} {:>9} {:>9} | veto%@lambda {:>5} {:>5} {:>5} "
+      "{:>5}",
       "move",
       "count",
+      "p05",
+      "p25",
       "p50",
-      "p75",
-      "p90",
-      "p95",
-      "max",
-      kThresholds[0],
-      kThresholds[1],
-      kThresholds[2],
-      kThresholds[3],
-      kThresholds[4]);
+      "min",
+      kLambdas[0],
+      kLambdas[1],
+      kLambdas[2],
+      kLambdas[3]);
 
-  for (size_t i = 0; i < move_feasibility_ratios_.size(); ++i) {
-    std::vector<float>& samples = move_feasibility_ratios_[i];
+  for (size_t i = 0; i < move_feasibility_samples_.size(); ++i) {
+    const auto& samples = move_feasibility_samples_[i];
     if (samples.empty()) {
       continue;
     }
-    std::ranges::sort(samples);
     const size_t n = samples.size();
+    std::vector<float> nets;
+    nets.reserve(n);
+    for (const auto& [gain, harm] : samples) {
+      nets.push_back(gain - harm);
+    }
+    std::ranges::sort(nets);
     const auto pct = [&](const double p) {
       const size_t idx
           = std::min(n - 1, static_cast<size_t>(p * static_cast<double>(n)));
-      return samples[idx];
+      return nets[idx];
     };
-    std::array<double, kThresholds.size()> veto_frac = {};
-    for (size_t t = 0; t < kThresholds.size(); ++t) {
-      size_t over = 0;
-      for (const float r : samples) {
-        if (r > kThresholds[t]) {
-          ++over;
+    std::array<double, kLambdas.size()> veto_frac = {};
+    for (size_t t = 0; t < kLambdas.size(); ++t) {
+      size_t vetoed = 0;
+      for (const auto& [gain, harm] : samples) {
+        if (gain - kLambdas[t] * harm <= 0.0f) {
+          ++vetoed;
         }
       }
-      veto_frac[t] = 100.0 * static_cast<double>(over) / static_cast<double>(n);
+      veto_frac[t]
+          = 100.0 * static_cast<double>(vetoed) / static_cast<double>(n);
     }
     logger_->info(RSZ,
                   3225,
-                  "{:>16} {:>7} {:>8.3g} {:>8.3g} {:>8.3g} {:>8.3g} {:>8.3g} | "
-                  "       {:>4.0f}% {:>4.0f}% {:>4.0f}% {:>4.0f}% {:>4.0f}%",
+                  "{:>16} {:>7} {:>9.3g} {:>9.3g} {:>9.3g} {:>9.3g} | "
+                  "            {:>4.0f}% {:>4.0f}% {:>4.0f}% {:>4.0f}%",
                   moveName(static_cast<MoveType>(i)),
                   n,
+                  pct(0.05),
+                  pct(0.25),
                   pct(0.50),
-                  pct(0.75),
-                  pct(0.90),
-                  pct(0.95),
-                  samples.back(),
+                  nets.front(),
                   veto_frac[0],
                   veto_frac[1],
                   veto_frac[2],
-                  veto_frac[3],
-                  veto_frac[4]);
+                  veto_frac[3]);
   }
 }
 
