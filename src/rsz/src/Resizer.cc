@@ -5024,7 +5024,10 @@ bool Resizer::moveFeasibilityVetoActive() const
   // RSZ_MOVE_FEASIBILITY: 0 = never, 1/unset = endgame phases only, 2 = always.
   static const int mode = []() {
     const char* env = std::getenv("RSZ_MOVE_FEASIBILITY");
-    return env != nullptr ? std::atoi(env) : 1;
+    // EVAL (DO NOT MERGE as-is): default 0 (veto never) instead of 1 (endgame
+    // only) to isolate the damage-requeue's contribution in a CI A/B; restore
+    // the endgame default after the comparison.
+    return env != nullptr ? std::atoi(env) : 0;
   }();
   if (mode == 0) {
     return false;
