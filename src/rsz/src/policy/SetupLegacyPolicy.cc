@@ -5,6 +5,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
+#include <unordered_map>
 #include <utility>
 
 #include "MoveCommitter.hh"
@@ -47,6 +49,7 @@ void SetupLegacyPolicy::iterate()
   ViolatingEnds violating_ends;
   if (initializeMainRepair(main_state, violating_ends)) {
     runMainRepairLoop(violating_ends, main_state);
+    requeueDamagedEndpoints(violating_ends, main_state);
   }
   committer_.printTrackerPhaseSummary(
       phaseSummaryTitle(), phaseEndpointProfilerTitle(), true);
@@ -391,6 +394,65 @@ void SetupLegacyPolicy::runMainRepairLoop(const ViolatingEnds& violating_ends,
                main_state.phase_marker,
                delayAsString(final_wns, kDelayDigits, sta_),
                delayAsString(final_tns, 1, sta_));
+  }
+}
+
+void SetupLegacyPolicy::requeueDamagedEndpoints(
+    const ViolatingEnds& original_ends,
+    MainRepairState& main_state)
+{
+  // On by default; RSZ_DAMAGE_REQUEUE=0 disables (A/B + true-stock baseline).
+  static const bool enabled = []() {
+    const char* env = std::getenv("RSZ_DAMAGE_REQUEUE");
+    return env == nullptr || std::atoi(env) != 0;
+  }();
+  if (!enabled) {
+    return;
+  }
+  std::unordered_map<sta::Vertex*, sta::Slack> snapshot;
+  snapshot.reserve(original_ends.size());
+  for (const auto& [vertex, slack] : original_ends) {
+    snapshot[vertex] = slack;
+  }
+
+  for (int round = 0; round < kMaxDamageRequeueRounds; ++round) {
+    // Endpoints violating now that are new or worse than the snapshot were
+    // damaged by moves made during the pass (collateral neighbor harm the
+    // per-endpoint journal cannot see -- it re-checks only the target).
+    const ViolatingEnds current
+        = collectViolatingEndpoints(config_.setup_slack_margin);
+    ViolatingEnds damaged;  // keeps the collector's worst-first order
+    for (const auto& [vertex, slack] : current) {
+      const auto it = snapshot.find(vertex);
+      if (it == snapshot.end() || sta::fuzzyLess(slack, it->second)) {
+        damaged.emplace_back(vertex, slack);
+      }
+    }
+    if (damaged.empty()) {
+      break;
+    }
+    debugPrint(logger_,
+               RSZ,
+               "repair_setup",
+               1,
+               "{}{} Phase: requeue round {}: {} endpoints damaged during "
+               "the pass",
+               phaseName(),
+               main_state.phase_marker,
+               round + 1,
+               damaged.size());
+
+    // Extend the endpoint budget for the extra work and clear the TNS-plateau
+    // exit so the requeue round is not skipped by a prior termination.
+    main_state.max_end_count += static_cast<int>(damaged.size());
+    main_state.prev_termination = false;
+    main_state.two_cons_terminations = false;
+
+    // Only damage newly created by THIS round should trigger another one.
+    for (const auto& [vertex, slack] : current) {
+      snapshot[vertex] = slack;
+    }
+    runMainRepairLoop(damaged, main_state);
   }
 }
 

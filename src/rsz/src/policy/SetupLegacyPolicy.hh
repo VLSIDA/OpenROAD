@@ -41,6 +41,16 @@ class SetupLegacyPolicy : public SetupLegacyBase
                             ViolatingEnds& violating_ends);
   void runMainRepairLoop(const ViolatingEnds& violating_ends,
                          MainRepairState& main_state);
+  // The main worklist is a snapshot taken at phase start, so endpoints that a
+  // move damages DURING the pass (collateral harm on off-path neighbors) are
+  // invisible for the rest of the phase.  After the main loop, re-collect and
+  // re-repair the endpoints that are newly violating or worse than the
+  // snapshot -- working WITH the loop's temporary-worsening behavior instead
+  // of vetoing it per move.  Bounded rounds so damage created while repairing
+  // damage cannot loop forever.
+  void requeueDamagedEndpoints(const ViolatingEnds& original_ends,
+                               MainRepairState& main_state);
+  static constexpr int kMaxDamageRequeueRounds = 2;
   virtual bool beginEndpointRepair(
       const std::pair<sta::Vertex*, sta::Slack>& end_original_slack,
       MainRepairState& main_state,
