@@ -168,7 +168,7 @@ bool Optimizer::run()
   resizer_.runRepairSetupPreamble();
   committer_.init();
   resizer_.resetMoveFeasibility();
-  resizer_.setMoveFeasibilityLatePhase(false);
+  resizer_.setMoveFeasibilitySpread(false);
 
   // Keep incremental parasitics enabled across the full optimizer run so every
   // policy sees the same ECO invalidation/update behavior.
@@ -199,11 +199,6 @@ bool Optimizer::run()
   setup_context.phase_pipeline_active = true;
   for (int i = 0; i < phase_count; ++i) {
     setup_context.phase_index = i;
-    // Neighbor-feasibility veto gating: active only in endgame phases, where
-    // no later pass exists to repair collateral neighbor harm (breadth phases
-    // rely on the damaged-endpoint requeue instead).
-    resizer_.setMoveFeasibilityLatePhase(phase_names[i] == "LAST_GASP"
-                                         || phase_names[i] == "CRIT_VT_SWAP");
     std::unique_ptr<OptimizationPolicy> policy
         = makePolicyForPhase(phase_names[i], setup_context);
     if (!policy->start()) {

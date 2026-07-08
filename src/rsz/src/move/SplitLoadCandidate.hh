@@ -37,14 +37,11 @@ class SplitLoadCandidate : public MoveCandidate
                      sta::LibertyCell* buffer_cell,
                      const odb::Point& drvr_loc,
                      std::unique_ptr<sta::PinSet> load_pins,
-                     float delta_improvement,
-                     std::vector<NeighborImpact> impacts = {});
+                     float delta_improvement);
   ~SplitLoadCandidate() override;
 
   // === MoveCandidate API ====================================================
-  // Shared accept rule: splitting relieves the critical driver's load (gain);
-  // the soft veto guards the moved (non-critical) loads, which now sit behind
-  // the inserted buffer and take its delay, against their slack.
+  // Shared accept rule: splitting relieves the critical driver's load (gain).
   Estimate estimate() override;
   MoveResult apply() override;
   MoveType type() const override { return MoveType::kSplitLoad; }
@@ -61,8 +58,6 @@ class SplitLoadCandidate : public MoveCandidate
   odb::Point drvr_loc_;
   std::unique_ptr<sta::PinSet> load_pins_;
   float delta_improvement_{0.0f};
-  // Moved loads' +buffer_delay vs their slack (soft-veto harm).
-  std::vector<NeighborImpact> impacts_;
 };
 
 }  // namespace rsz

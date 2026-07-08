@@ -27,15 +27,13 @@ SplitLoadCandidate::SplitLoadCandidate(Resizer& resizer,
                                        sta::LibertyCell* buffer_cell,
                                        const odb::Point& drvr_loc,
                                        std::unique_ptr<sta::PinSet> load_pins,
-                                       const float delta_improvement,
-                                       std::vector<NeighborImpact> impacts)
+                                       const float delta_improvement)
     : MoveCandidate(resizer, target),
       drvr_net_(drvr_net),
       buffer_cell_(buffer_cell),
       drvr_loc_(drvr_loc),
       load_pins_(std::move(load_pins)),
-      delta_improvement_(delta_improvement),
-      impacts_(std::move(impacts))
+      delta_improvement_(delta_improvement)
 {
 }
 
@@ -43,9 +41,7 @@ SplitLoadCandidate::~SplitLoadCandidate() = default;
 
 Estimate SplitLoadCandidate::estimate()
 {
-  // Gain = driver relief; the soft veto guards the moved loads (now behind the
-  // inserted buffer, taking its delay) against their slack.
-  return applyFeasibility(acceptByImprovement(delta_improvement_), impacts_);
+  return acceptByImprovement(delta_improvement_);
 }
 
 MoveResult SplitLoadCandidate::apply()

@@ -378,27 +378,30 @@ class Resizer : public sta::dbStaState, public sta::dbNetworkObserver
   void resetMoveFeasibility();
   void reportMoveFeasibility();
 
-  // Neighbor-feasibility soft-veto strictness for one move type.  The accept
-  // metric is the NET slack delta: net = gain - lambda * worst_harm; the move
-  // is vetoed when net <= 0.  lambda is dimensionless and scale-free in a way
-  // the old harm/gain ratio was not: a tiny gain cannot blow the metric up,
-  // it just makes net ~ -lambda*harm (correctly rejected when harm is real,
-  // ~neutral when harm is also tiny).  lambda = 1 (default) means "never give
-  // up more than you gain"; >1 is more conservative, <1 more permissive.
-  // Global override: RSZ_FEAS_LAMBDA; per-move: RSZ_FEAS_LAMBDAS (comma-
-  // separated move-token=lambda pairs, e.g. "sizeup=1,buffer=2").
-  float feasibilityLambda(MoveType type);
+  // Neighbor-feasibility soft-veto strictness.  The accept metric is the NET
+  // slack delta: net = gain - lambda * worst_harm; the move is vetoed when
+  // net <= 0.  lambda is dimensionless and scale-free in a way the old
+  // harm/gain ratio was not: a tiny gain cannot blow the metric up, it just
+  // makes net ~ -lambda*harm.  Default 0.25 = "egregious-only" cap (veto only
+  // when the worst neighbor gives up >= 4x the gain); >greater is stricter.
+  // Override with RSZ_FEAS_LAMBDA.
+  float feasibilityLambda();
 
-  // The veto is gated to the ENDGAME: during breadth repair, collateral
-  // neighbor harm is temporary -- the damaged-endpoint requeue pass re-repairs
-  // it -- so a per-move veto there blocks exactly the closure-driving moves
-  // (the hard-veto lesson).  The veto only guards harm made where no later
-  // pass exists to fix it.  RSZ_MOVE_FEASIBILITY: 0 = never veto, 1/unset =
-  // endgame phases only (LAST_GASP, CRIT_VT_SWAP), 2 = always (for A/B).
-  // Sample recording is unaffected -- pairs are collected in every phase.
-  void setMoveFeasibilityLatePhase(const bool late)
+  // The veto is SELF-CALIBRATED from the design's violation profile.  The
+  // right strictness is a function of violation topology: on a SPREAD profile
+  // (violations across many endpoints/cones) a move's collateral harm lands on
+  // genuinely distinct near-critical paths, so capping egregious moves pays;
+  // on a LONE-PATH profile (TNS ~= WNS) the "neighbors" are stages of the same
+  // story and any veto blocks the only repair avenue (no fixed lambda was
+  // uniform across designs).  The repair policy measures N_eff = TNS/WNS (the
+  // effective violating-endpoint count) at each phase start and enables the
+  // cap only for spread profiles (N_eff > RSZ_FEAS_NEFF, default 60).
+  // RSZ_MOVE_FEASIBILITY: 0 = never veto, 1/unset = profile-gated (default),
+  // 2 = always (for A/B).  Sample recording is unaffected -- pairs are
+  // collected in every phase.
+  void setMoveFeasibilitySpread(const bool spread)
   {
-    move_feasibility_late_phase_ = late;
+    move_feasibility_spread_ = spread;
   }
   bool moveFeasibilityVetoActive() const;
 
@@ -976,15 +979,15 @@ class Resizer : public sta::dbStaState, public sta::dbNetworkObserver
       move_feasibility_samples_;
   std::mutex move_feasibility_mutex_;
 
-  // Per-move-type soft-veto lambdas, parsed once from RSZ_FEAS_LAMBDA(S).
-  // A negative entry means "no per-move override; use the default".
+  // Soft-veto lambda, parsed once from RSZ_FEAS_LAMBDA.  Default 0.25 =
+  // "egregious-only" cap: veto only when the worst neighbor gives up >= 4x
+  // the gain.  Validated as the useful operating point when gated to spread
+  // profiles (stricter lambdas strangle closure moves).
   std::once_flag feasibility_lambda_init_;
-  std::array<float, static_cast<size_t>(MoveType::kCount)>
-      feasibility_lambda_by_type_{};
-  float feasibility_lambda_default_ = 1.0f;
-  // True while an endgame phase (LAST_GASP, CRIT_VT_SWAP) runs; see
-  // moveFeasibilityVetoActive.
-  bool move_feasibility_late_phase_ = false;
+  float feasibility_lambda_default_ = 0.25f;
+  // True while the current repair phase has a spread violation profile
+  // (N_eff = TNS/WNS > threshold); set by the policy at phase start.
+  bool move_feasibility_spread_ = false;
 
   // Components
   std::unique_ptr<RecoverPower> recover_power_;

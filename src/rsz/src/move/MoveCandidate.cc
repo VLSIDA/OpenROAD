@@ -77,8 +77,7 @@ Estimate MoveCandidate::applyFeasibility(
   // (gain, harm) pair even when the veto is disabled so a veto-off run
   // captures the joint distribution for offline metric tuning.
   resizer_.recordMoveFeasibility(type(), gain, worst_given_up);
-  const float net = gain - resizer_.feasibilityLambda(type()) * worst_given_up;
-  estimate.feasibility_net = net;
+  const float net = gain - resizer_.feasibilityLambda() * worst_given_up;
   if (resizer_.moveFeasibilityVetoActive() && worst_given_up > 0.0f
       && net <= 0.0f) {
     estimate.legal = false;

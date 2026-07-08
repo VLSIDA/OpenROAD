@@ -6,8 +6,11 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
+#include <functional>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
+#include <vector>
 
 #include "MoveCommitter.hh"
 #include "MoveGenerator.hh"
@@ -32,6 +35,18 @@ using utl::RSZ;
 
 namespace {
 static constexpr int kDelayDigits = 3;
+
+// Diagnostic mode for the feasibility profile gate (RSZ_FEAS_DEBUG=1): print
+// the N_eff trajectory at every refresh and the cone-overlap measurement at
+// phase start, to calibrate the gate features from real designs.
+bool feasDebug()
+{
+  static const bool dbg = []() {
+    const char* env = std::getenv("RSZ_FEAS_DEBUG");
+    return env != nullptr && std::atoi(env) != 0;
+  }();
+  return dbg;
+}
 
 }  // namespace
 
@@ -97,6 +112,71 @@ bool SetupLegacyPolicy::initializeMainRepair(MainRepairState& main_state,
   main_state.prev_tns = main_state.initial_tns;
   main_state.num_viols = violating_ends.size();
   main_state.fix_rate_threshold = inc_fix_rate_threshold_;
+
+  // Self-calibrate the neighbor-feasibility cap from this phase's violation
+  // profile (refreshed periodically during the phase; see
+  // refreshFeasibilityProfile).
+  refreshFeasibilityProfile(main_state);
+
+  if (feasDebug()) {
+    // Cone-overlap: fraction of violating endpoints whose worst path shares
+    // the single most common pin.  ~1 = one shared cone (aes-like: many
+    // endpoints, same logic -- collateral harm lands on the paths being
+    // repaired); low = independent cones (true spread).  Candidate feature #2
+    // for the profile gate; measured here for calibration.
+    constexpr size_t kMaxEndpointsScanned = 1000;
+    std::unordered_map<const sta::Pin*, int> pin_count;
+    size_t scanned = 0;
+    for (const auto& [vertex, slack] : violating_ends) {
+      if (++scanned > kMaxEndpointsScanned) {
+        break;
+      }
+      std::unordered_set<const sta::Pin*> seen;  // count once per endpoint
+      for (const sta::Path* p = sta_->vertexWorstSlackPath(vertex, max_);
+           p != nullptr;
+           p = p->prevPath()) {
+        if (p->isClock(sta_)) {
+          continue;  // the clock network is shared by construction
+        }
+        const sta::Pin* pin = p->pin(sta_);
+        if (pin != nullptr && seen.insert(pin).second) {
+          pin_count[pin]++;
+        }
+      }
+    }
+    // Robust cone-overlap: multiplicity of the K-th most-shared DATA pin over
+    // the endpoint count.  A shared cone has MANY high-multiplicity pins; an
+    // independent spread has only a few globals (reset/enable), which K skips.
+    constexpr size_t kTopK = 20;
+    std::vector<int> mults;
+    mults.reserve(pin_count.size());
+    for (const auto& [pin, count] : pin_count) {
+      mults.push_back(count);
+    }
+    std::ranges::sort(mults, std::greater<int>());
+    const int max_mult = mults.empty() ? 0 : mults.front();
+    const int kth_mult = mults.size() >= kTopK
+                             ? mults[kTopK - 1]
+                             : (mults.empty() ? 0 : mults.back());
+    const size_t n_scanned
+        = std::min(violating_ends.size(), kMaxEndpointsScanned);
+    logger_->info(
+        RSZ,
+        3227,
+        "{} phase feasibility profile: endpoints {} N_eff {:.1f} "
+        "cone_overlap {:.2f} (top{} data-pin mult {}, max {})",
+        phaseName(),
+        violating_ends.size(),
+        main_state.initial_tns
+            / std::min(static_cast<float>(violating_ends.front().second),
+                       -1e-12f),
+        n_scanned > 0
+            ? static_cast<float>(kth_mult) / static_cast<float>(n_scanned)
+            : 0.0f,
+        kTopK,
+        kth_mult,
+        max_mult);
+  }
 
   printProgress(main_state.opto_iteration, false, main_state.phase_marker);
 
@@ -173,6 +253,7 @@ void SetupLegacyPolicy::repairEndpoint(EndpointRepairState& endpoint_state,
     }
     if (main_state.opto_iteration % opto_small_interval_ == 0) {
       main_state.prev_termination = false;
+      refreshFeasibilityProfile(main_state);
     }
 
     // Exit early once the endpoint is clean or the move sequence stalls.
@@ -395,6 +476,57 @@ void SetupLegacyPolicy::runMainRepairLoop(const ViolatingEnds& violating_ends,
                delayAsString(final_wns, kDelayDigits, sta_),
                delayAsString(final_tns, 1, sta_));
   }
+}
+
+void SetupLegacyPolicy::refreshFeasibilityProfile(
+    const MainRepairState& main_state)
+{
+  // N_eff = TNS/WNS is the effective violating-endpoint count: ~1 = one lone
+  // deep path (a veto blocks the only repair avenue -- cap off); large =
+  // violations spread across many endpoints/cones (collateral harm lands on
+  // genuinely distinct paths -- cap egregious moves).
+  // Calibrated on gt2n/aes + sky130hd/jpeg (cap helps: N_eff 124/205) vs
+  // asap7/aes + sky130hd/aes (cap hurts: N_eff 15/35): threshold in the gap.
+  static const float on_threshold = []() {
+    const char* env = std::getenv("RSZ_FEAS_NEFF");
+    return env != nullptr ? static_cast<float>(std::atof(env)) : 60.0f;
+  }();
+  const float off_threshold = on_threshold / 2.0f;
+
+  sta::Slack wns;
+  sta::Vertex* worst_vertex;
+  sta_->worstSlack(max_, wns, worst_vertex);
+  const float n_eff
+      = wns < 0.0f ? sta_->totalNegativeSlack(max_) / static_cast<float>(wns)
+                   : 0.0f;
+  bool spread;
+  if (n_eff > on_threshold) {
+    spread = true;
+  } else if (n_eff < off_threshold) {
+    spread = false;
+  } else {
+    return;  // hysteresis band: keep the current state
+  }
+  resizer_.setMoveFeasibilitySpread(spread);
+  if (feasDebug()) {
+    logger_->info(RSZ,
+                  3228,
+                  "{} iter {} N_eff {:.1f} -> cap {}",
+                  phaseName(),
+                  main_state.opto_iteration,
+                  n_eff,
+                  spread ? "ON" : "off");
+  }
+  debugPrint(logger_,
+             RSZ,
+             "repair_setup",
+             2,
+             "{}{} Phase: N_eff = {:.1f} ({} profile; feasibility cap {})",
+             phaseName(),
+             main_state.phase_marker,
+             n_eff,
+             spread ? "spread" : "lone-path",
+             spread ? "on" : "off");
 }
 
 void SetupLegacyPolicy::requeueDamagedEndpoints(

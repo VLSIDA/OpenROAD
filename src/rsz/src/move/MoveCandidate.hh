@@ -99,11 +99,13 @@ class MoveCandidate
   // more than you gain") is the only knob, dimensionless; see
   // Resizer::feasibilityLambda.
   //
-  // The veto only ACTS in endgame phases (Resizer::moveFeasibilityVetoActive):
-  // during breadth repair, collateral harm is temporary -- the repair loop
-  // legitimately worsens neighbors and the damaged-endpoint requeue re-repairs
-  // them -- so a per-move veto there blocks the closure-driving moves (the
-  // hard-veto lesson).  Sample pairs are recorded in every phase regardless.
+  // The veto only ACTS while the phase's violation profile is SPREAD
+  // (Resizer::moveFeasibilityVetoActive; N_eff = TNS/WNS measured by the
+  // policy): with violations across many independent endpoints, collateral
+  // harm lands on genuinely distinct paths, so capping egregious moves pays.
+  // On a lone-deep-path profile any veto blocks the only repair avenue (the
+  // hard-veto lesson) -- there the damaged-endpoint requeue alone handles
+  // collateral harm.  Sample pairs are recorded in every phase regardless.
   // slack_before is snapshotted in the generator, so estimate() does pure
   // arithmetic -- no live STA -- snapshot-pure/MT-safe.
   //

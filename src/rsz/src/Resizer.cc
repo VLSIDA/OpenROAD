@@ -4982,60 +4982,33 @@ void Resizer::cloneClkInverter(sta::Instance* inv)
 
 ////////////////////////////////////////////////////////////////
 
-float Resizer::feasibilityLambda(const MoveType type)
+float Resizer::feasibilityLambda()
 {
   std::call_once(feasibility_lambda_init_, [this]() {
-    // Global default: RSZ_FEAS_LAMBDA (falls back to 1.0 = "never give up
-    // more than you gain").
     if (const char* env = std::getenv("RSZ_FEAS_LAMBDA")) {
       feasibility_lambda_default_ = static_cast<float>(std::atof(env));
     }
-    // No per-move override until RSZ_FEAS_LAMBDAS provides one.
-    feasibility_lambda_by_type_.fill(-1.0f);
-    // Per-move overrides: "token=lambda" pairs, e.g. "sizeup=1,buffer=2".
-    if (const char* env = std::getenv("RSZ_FEAS_LAMBDAS")) {
-      std::stringstream ss(env);
-      std::string item;
-      while (std::getline(ss, item, ',')) {
-        const size_t eq = item.find('=');
-        if (eq == std::string::npos) {
-          continue;
-        }
-        const std::string token = item.substr(0, eq);
-        const float lambda
-            = static_cast<float>(std::atof(item.c_str() + eq + 1));
-        try {
-          feasibility_lambda_by_type_[static_cast<size_t>(
-              moveTypeFromString(token))]
-              = lambda;
-        } catch (const std::invalid_argument&) {
-          logger_->warn(
-              RSZ, 3226, "RSZ_FEAS_LAMBDAS: unknown move token '{}'", token);
-        }
-      }
-    }
   });
-  const float per_move = feasibility_lambda_by_type_[static_cast<size_t>(type)];
-  return per_move >= 0.0f ? per_move : feasibility_lambda_default_;
+  return feasibility_lambda_default_;
 }
 
 bool Resizer::moveFeasibilityVetoActive() const
 {
-  // RSZ_MOVE_FEASIBILITY: 0 = never, 1/unset = endgame phases only, 2 = always.
+  // RSZ_MOVE_FEASIBILITY: 0 = never, 1/unset = profile-gated (active only
+  // while the phase's violation profile is spread; see
+  // setMoveFeasibilitySpread), 2 = always (for A/B).
   static const int mode = []() {
     const char* env = std::getenv("RSZ_MOVE_FEASIBILITY");
-    // EVAL (DO NOT MERGE as-is): default 0 (veto never) instead of 1 (endgame
-    // only) to isolate the damage-requeue's contribution in a CI A/B; restore
-    // the endgame default after the comparison.
-    return env != nullptr ? std::atoi(env) : 0;
+    return env != nullptr ? std::atoi(env) : 1;
   }();
-  if (mode == 0) {
-    return false;
+  switch (mode) {
+    case 0:
+      return false;
+    case 2:
+      return true;
+    default:
+      return move_feasibility_spread_;
   }
-  if (mode >= 2) {
-    return true;
-  }
-  return move_feasibility_late_phase_;
 }
 
 void Resizer::recordMoveFeasibility(const MoveType type,

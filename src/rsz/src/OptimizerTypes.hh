@@ -336,11 +336,6 @@ struct Estimate
   // feasibility soft veto (applyFeasibility) flipped it illegal.  Lets the
   // policy attribute the rejection reason for move-funnel statistics.
   bool feasibility_vetoed{false};
-  // The net slack delta the neighbor feasibility check computed for this
-  // candidate: gain - lambda * worst neighbor negative-slack harm.  The veto
-  // fires when this is <= 0 (gave up at least as much as gained).  0 when not
-  // applicable (no impacts / non-positive gain).
-  float feasibility_net{0.0f};
 };
 
 // One neighbor a move perturbs (an off-path fanin driver whose load grows, the

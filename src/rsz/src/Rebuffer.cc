@@ -2414,10 +2414,7 @@ bool Rebuffer::rebufferHarmsFanouts(const BnetPtr& bnet,
                                   static_cast<float>(gain),
                                   static_cast<float>(worst_given_up));
   return worst_given_up > 0.0
-         && gain
-                    - resizer_->feasibilityLambda(MoveType::kBuffer)
-                          * worst_given_up
-                <= 0.0;
+         && gain - resizer_->feasibilityLambda() * worst_given_up <= 0.0;
 }
 
 int Rebuffer::rebufferPin(const sta::Pin* drvr_pin)

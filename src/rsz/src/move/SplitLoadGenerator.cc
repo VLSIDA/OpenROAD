@@ -190,28 +190,6 @@ std::vector<std::unique_ptr<MoveCandidate>> SplitLoadGenerator::generate(
   const float delta_improvement
       = driverDelayDelta(driver_res, moved_cap - buffer_in_cap);
 
-  // Soft-veto harm: the moved (non-critical) loads now sit behind the inserted
-  // buffer and take its delay driving their combined cap; charge that against
-  // the worst slack among them (they are the high-slack half, so it usually
-  // absorbs the buffer delay).
-  const sta::Scene* scene = target.activeScene(resizer_);
-  const float buffer_delay
-      = scene != nullptr
-            ? resizer_.bufferDelay(buffer_cell, moved_cap, scene, min_max)
-            : 0.0f;
-  float worst_moved_slack = sta::INF;
-  for (const sta::Pin* load : *load_pins) {
-    sta::Vertex* v = resizer_.graph()->pinLoadVertex(load);
-    float load_slack = 0.0f;
-    if (cachedSlack(v, load_slack)) {
-      worst_moved_slack = std::min(worst_moved_slack, load_slack);
-    }
-  }
-  std::vector<NeighborImpact> impacts;
-  if (buffer_delay > 0.0f && worst_moved_slack < sta::INF) {
-    impacts.push_back({worst_moved_slack, buffer_delay});
-  }
-
   const odb::Point drvr_loc = resizer_.dbNetwork()->location(drvr_pin);
   candidates.push_back(
       std::make_unique<SplitLoadCandidate>(resizer_,
@@ -220,8 +198,7 @@ std::vector<std::unique_ptr<MoveCandidate>> SplitLoadGenerator::generate(
                                            buffer_cell,
                                            drvr_loc,
                                            std::move(load_pins),
-                                           delta_improvement,
-                                           std::move(impacts)));
+                                           delta_improvement));
   return candidates;
 }
 

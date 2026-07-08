@@ -51,6 +51,13 @@ class SetupLegacyPolicy : public SetupLegacyBase
   void requeueDamagedEndpoints(const ViolatingEnds& original_ends,
                                MainRepairState& main_state);
   static constexpr int kMaxDamageRequeueRounds = 2;
+  // Re-measure the violation profile (N_eff = TNS/WNS) and set the
+  // neighbor-feasibility cap accordingly.  Called at phase start and refreshed
+  // at every opto_small_interval_ checkpoint: a design can START spread (many
+  // shallow violations) and COLLAPSE to a lone deep path as repair proceeds --
+  // the cap must release when it does.  Hysteresis (on > threshold, off <
+  // threshold/2) prevents flapping near the boundary.
+  void refreshFeasibilityProfile(const MainRepairState& main_state);
   virtual bool beginEndpointRepair(
       const std::pair<sta::Vertex*, sta::Slack>& end_original_slack,
       MainRepairState& main_state,
