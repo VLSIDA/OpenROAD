@@ -97,6 +97,8 @@ or_integration_tests(
     repair_setup_gcd
     repair_setup_invalid_phase
     repair_setup_move_tracker_level1
+    repair_setup_neighbor_check
+    repair_setup_neighbor_check_veto
     repair_setup_pin_command
     repair_setup_reroute1
     repair_setup_reroute2

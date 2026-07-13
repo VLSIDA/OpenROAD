@@ -65,6 +65,10 @@ class Rebuffer : public sta::dbStaState
   std::tuple<sta::Delay, sta::Delay, sta::Slew> drvrPinTiming(
       const BufferedNetPtr& bnet);
   FixedDelay slackAtDriverPin(const BufferedNetPtr& bnet);
+  // -neighbor_check fanout feasibility veto: true when the chosen tree pushes
+  // a positive-slack fanout below zero by more than lambda times driver_gain
+  // (net of the shared driver relief).  See rebufferPin.
+  bool rebufferHarmsFanouts(const BufferedNetPtr& bnet, FixedDelay driver_gain);
   std::optional<FixedDelay> evaluateOption(const BufferedNetPtr& option,
                                            // Only used for debug print.
                                            int index);

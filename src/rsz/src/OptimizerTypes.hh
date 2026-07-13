@@ -401,8 +401,30 @@ struct OptimizerRunConfig
   bool skip_last_gasp{false};
   bool skip_vt_swap{false};
   bool skip_crit_vt_swap{false};
+  // Optional neighbor feasibility check (repair_timing -neighbor_check):
+  // suppress a candidate move when the extra delay it imposes on an off-path
+  // neighbor drives that neighbor's slack below zero by more than
+  // neighbor_check_lambda times the move's own predicted gain.  Off by
+  // default; when off, no neighbor data is collected and behavior is
+  // unchanged.
+  bool neighbor_check{false};
+  float neighbor_check_lambda{0.25};
   std::vector<MoveType> sequence;
   std::string phases;
+};
+
+// One neighbor a move perturbs (an off-path fanin driver whose load grows,
+// the other pin of a commutative-pin swap, a rebuffered fanout, ...),
+// captured as a snapshot so the accept decision needs no live STA.  Only the
+// NEGATIVE slack a move creates counts as harm: a neighbor with slack to
+// spare (slack_before >= delay_delta) absorbs the extra delay unharmed; the
+// part that drives its slack below zero,
+//   max(0, delay_delta - max(0, slack_before)),
+// is "given up" and is weighed against the move's predicted gain.
+struct NeighborImpact
+{
+  float slack_before{0.0f};  // neighbor's slack before the move (snapshot)
+  float delay_delta{0.0f};   // added delay this move imposes (>0 => slower)
 };
 
 // Policy-to-generator configuration channel for tunable knobs that do not

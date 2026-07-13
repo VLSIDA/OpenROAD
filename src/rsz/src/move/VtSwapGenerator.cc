@@ -15,6 +15,7 @@
 #include "rsz/Resizer.hh"
 #include "sta/LibertyClass.hh"
 #include "sta/Network.hh"
+#include "sta/Path.hh"
 #include "sta/NetworkClass.hh"
 
 namespace rsz {
@@ -44,6 +45,28 @@ std::vector<std::unique_ptr<MoveCandidate>> VtSwapGenerator::generate(
   sta::LibertyCell* best_cell = nullptr;
   if (!selectBestCell(target, drvr_pin, inst, curr_cell, best_cell)) {
     return candidates;
+  }
+
+  if (neighborCheckEnabled() && target.canBePathDriver()) {
+    // A VT swap can change input-pin capacitance.  The delta is typically
+    // small (same footprint, different threshold implant), but it is not
+    // zero and should not be ignored: on a near-critical fanin net even a
+    // small extra load can push the driver negative.  Veto when the worst
+    // off-path fanin gives up more slack than the move gains.
+    const sta::Path* input_path = target.inputPath(resizer_);
+    const sta::Pin* on_path_pin
+        = input_path != nullptr ? input_path->pin(resizer_.staState())
+                                : nullptr;
+    float gain = 0.0f;
+    if (estimatedSwapGain(target, best_cell, gain)
+        && neighborCheckVeto(gain,
+                             faninSlowdownImpacts(inst,
+                                                  curr_cell,
+                                                  best_cell,
+                                                  target.minMax(resizer_),
+                                                  on_path_pin))) {
+      return candidates;
+    }
   }
 
   candidates.push_back(std::make_unique<VtSwapCandidate>(

@@ -2336,6 +2336,75 @@ bool Rebuffer::hasTopLevelOutputPort(sta::Net* net)
   return false;
 }
 
+bool Rebuffer::rebufferHarmsFanouts(const BufferedNetPtr& bnet,
+                                    const FixedDelay driver_gain)
+{
+  const double gain = driver_gain.toSeconds();
+  if (gain <= 0.0) {
+    // No net driver gain to weigh harm against; a non-improving rebuffering
+    // is rejected by the endpoint repair loop anyway.  Do not veto here.
+    return false;
+  }
+
+  // Walk the chosen tree top-down, accumulating the buffer delay inserted on
+  // the path from the driver to each fanout leaf.  An unbalanced tree stacks
+  // more buffers on some branches than others, so this differs per leaf --
+  // the reason to check every fanout, not just the critical one.
+  std::vector<std::pair<double, double>> leaves;  // (slack_before, buf_delay)
+  visitTree(
+      [&](auto& recurse, int level, const BnetPtr& node, FixedDelay buf_delay)
+          -> int {
+        switch (node->type()) {
+          case BnetType::buffer:
+            recurse(node->ref(), buf_delay + node->delay());
+            break;
+          case BnetType::wire:
+          case BnetType::via:
+            recurse(node->ref(), buf_delay);
+            break;
+          case BnetType::junction:
+            recurse(node->ref(), buf_delay);
+            recurse(node->ref2(), buf_delay);
+            break;
+          case BnetType::load: {
+            sta::Vertex* vertex = graph_->pinLoadVertex(node->loadPin());
+            const double slack_before
+                = vertex != nullptr
+                      ? sta::delayAsFloat(
+                            sta_->slack(vertex, sta::MinMax::max()))
+                      : 0.0;
+            leaves.emplace_back(slack_before, buf_delay.toSeconds());
+            break;
+          }
+        }
+        return 0;
+      },
+      bnet,
+      FixedDelay::ZERO);
+
+  if (leaves.size() < 2) {
+    return false;  // single fanout: no other fanout to protect
+  }
+
+  // Weigh harm only against fanouts that HAD positive slack: a fanout already
+  // in violation is part of what this rebuffering repairs, not a harmed
+  // neighbor.  Buffering also relieves the driver, an improvement shared by
+  // every fanout, so the net extra delay a positive-slack fanout suffers is
+  // its branch buffer delay minus that shared gain.  Veto when the worst such
+  // fanout gives up more slack than lambda times the driver gain.
+  double worst_given_up = 0.0;
+  for (const auto& [slack_before, branch_buf_delay] : leaves) {
+    if (slack_before <= 0.0) {
+      continue;  // already violating: a repair target, not a harmed neighbor
+    }
+    const double net_added_delay = branch_buf_delay - gain;
+    const double negative_harm = std::max(0.0, net_added_delay - slack_before);
+    worst_given_up = std::max(worst_given_up, negative_harm);
+  }
+  return worst_given_up > 0.0
+         && gain - resizer_->neighborCheckLambda() * worst_given_up <= 0.0;
+}
+
 int Rebuffer::rebufferPin(const sta::Pin* drvr_pin)
 {
   if (network_->isTopLevelPort(drvr_pin)) {
@@ -2381,6 +2450,14 @@ int Rebuffer::rebufferPin(const sta::Pin* drvr_pin)
     sta_->findRequireds();
     annotateLoadSlacks(bnet, drvr);
 
+    // -neighbor_check: snapshot the driver's slack before buffering so the
+    // fanout feasibility veto below can weigh per-fanout harm against the
+    // driver gain (findRequireds() just ran, so this is a cache read).
+    const FixedDelay pre_buffer_drvr_slack
+        = resizer_->neighborCheckEnabled()
+              ? FixedDelay(sta_->slack(drvr, sta::MinMax::max()), resizer_)
+              : FixedDelay::ZERO;
+
     const bool allow_topology_rewrite
         = (estimate_parasitics_->getParasiticsSrc()
            == est::ParasiticsSrc::kPlacement);
@@ -2419,6 +2496,27 @@ int Rebuffer::rebufferPin(const sta::Pin* drvr_pin)
     if (!bnet) {
       logger_->error(RSZ, 2022, "failed area recovery");
       return 0;
+    }
+
+    // -neighbor_check: an unbalanced buffer tree can improve the driver (and
+    // the critical fanout) while pushing a non-critical fanout on a slower
+    // branch further into violation -- which the endpoint repair loop cannot
+    // see (it re-checks only the target endpoint).  Reject the whole
+    // rebuffering when the worst positive-slack fanout gives up more than
+    // lambda times the driver gain.
+    if (resizer_->neighborCheckEnabled()) {
+      const FixedDelay driver_gain
+          = slackAtDriverPin(bnet) - pre_buffer_drvr_slack;
+      if (rebufferHarmsFanouts(bnet, driver_gain)) {
+        debugPrint(logger_,
+                   RSZ,
+                   "rebuffer",
+                   2,
+                   "REJECT rebuffer {}: tree harms a non-critical fanout "
+                   "more than the driver gain",
+                   network_->pathName(drvr_pin));
+        return 0;
+      }
     }
 
     sta::Instance* parent

@@ -59,6 +59,26 @@ std::vector<std::unique_ptr<MoveCandidate>> SizeUpGenerator::generate(
     return candidates;
   }
 
+  if (neighborCheckEnabled()) {
+    // Upsizing raises every input pin's capacitance, slowing ALL fanin
+    // drivers -- not just the on-path one the move is scored on.  Veto when
+    // the worst off-path fanin gives up more slack than the move gains.
+    const sta::Path* input_path = target.inputPath(resizer_);
+    const sta::Pin* on_path_pin
+        = input_path != nullptr ? input_path->pin(resizer_.staState())
+                                : nullptr;
+    float gain = 0.0f;
+    if (estimatedSwapGain(target, replacement, gain)
+        && neighborCheckVeto(gain,
+                             faninSlowdownImpacts(inst,
+                                                  drvr_port->libertyCell(),
+                                                  replacement,
+                                                  min_max,
+                                                  on_path_pin))) {
+      return candidates;
+    }
+  }
+
   candidates.push_back(std::make_unique<SizeUpCandidate>(
       resizer_, target, drvr_pin, inst, replacement));
   return candidates;

@@ -259,6 +259,8 @@ sta::define_cmd_args "repair_timing" {[-setup] [-hold]\
                                         [-max_utilization util] \
                                         [-match_cell_footprint] \
                                         [-max_repairs_per_pass max_repairs_per_pass]\
+                                        [-neighbor_check]\
+                                        [-neighbor_check_lambda lambda]\
                                         [-verbose]}
 
 proc repair_timing { args } {
@@ -269,10 +271,12 @@ proc repair_timing { args } {
     keys {-setup_margin -hold_margin -slack_margin \
             -libraries -max_utilization -max_buffer_percent -sequence \
             -phases -policy -policies \
-            -recover_power -repair_tns -max_passes -max_iterations -max_repairs_per_pass} \
+            -recover_power -repair_tns -max_passes -max_iterations -max_repairs_per_pass \
+            -neighbor_check_lambda} \
     flags {-setup -hold -allow_setup_violations -skip_pin_swap -skip_gate_cloning \
              -skip_size_down -skip_buffering -skip_buffer_removal -skip_last_gasp \
-             -skip_vt_swap -skip_crit_vt_swap -match_cell_footprint -verbose}
+             -skip_vt_swap -skip_crit_vt_swap -match_cell_footprint -neighbor_check \
+             -verbose}
 
   set setup [info exists flags(-setup)]
   set hold [info exists flags(-hold)]
@@ -327,6 +331,12 @@ proc repair_timing { args } {
   set skip_last_gasp [info exists flags(-skip_last_gasp)]
   set skip_vt_swap [info exists flags(-skip_vt_swap)]
   set skip_crit_vt_swap [info exists flags(-skip_crit_vt_swap)]
+  set neighbor_check [info exists flags(-neighbor_check)]
+  set neighbor_check_lambda 0.25
+  if { [info exists keys(-neighbor_check_lambda)] } {
+    set neighbor_check_lambda $keys(-neighbor_check_lambda)
+    sta::check_positive_float "-neighbor_check_lambda" $neighbor_check_lambda
+  }
   rsz::set_max_utilization [rsz::parse_max_util keys]
   set max_buffer_percent 20
   if { [info exists keys(-max_buffer_percent)] } {
@@ -388,7 +398,8 @@ proc repair_timing { args } {
         $max_iterations $max_repairs_per_pass $match_cell_footprint $verbose \
         $sequence $phases \
         $skip_pin_swap $skip_gate_cloning $skip_size_down_fanout $skip_buffering \
-        $skip_buffer_removal $skip_last_gasp $skip_vt_swap $skip_crit_vt_swap]
+        $skip_buffer_removal $skip_last_gasp $skip_vt_swap $skip_crit_vt_swap \
+        $neighbor_check $neighbor_check_lambda]
     }
     if { $hold } {
       set repaired_hold [rsz::repair_hold $setup_margin $hold_margin \

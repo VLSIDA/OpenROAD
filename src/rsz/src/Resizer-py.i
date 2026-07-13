@@ -90,7 +90,9 @@ using namespace rsz;
                    bool skip_buffer_removal,
                    bool skip_last_gasp,
                    bool skip_vt_swap,
-                   bool skip_crit_vt_swap)
+                   bool skip_crit_vt_swap,
+                   bool neighbor_check = false,
+                   float neighbor_check_lambda = 0.25f)
   {
     auto move_seq = rsz::Resizer::parseMoveSequence(
         std::string(sequence ? sequence : ""));
@@ -100,6 +102,7 @@ using namespace rsz;
                               phases ? phases : "",
                               skip_pin_swap, skip_gate_cloning, skip_size_down_fanout,
                               skip_buffering, skip_buffer_removal,
-                              skip_last_gasp, skip_vt_swap, skip_crit_vt_swap);
+                              skip_last_gasp, skip_vt_swap, skip_crit_vt_swap,
+                              neighbor_check, neighbor_check_lambda);
   }
 }

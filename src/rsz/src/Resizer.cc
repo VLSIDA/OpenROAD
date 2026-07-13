@@ -3119,7 +3119,9 @@ void Resizer::findResizeSlacks(bool run_journal_restore,
         /*skip_buffer_removal=*/false,
         /*skip_last_gasp=*/true,  // skip aggressive last-resort passes
         /*skip_vt_swap=*/true,    // post-placement optimization
-        /*skip_crit_vt_swap=*/true);
+        /*skip_crit_vt_swap=*/true,
+        /*neighbor_check=*/false,
+        /*neighbor_check_lambda=*/0.25f);
 
     // Re-estimate parasitics after repair_setup
     estimate_parasitics_->estimateParasitics(parasitics_src);
@@ -5083,8 +5085,12 @@ bool Resizer::repairSetup(double setup_margin,
                           bool skip_buffer_removal,
                           bool skip_last_gasp,
                           bool skip_vt_swap,
-                          bool skip_crit_vt_swap)
+                          bool skip_crit_vt_swap,
+                          bool neighbor_check,
+                          float neighbor_check_lambda)
 {
+  neighbor_check_ = neighbor_check;
+  neighbor_check_lambda_ = neighbor_check_lambda;
   utl::Timer timer;
   OptimizerRunConfig config;
   // Freeze Tcl-facing repair setup knobs before policy dispatch.
@@ -5105,6 +5111,8 @@ bool Resizer::repairSetup(double setup_margin,
   config.skip_last_gasp = skip_last_gasp;
   config.skip_vt_swap = skip_vt_swap;
   config.skip_crit_vt_swap = skip_crit_vt_swap;
+  config.neighbor_check = neighbor_check;
+  config.neighbor_check_lambda = neighbor_check_lambda;
 
   rsz::Optimizer optimizer(this);
   optimizer.configure(config);

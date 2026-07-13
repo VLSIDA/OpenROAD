@@ -12,8 +12,13 @@
 #include "rsz/Resizer.hh"
 
 namespace sta {
+class Instance;
 class LibertyCell;
 class LibertyPort;
+class MinMax;
+class Net;
+class Pin;
+class Vertex;
 }  // namespace sta
 
 namespace rsz {
@@ -109,6 +114,56 @@ class MoveGenerator
                         const sta::LibertyCell* rhs,
                         const std::string& drvr_port_name,
                         int lib_ap) const;
+
+  // === Optional neighbor feasibility check (-neighbor_check) ===============
+  // All of the following are called ONLY when run_config_.neighbor_check is
+  // set; the default path collects no neighbor data and is unchanged.
+
+  bool neighborCheckEnabled() const { return run_config_.neighbor_check; }
+
+  // Veto decision: reject when the worst single neighbor gives up more
+  // negative slack than neighbor_check_lambda times the move's predicted
+  // gain (net = gain - lambda * worst_harm <= 0).  A difference of same-unit
+  // quantities rather than a harm/gain ratio, so a tiny gain cannot blow the
+  // metric up.  Per-neighbor (not summed): each neighbor sits on its own
+  // path.
+  bool neighborCheckVeto(float gain,
+                         const std::vector<NeighborImpact>& impacts) const;
+
+  // Snapshot a vertex's slack ONLY if it is a pure cache read (arrivals valid
+  // and requireds already computed).  Returns false otherwise -- so a
+  // neighbor read never triggers a findRequired()/findAllArrivals() recompute
+  // (which would both free the repair loop's cached Paths -- a
+  // use-after-free -- and cost a full timing pass during generation).
+  bool cachedSlack(sta::Vertex* vertex, float& slack_out) const;
+
+  // Drive resistance of the cell driving `net` (0 if none/undriven).
+  float netDriveResistance(const sta::Net* net) const;
+
+  // Lumped-RC delay change of a driver with the given drive resistance when
+  // its load changes by delta_cap (positive => the driver slows).
+  static float driverDelayDelta(float drive_resistance, float delta_cap);
+
+  // Impacts on the fanin nets of `inst` when its input-pin loads grow.
+  // Resize: pass old_cell and new_cell (per-pin delta = new - old).  Added
+  // duplicate (clone): pass old_cell == nullptr (delta = new_cell's full
+  // input cap).  skip_pin excludes the ON-PATH input pin: its slack already
+  // equals the endpoint being repaired, so charging it would self-veto every
+  // move, and the on-path stage cost is part of the move's own gain.
+  std::vector<NeighborImpact> faninSlowdownImpacts(
+      sta::Instance* inst,
+      const sta::LibertyCell* old_cell,
+      const sta::LibertyCell* new_cell,
+      const sta::MinMax* min_max,
+      const sta::Pin* skip_pin = nullptr) const;
+
+  // Predicted arrival improvement of swapping the target's cell to
+  // `candidate_cell`, via a DelayEstimator context spanning the target stage
+  // plus one fanin/fanout stage (so the gain is net of the extra fanin load).
+  // Returns false when no context/estimate is available.
+  bool estimatedSwapGain(const Target& target,
+                         const sta::LibertyCell* candidate_cell,
+                         float& gain_out) const;
 
   // === Shared generator dependencies =======================================
   Resizer& resizer_;

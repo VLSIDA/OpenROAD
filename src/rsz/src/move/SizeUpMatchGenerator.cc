@@ -174,6 +174,12 @@ bool SizeUpMatchGenerator::hasSingleStageFanout(sta::Pin* prev_drvr_pin,
     }
     ++fanout;
     if (fanout > 1) {
+      // This guard is what confines the upsized gate's input-cap growth to
+      // the on-path pin: the previous driver's only load is the gate being
+      // resized.  If it is ever relaxed to allow fanout > 1, the previous
+      // driver's other fanouts become off-path neighbors slowed by the cap
+      // increase, and this move must add a neighbor check (see
+      // faninSlowdownImpacts / neighborCheckVeto).
       return false;
     }
   }

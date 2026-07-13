@@ -16,11 +16,13 @@
 #include "MoveGenerator.hh"
 #include "OptimizerTypes.hh"
 #include "SwapPinsCandidate.hh"
+#include "db_sta/dbNetwork.hh"
 #include "db_sta/dbSta.hh"
 #include "rsz/Resizer.hh"
 #include "sta/ArcDelayCalc.hh"
 #include "sta/Delay.hh"
 #include "sta/FuncExpr.hh"
+#include "sta/Graph.hh"
 #include "sta/GraphDelayCalc.hh"
 #include "sta/Liberty.hh"
 #include "sta/LibertyClass.hh"
@@ -141,6 +143,31 @@ std::vector<std::unique_ptr<MoveCandidate>> SwapPinsGenerator::buildCandidates(
                       current_delay,
                       swap_delay)) {
     return candidates;
+  }
+
+  if (neighborCheckEnabled()) {
+    // The swap is scored on the critical pin's arc gain, but it also moves
+    // the OTHER net (currently on swap_port) over to input_port; commutative
+    // pins can have different input caps (e.g. a tapered transistor stack),
+    // so that net's driver sees a new load and can be pushed critical.  Veto
+    // when that neighbor gives up more slack than the swap gains.
+    sta::Pin* swap_pin = resizer_.dbNetwork()->findPin(drvr, swap_port->name());
+    if (swap_pin != nullptr) {
+      std::vector<NeighborImpact> impacts;
+      const float other_delta = driverDelayDelta(
+          netDriveResistance(resizer_.network()->net(swap_pin)),
+          input_port->capacitance(min_max) - swap_port->capacitance(min_max));
+      if (other_delta > 0.0f) {
+        sta::Vertex* v = resizer_.graph()->pinLoadVertex(swap_pin);
+        float slack_before = 0.0f;
+        if (cachedSlack(v, slack_before)) {
+          impacts.push_back({slack_before, other_delta});
+        }
+      }
+      if (neighborCheckVeto(current_delay - swap_delay, impacts)) {
+        return candidates;
+      }
+    }
   }
 
   candidates.push_back(std::make_unique<SwapPinsCandidate>(resizer_,

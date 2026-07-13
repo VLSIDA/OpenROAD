@@ -356,7 +356,16 @@ class Resizer : public sta::dbStaState, public sta::dbNetworkObserver
                    bool skip_buffer_removal,
                    bool skip_last_gasp,
                    bool skip_vt_swap,
-                   bool skip_crit_vt_swap);
+                   bool skip_crit_vt_swap,
+                   bool neighbor_check,
+                   float neighbor_check_lambda);
+
+  // Optional neighbor feasibility check (repair_timing -neighbor_check).
+  // Off by default; when off, no neighbor data is collected and repair
+  // behavior is unchanged.  Read by move generators (via OptimizerRunConfig)
+  // and by the rebuffer engine (via these accessors).
+  bool neighborCheckEnabled() const { return neighbor_check_; }
+  float neighborCheckLambda() const { return neighbor_check_lambda_; }
   // For testing.
   void repairSetup(const sta::Pin* end_pin);
   // For testing.
@@ -961,6 +970,9 @@ class Resizer : public sta::dbStaState, public sta::dbNetworkObserver
   const sta::Pin* debug_pin_ = nullptr;
 
   odb::Rect core_;
+  // -neighbor_check state for the current repair_timing invocation.
+  bool neighbor_check_ = false;
+  float neighbor_check_lambda_ = 0.25f;
   bool core_exists_ = false;
 
   double design_area_ = 0.0;
