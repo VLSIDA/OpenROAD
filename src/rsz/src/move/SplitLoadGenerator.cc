@@ -170,41 +170,13 @@ std::vector<std::unique_ptr<MoveCandidate>> SplitLoadGenerator::generate(
     // buffer: each moved load's path gains the buffer delay, offset by the
     // driver relief that every fanout shares.  The loads are picked for
     // having the most slack, but nothing above verifies they can absorb the
-    // buffer delay.  Veto when a moved load becomes the local region's
-    // governing worst slack.  Already-violating moved loads are repair
-    // targets rather than harmed neighbors and are not charged.
-    const sta::Scene* scene = target.activeScene(resizer_);
-    const sta::MinMax* min_max = target.minMax(resizer_);
-    const sta::LibertyPort* drvr_port
-        = resizer_.network()->libertyPort(drvr_pin);
-    sta::LibertyPort* buf_in_port = nullptr;
-    sta::LibertyPort* buf_out_port = nullptr;
-    buffer_cell->bufferPorts(buf_in_port, buf_out_port);
-    if (scene != nullptr && min_max != nullptr && drvr_port != nullptr
-        && buf_in_port != nullptr) {
-      float moved_cap = 0.0f;
-      for (const sta::Pin* load : *load_pins) {
-        const sta::LibertyPort* lp = resizer_.network()->libertyPort(load);
-        if (lp != nullptr) {
-          moved_cap += lp->capacitance(min_max);
-        }
-      }
-      const float gain
-          = driverDelayDelta(drvr_port->driveResistance(),
-                             moved_cap - buf_in_port->capacitance(min_max));
-      const float buf_delay
-          = resizer_.bufferDelay(buffer_cell, moved_cap, scene, min_max);
-      std::vector<NeighborImpact> impacts;
-      for (const sta::Pin* load : *load_pins) {
-        sta::Vertex* load_vertex = resizer_.graph()->pinLoadVertex(load);
-        float slack_before = 0.0f;
-        if (cachedSlack(load_vertex, slack_before) && slack_before > 0.0f) {
-          impacts.push_back({slack_before, buf_delay - gain});
-        }
-      }
-      if (neighborCheckVeto(sta::delayAsFloat(target.slack), gain, impacts)) {
-        return candidates;
-      }
+    // buffer delay.  Evaluate the frozen local subgraph with the split
+    // what-if; veto when a moved load becomes the region's governing worst
+    // slack.
+    sta::Instance* inst = resizer_.network()->instance(drvr_pin);
+    if (subgraphSplitLoadVeto(
+            target, inst, drvr_pin, buffer_cell, *load_pins)) {
+      return candidates;
     }
   }
 

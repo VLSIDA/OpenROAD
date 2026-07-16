@@ -86,6 +86,8 @@ cc_library(
         "src/move/SizeUpMtCandidate.hh",
         "src/move/SizeUpMtGenerator.cc",
         "src/move/SizeUpMtGenerator.hh",
+        "src/move/SubgraphTimer.cc",
+        "src/move/SubgraphTimer.hh",
         "src/move/SplitLoadCandidate.cc",
         "src/move/SplitLoadCandidate.hh",
         "src/move/SplitLoadGenerator.cc",

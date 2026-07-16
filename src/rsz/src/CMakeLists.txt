@@ -61,6 +61,7 @@ add_library(rsz_lib
     move/SizeUpMatchGenerator.cc
     move/SizeUpMtCandidate.cc
     move/SizeUpMtGenerator.cc
+    move/SubgraphTimer.cc
     move/SplitLoadCandidate.cc
     move/SplitLoadGenerator.cc
     move/SwapPinsCandidate.cc

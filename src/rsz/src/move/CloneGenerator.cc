@@ -236,32 +236,12 @@ std::vector<std::unique_ptr<MoveCandidate>> CloneGenerator::generate(
   if (neighborCheckEnabled()) {
     // Cloning duplicates every input pin: each fanin net now drives BOTH
     // gates, so all off-path fanin drivers slow down by the clone's full
-    // input capacitance.  Gain = the original driver's relief from the moved
-    // loads.  Veto when a slowed fanin becomes the local region's governing
-    // worst slack.
-    const sta::MinMax* min_max = target.minMax(resizer_);
-    const sta::LibertyPort* drvr_port
-        = resizer_.network()->libertyPort(drvr_pin);
-    float moved_cap = 0.0f;
-    for (const sta::Pin* load : moved_loads) {
-      const sta::LibertyPort* lp = resizer_.network()->libertyPort(load);
-      if (lp != nullptr) {
-        moved_cap += lp->capacitance(min_max);
-      }
-    }
-    const float gain = driverDelayDelta(
-        drvr_port != nullptr ? drvr_port->driveResistance() : 0.0f, moved_cap);
-    const sta::Path* input_path = target.inputPath(resizer_);
-    const sta::Pin* on_path_pin = input_path != nullptr
-                                      ? input_path->pin(resizer_.staState())
-                                      : nullptr;
-    if (neighborCheckVeto(sta::delayAsFloat(target.slack),
-                          gain,
-                          faninSlowdownImpacts(drvr_inst,
-                                               /*old_cell=*/nullptr,
-                                               clone_cell,
-                                               min_max,
-                                               on_path_pin))) {
+    // input capacitance, while the moved loads trade the original driver
+    // for the table-modeled clone stage.  Evaluate the frozen local
+    // subgraph; veto when a neighbor becomes the region's governing worst
+    // slack.
+    if (subgraphCloneVeto(
+            target, drvr_inst, drvr_pin, clone_cell, moved_loads)) {
       return candidates;
     }
   }

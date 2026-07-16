@@ -37,6 +37,9 @@ SetupMt1Policy::SetupMt1Policy(Resizer& resizer,
     : OptimizationPolicy(resizer, committer, setup_context, config)
 {
   is_experimental = true;
+  // MT1 runs generate() on worker threads; the subgraph neighbor evaluation
+  // is main-thread-only (shared ArcDelayCalc + guarded STA cache reads).
+  policy_config_.generate_on_main_thread = false;
 }
 
 SetupMt1Policy::~SetupMt1Policy() = default;

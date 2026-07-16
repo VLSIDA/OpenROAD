@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <functional>
 #include <memory>
 #include <string>
 #include <vector>
@@ -25,6 +26,7 @@ namespace rsz {
 
 class Resizer;
 class MoveCommitter;
+class SubgraphTimer;
 
 // === Generator input bundles ===============================================
 
@@ -165,6 +167,43 @@ class MoveGenerator
   bool estimatedSwapGain(const Target& target,
                          const sta::LibertyCell* candidate_cell,
                          float& gain_out) const;
+
+  // === Subgraph-STA neighbor evaluation ====================================
+  // Each helper builds a frozen local subgraph around the target driver
+  // (SubgraphTimer: real arcs, slews, and parasitics through ArcDelayCalc),
+  // evaluates the move's what-if, and returns the WNS-degradation decision.
+  // They return FALSE (no veto) whenever any ingredient is unavailable --
+  // guard fails, worker-thread policy, no matching arc, oversized region --
+  // the permissive-skip semantics of this engine.  Main-thread only.
+  bool subgraphCellSwapVeto(const Target& target,
+                            sta::Instance* inst,
+                            sta::Pin* drvr_pin,
+                            const sta::LibertyCell* candidate) const;
+  bool subgraphPinSwapVeto(const Target& target,
+                           sta::Instance* inst,
+                           sta::Pin* drvr_pin,
+                           const sta::LibertyPort* input_port,
+                           const sta::LibertyPort* swap_port) const;
+  bool subgraphSplitLoadVeto(const Target& target,
+                             sta::Instance* inst,
+                             sta::Pin* drvr_pin,
+                             const sta::LibertyCell* buffer_cell,
+                             const sta::PinSet& moved_loads) const;
+  bool subgraphCloneVeto(const Target& target,
+                         sta::Instance* inst,
+                         sta::Pin* drvr_pin,
+                         const sta::LibertyCell* clone_cell,
+                         const std::vector<sta::Pin*>& moved_loads) const;
+
+  // Shared build/evaluate/decide skeleton behind the subgraph*Veto helpers.
+  bool subgraphVeto(
+      const Target& target,
+      sta::Instance* inst,
+      sta::Pin* drvr_pin,
+      const char* what,
+      const std::function<
+          bool(SubgraphTimer&, LocalSlack&, std::vector<LocalSlack>&)>& eval)
+      const;
 
   // === Shared generator dependencies =======================================
   Resizer& resizer_;

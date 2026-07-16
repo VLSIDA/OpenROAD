@@ -51,21 +51,11 @@ std::vector<std::unique_ptr<MoveCandidate>> VtSwapGenerator::generate(
     // A VT swap can change input-pin capacitance.  The delta is typically
     // small (same footprint, different threshold implant), but it is not
     // zero and should not be ignored: on a near-critical fanin net even a
-    // small extra load can push the driver negative.  Veto when a slowed
-    // fanin becomes the local region's governing worst slack.
-    const sta::Path* input_path = target.inputPath(resizer_);
-    const sta::Pin* on_path_pin = input_path != nullptr
-                                      ? input_path->pin(resizer_.staState())
-                                      : nullptr;
-    float gain = 0.0f;
-    if (estimatedSwapGain(target, best_cell, gain)
-        && neighborCheckVeto(sta::delayAsFloat(target.slack),
-                             gain,
-                             faninSlowdownImpacts(inst,
-                                                  curr_cell,
-                                                  best_cell,
-                                                  target.minMax(resizer_),
-                                                  on_path_pin))) {
+    // small extra load can push the driver negative.  Evaluate the frozen
+    // local subgraph with the candidate cell; veto when a neighbor becomes
+    // the region's governing worst slack.  (Instance-view targets have no
+    // driver path arc and skip the check permissively.)
+    if (subgraphCellSwapVeto(target, inst, drvr_pin, best_cell)) {
       return candidates;
     }
   }

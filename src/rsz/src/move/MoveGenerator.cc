@@ -4,6 +4,8 @@
 #include "MoveGenerator.hh"
 
 #include <algorithm>
+#include <functional>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <string>
@@ -11,6 +13,7 @@
 #include <vector>
 
 #include "DelayEstimator.hh"
+#include "SubgraphTimer.hh"
 #include "db_sta/dbSta.hh"
 #include "rsz/Resizer.hh"
 #include "sta/Delay.hh"
@@ -21,6 +24,7 @@
 #include "sta/NetworkClass.hh"
 #include "sta/PortDirection.hh"
 #include "sta/Search.hh"
+#include "utl/Logger.h"
 
 namespace rsz {
 
@@ -132,6 +136,129 @@ std::vector<NeighborImpact> MoveGenerator::faninSlowdownImpacts(
     impacts.push_back({slack_before, driverDelayDelta(drive_res, delta_cap)});
   }
   return impacts;
+}
+
+namespace {
+
+using SubgraphEvalFn = std::function<
+    bool(SubgraphTimer&, LocalSlack&, std::vector<LocalSlack>&)>;
+
+}  // namespace
+
+bool MoveGenerator::subgraphVeto(const Target& target,
+                                 sta::Instance* inst,
+                                 sta::Pin* drvr_pin,
+                                 const char* what,
+                                 const SubgraphEvalFn& eval) const
+{
+  if (!policy_config_.generate_on_main_thread) {
+    return false;  // worker-thread generation: permissive skip
+  }
+  SubgraphTimer timer(resizer_);
+  if (!timer.build(target, inst, drvr_pin)) {
+    return false;
+  }
+  LocalSlack on_path;
+  std::vector<LocalSlack> neighbors;
+  if (!eval(timer, on_path, neighbors)) {
+    return false;
+  }
+  const bool veto = wnsDegraded(on_path, neighbors);
+  float neighbor_wns_before = std::numeric_limits<float>::max();
+  float neighbor_wns_after = std::numeric_limits<float>::max();
+  for (const LocalSlack& n : neighbors) {
+    neighbor_wns_before = std::min(neighbor_wns_before, n.before);
+    neighbor_wns_after = std::min(neighbor_wns_after, n.after);
+  }
+  debugPrint(resizer_.logger(),
+             utl::RSZ,
+             "neighbor_subgraph",
+             veto ? 1 : 2,
+             "{} {} {}: on-path {:.3e}->{:.3e}, {} neighbors "
+             "(wns {:.3e}->{:.3e})",
+             veto ? "VETO" : "eval",
+             what,
+             resizer_.network()->pathName(drvr_pin),
+             on_path.before,
+             on_path.after,
+             neighbors.size(),
+             neighbor_wns_before,
+             neighbor_wns_after);
+  return veto;
+}
+
+bool MoveGenerator::subgraphCellSwapVeto(
+    const Target& target,
+    sta::Instance* inst,
+    sta::Pin* drvr_pin,
+    const sta::LibertyCell* candidate) const
+{
+  return subgraphVeto(target,
+                      inst,
+                      drvr_pin,
+                      "cell-swap",
+                      [candidate](SubgraphTimer& timer,
+                                  LocalSlack& on_path,
+                                  std::vector<LocalSlack>& neighbors) {
+                        return timer.evaluateCellSwap(
+                            candidate, on_path, neighbors);
+                      });
+}
+
+bool MoveGenerator::subgraphPinSwapVeto(const Target& target,
+                                        sta::Instance* inst,
+                                        sta::Pin* drvr_pin,
+                                        const sta::LibertyPort* input_port,
+                                        const sta::LibertyPort* swap_port) const
+{
+  return subgraphVeto(
+      target,
+      inst,
+      drvr_pin,
+      "pin-swap",
+      [input_port, swap_port](SubgraphTimer& timer,
+                              LocalSlack& on_path,
+                              std::vector<LocalSlack>& neighbors) {
+        return timer.evaluatePinSwap(input_port, swap_port, on_path, neighbors);
+      });
+}
+
+bool MoveGenerator::subgraphSplitLoadVeto(const Target& target,
+                                          sta::Instance* inst,
+                                          sta::Pin* drvr_pin,
+                                          const sta::LibertyCell* buffer_cell,
+                                          const sta::PinSet& moved_loads) const
+{
+  return subgraphVeto(
+      target,
+      inst,
+      drvr_pin,
+      "split-load",
+      [buffer_cell, &moved_loads](SubgraphTimer& timer,
+                                  LocalSlack& on_path,
+                                  std::vector<LocalSlack>& neighbors) {
+        return timer.evaluateSplitLoad(
+            buffer_cell, moved_loads, on_path, neighbors);
+      });
+}
+
+bool MoveGenerator::subgraphCloneVeto(
+    const Target& target,
+    sta::Instance* inst,
+    sta::Pin* drvr_pin,
+    const sta::LibertyCell* clone_cell,
+    const std::vector<sta::Pin*>& moved_loads) const
+{
+  return subgraphVeto(
+      target,
+      inst,
+      drvr_pin,
+      "clone",
+      [clone_cell, &moved_loads](SubgraphTimer& timer,
+                                 LocalSlack& on_path,
+                                 std::vector<LocalSlack>& neighbors) {
+        return timer.evaluateClone(clone_cell, moved_loads, on_path, neighbors);
+      });
 }
 
 bool MoveGenerator::estimatedSwapGain(const Target& target,

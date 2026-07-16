@@ -149,26 +149,12 @@ std::vector<std::unique_ptr<MoveCandidate>> SwapPinsGenerator::buildCandidates(
     // The swap is scored on the critical pin's arc gain, but it also moves
     // the OTHER net (currently on swap_port) over to input_port; commutative
     // pins can have different input caps (e.g. a tapered transistor stack),
-    // so that net's driver sees a new load and can be pushed critical.  Veto
-    // when that neighbor becomes the local region's governing worst slack.
-    sta::Pin* swap_pin = resizer_.dbNetwork()->findPin(drvr, swap_port->name());
-    if (swap_pin != nullptr) {
-      std::vector<NeighborImpact> impacts;
-      const float other_delta = driverDelayDelta(
-          netDriveResistance(resizer_.network()->net(swap_pin)),
-          input_port->capacitance(min_max) - swap_port->capacitance(min_max));
-      if (other_delta > 0.0f) {
-        sta::Vertex* v = resizer_.graph()->pinLoadVertex(swap_pin);
-        float slack_before = 0.0f;
-        if (cachedSlack(v, slack_before)) {
-          impacts.push_back({slack_before, other_delta});
-        }
-      }
-      if (neighborCheckVeto(sta::delayAsFloat(target.slack),
-                            current_delay - swap_delay,
-                            impacts)) {
-        return candidates;
-      }
+    // so that net's driver sees a new load and its signal takes a different
+    // arc through this gate.  Evaluate the frozen local subgraph with the
+    // swapped pin mapping; veto when a neighbor becomes the region's
+    // governing worst slack.
+    if (subgraphPinSwapVeto(target, drvr, drvr_pin, input_port, swap_port)) {
+      return candidates;
     }
   }
 

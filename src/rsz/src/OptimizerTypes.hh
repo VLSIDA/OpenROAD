@@ -482,6 +482,14 @@ struct OptimizationPolicyConfig
   // Experimental. Enable load-dependent STA output-slew bias sampling for
   // the fanin neighbor stage in MT delay estimation.
   bool delay_estimator_sta_slew_bias{false};
+
+  // True when this policy calls MoveGenerator::generate() on the main
+  // thread.  The subgraph neighbor evaluation (SubgraphTimer) uses the
+  // shared ArcDelayCalc and guarded STA cache reads, which are only safe on
+  // the main thread while no delay calculation is running; policies that
+  // generate on worker threads (SetupMt1Policy) must clear this, which
+  // makes the neighbor check skip permissively for their candidates.
+  bool generate_on_main_thread{true};
 };
 
 // === Move type labels ======================================================
