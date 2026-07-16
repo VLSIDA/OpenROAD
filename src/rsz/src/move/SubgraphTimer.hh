@@ -3,7 +3,9 @@
 
 #pragma once
 
+#include <map>
 #include <memory>
+#include <set>
 #include <vector>
 
 #include "OptimizerTypes.hh"
@@ -105,18 +107,54 @@ struct SubgraphStageEval
   std::vector<float> load_slew;   // by load_index
 };
 
+// Declarative what-if for the generic evaluate() walker.  A move is a set
+// of substitutions applied to the region's stages; the walker owns the
+// composition (fanin re-evaluation, slew coupling into the center, frontier
+// deltas), so new moves are new builders rather than new engines.
+struct SubgraphMove
+{
+  // Replace an instance's cell (center gate for size up / VT swap / size
+  // down fanout).  Fanin stages feeding a substituted instance pick up the
+  // input-pin cap deltas automatically.
+  std::map<const sta::Instance*, const sta::LibertyCell*> cell_subs;
+  // Explicit load-cap deltas by stage driver pin (clone's duplicated fanin
+  // load, split/clone's reduced center load).
+  std::map<const sta::Pin*, float> load_cap_delta;
+  // Table-only appendage stages hanging off the center (split buffer,
+  // clone gate).  replaces_center: the moved loads leave the center gate
+  // entirely (clone) rather than being driven through it (split buffer).
+  struct VirtualStage
+  {
+    const sta::LibertyCell* cell{nullptr};
+    std::set<const sta::Pin*> moved_loads;
+    bool replaces_center{false};
+  };
+  std::vector<VirtualStage> virtual_stages;
+};
+
 class SubgraphTimer
 {
  public:
   explicit SubgraphTimer(Resizer& resizer);
 
-  // Snapshot the frozen subgraph around the target driver.  Main thread
-  // only; false => caller skips the veto (permissive).
+  // Snapshot the frozen subgraph around any center gate: the center driver
+  // stage plus one fanin driver stage per center input pin.  The center
+  // need not be the path driver (e.g. size down fanout centers on the
+  // downsized fanout gate; the critical driver is then one of its fanin
+  // stages and "fanins of fanouts" fall out of the same construction).
+  // Uses the path arc when the center is the endpoint-path driver, the
+  // graph-worst arc otherwise.  Main thread only; false => caller skips
+  // the veto (permissive).
   bool build(const Target& target, sta::Instance* inst, sta::Pin* drvr_pin);
 
-  // Evaluate a cell substitution at the target instance (size up / VT swap).
-  // On success fills the on-path observation and the neighbor observations
+  // Generic walker: evaluate the declarative move over the region.  On
+  // success fills the on-path observation and the neighbor observations
   // for wnsDegraded() and returns true.
+  bool evaluate(const SubgraphMove& move,
+                LocalSlack& on_path,
+                std::vector<LocalSlack>& neighbors);
+
+  // Move builder: cell substitution at the center (size up / VT swap).
   bool evaluateCellSwap(const sta::LibertyCell* candidate,
                         LocalSlack& on_path,
                         std::vector<LocalSlack>& neighbors);
@@ -129,16 +167,17 @@ class SubgraphTimer
                        LocalSlack& on_path,
                        std::vector<LocalSlack>& neighbors);
 
-  // Evaluate splitting the given loads off the target net behind a new
-  // buffer of buffer_cell (Liberty-table stage: the buffer's net does not
-  // exist yet, so no parasitic can exist for it).
+  // Move builder: split the given loads off the center net behind a new
+  // buffer of buffer_cell (Liberty-table virtual stage: the buffer's net
+  // does not exist yet, so no parasitic can exist for it).
   bool evaluateSplitLoad(const sta::LibertyCell* buffer_cell,
                          const sta::PinSet& moved_loads,
                          LocalSlack& on_path,
                          std::vector<LocalSlack>& neighbors);
 
-  // Evaluate cloning the target gate: moved_loads transfer to a table-only
-  // clone stage and every fanin net gains the clone's full input cap.
+  // Move builder: clone the center gate -- moved_loads transfer to a
+  // table-only clone stage and every fanin net gains the clone's full
+  // input cap.
   bool evaluateClone(const sta::LibertyCell* clone_cell,
                      const std::vector<sta::Pin*>& moved_loads,
                      LocalSlack& on_path,
@@ -203,9 +242,10 @@ class SubgraphTimer
                             bool& on_path_seen,
                             std::vector<LocalSlack>& neighbors) const;
 
-  // Per-input-pin capacitance delta between the target's current cell and a
-  // candidate cell (empty port name lookup failures => nullopt).
-  bool faninCapDeltas(const sta::LibertyCell* candidate,
+  // Per-fanin-stage load-cap delta implied by the move: any explicit
+  // load_cap_delta on the stage's driver pin plus the input-pin cap change
+  // when the instance the stage feeds has a cell substitution.
+  bool faninCapDeltas(const SubgraphMove& move,
                       std::vector<float>& delta_by_stage) const;
 
   Resizer& resizer_;

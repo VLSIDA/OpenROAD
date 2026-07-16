@@ -337,31 +337,43 @@ bool SubgraphTimer::build(const Target& target,
     return false;
   }
   const sta::Path* driver_path = expanded.path(path_index);
-  const sta::TimingArc* path_arc
-      = driver_path != nullptr ? driver_path->prevArc(resizer_.staState())
-                               : nullptr;
-  if (path_arc == nullptr || path_arc->fromEdge() == nullptr
-      || path_arc->toEdge() == nullptr) {
-    return false;
-  }
-  const sta::LibertyPort* output_port
-      = resizer_.network()->libertyPort(drvr_pin);
-  if (output_port == nullptr) {
-    return false;
-  }
-  const sta::TimingArc* ref_arc = findCandidateArc(
-      path_arc, output_port->libertyCell(), scene_, min_max_);
-  if (ref_arc == nullptr) {
-    return false;
+  const sta::Pin* path_driver_pin = driver_path != nullptr
+                                        ? driver_path->pin(resizer_.staState())
+                                        : nullptr;
+  const bool center_on_path = (drvr_pin == path_driver_pin);
+
+  // Center stage arc: the path arc when the center IS the endpoint-path
+  // driver; the graph-worst gate arc for any other center (e.g. size down
+  // fanout centers on the downsized fanout gate).
+  const sta::TimingArc* path_arc = nullptr;
+  const sta::TimingArc* ref_arc = nullptr;
+  float center_in_slew = 0.0f;
+  if (center_on_path) {
+    path_arc = driver_path->prevArc(resizer_.staState());
+    if (path_arc == nullptr || path_arc->fromEdge() == nullptr
+        || path_arc->toEdge() == nullptr) {
+      return false;
+    }
+    const sta::LibertyPort* output_port
+        = resizer_.network()->libertyPort(drvr_pin);
+    if (output_port == nullptr) {
+      return false;
+    }
+    ref_arc = findCandidateArc(
+        path_arc, output_port->libertyCell(), scene_, min_max_);
+    if (ref_arc == nullptr) {
+      return false;
+    }
+  } else {
+    sta::Vertex* center_vertex = resizer_.graph()->pinDrvrVertex(drvr_pin);
+    if (center_vertex == nullptr
+        || !worstGraphArcInto(center_vertex, ref_arc, center_in_slew)) {
+      return false;
+    }
   }
 
-  // On-path pins: the input the path enters through and the load it exits
-  // to (the next stage's input pin on the endpoint path).
-  const sta::Pin* on_path_input_pin = nullptr;
-  const sta::Path* input_path = target.inputPath(resizer_);
-  if (input_path != nullptr) {
-    on_path_input_pin = input_path->pin(resizer_.staState());
-  }
+  // On-path load: the pin the endpoint path exits to (the next stage's
+  // input pin on the path); it may sit on any region stage's frontier.
   on_path_load_pin_ = nullptr;
   if (path_index + 1 < static_cast<int>(expanded.size())) {
     const sta::Path* next_path = expanded.path(path_index + 1);
@@ -370,21 +382,23 @@ bool SubgraphTimer::build(const Target& target,
     }
   }
 
-  // Target stage: input slew from the graph at the path input pin.
-  float target_in_slew = 0.0f;
-  {
-    const sta::Pin* input_pin
-        = resizer_.network()->findPin(inst, ref_arc->from()->name());
+  // Center stage: input slew from the graph at the arc's input pin.  The
+  // fanin stage feeding that pin is the one whose slew/arrival changes
+  // couple through the center (arc_input_pin below).
+  const sta::Pin* arc_input_pin
+      = resizer_.network()->findPin(inst, ref_arc->from()->name());
+  if (center_on_path) {
     const sta::RiseFall* in_rf = ref_arc->fromEdge()->asRiseFall();
-    if (input_pin != nullptr && in_rf != nullptr) {
-      sta::Vertex* input_vertex = resizer_.graph()->pinDrvrVertex(input_pin);
+    if (arc_input_pin != nullptr && in_rf != nullptr) {
+      sta::Vertex* input_vertex
+          = resizer_.graph()->pinDrvrVertex(arc_input_pin);
       if (input_vertex != nullptr) {
-        target_in_slew = resizer_.sta()->graphDelayCalc()->edgeFromSlew(
+        center_in_slew = resizer_.sta()->graphDelayCalc()->edgeFromSlew(
             input_vertex, in_rf, ref_arc->role(), scene_, min_max_);
       }
     }
   }
-  if (!buildStage(drvr_pin, ref_arc, target_in_slew, target_stage_)) {
+  if (!buildStage(drvr_pin, ref_arc, center_in_slew, target_stage_)) {
     return false;
   }
   collectFrontier(target_stage_, nullptr, on_path_load_pin_);
@@ -393,7 +407,7 @@ bool SubgraphTimer::build(const Target& target,
   // annotated delay for the same arc; a large gap flags a broken snapshot
   // (wrong slew, wrong parasitic, wrong arc).  The veto itself uses only
   // OLD-vs-NEW deltas, so this never enters the decision.
-  {
+  if (center_on_path) {
     sta::Edge* gate_edge = driver_path->prevEdge(resizer_.staState());
     if (gate_edge != nullptr) {
       target_stage_.graph_gate_delay
@@ -453,8 +467,8 @@ bool SubgraphTimer::build(const Target& target,
     if (!buildStage(fanin_drvr->pin(), fanin_arc, fanin_in_slew, stage)) {
       continue;
     }
-    collectFrontier(stage, input_pin, nullptr);
-    stage.feeds_on_path_input = (input_pin == on_path_input_pin);
+    collectFrontier(stage, input_pin, on_path_load_pin_);
+    stage.feeds_on_path_input = (input_pin == arc_input_pin);
     if (!stage.has_target_input_index) {
       continue;  // the target input pin must be one of this stage's loads
     }
@@ -531,21 +545,33 @@ void SubgraphTimer::appendFrontierSlacks(
   }
 }
 
-bool SubgraphTimer::faninCapDeltas(const sta::LibertyCell* candidate,
+bool SubgraphTimer::faninCapDeltas(const SubgraphMove& move,
                                    std::vector<float>& delta_by_stage) const
 {
-  sta::LibertyCell* scene_cell
-      = const_cast<sta::LibertyCell*>(candidate)->sceneCell(scene_, min_max_);
-  if (scene_cell == nullptr) {
-    return false;
-  }
   delta_by_stage.assign(fanin_stages_.size(), 0.0f);
   for (size_t s = 0; s < fanin_stages_.size(); ++s) {
-    const sta::Pin* input_pin = fanin_stages_[s].target_input_pin;
+    const SubgraphStage& stage = fanin_stages_[s];
+    const auto explicit_delta = move.load_cap_delta.find(stage.drvr_pin);
+    if (explicit_delta != move.load_cap_delta.end()) {
+      delta_by_stage[s] += explicit_delta->second;
+    }
+    // Input-pin cap change when the instance this stage feeds is
+    // substituted (the coupling pin's port on old vs new cell).
+    const sta::Pin* input_pin = stage.target_input_pin;
+    const sta::Instance* fed_inst
+        = input_pin != nullptr ? resizer_.network()->instance(input_pin)
+                               : nullptr;
+    const auto sub = fed_inst != nullptr ? move.cell_subs.find(fed_inst)
+                                         : move.cell_subs.end();
+    if (sub == move.cell_subs.end()) {
+      continue;
+    }
+    sta::LibertyCell* scene_cell = const_cast<sta::LibertyCell*>(sub->second)
+                                       ->sceneCell(scene_, min_max_);
     const sta::LibertyPort* cur_port
         = resizer_.network()->libertyPort(input_pin);
-    if (cur_port == nullptr) {
-      continue;
+    if (scene_cell == nullptr || cur_port == nullptr) {
+      return false;
     }
     const sta::LibertyPort* new_port
         = scene_cell->findLibertyPort(cur_port->name());
@@ -553,7 +579,196 @@ bool SubgraphTimer::faninCapDeltas(const sta::LibertyCell* candidate,
       continue;
     }
     delta_by_stage[s]
-        = new_port->capacitance(min_max_) - cur_port->capacitance(min_max_);
+        += new_port->capacitance(min_max_) - cur_port->capacitance(min_max_);
+  }
+  return true;
+}
+
+bool SubgraphTimer::evaluate(const SubgraphMove& move,
+                             LocalSlack& on_path,
+                             std::vector<LocalSlack>& neighbors)
+{
+  neighbors.clear();
+  if (!valid_) {
+    return false;
+  }
+
+  // Center arc under the move: substituted cell's matching arc, else the
+  // snapshot arc.
+  const sta::TimingArc* center_arc = target_stage_.arc;
+  const auto center_sub = move.cell_subs.find(target_stage_.inst);
+  if (center_sub != move.cell_subs.end()) {
+    center_arc = findCandidateArc(
+        target_stage_.arc, center_sub->second, scene_, min_max_);
+    if (center_arc == nullptr) {
+      return false;
+    }
+  }
+
+  std::vector<float> delta_by_stage;
+  if (!faninCapDeltas(move, delta_by_stage)) {
+    return false;
+  }
+
+  bool on_path_seen = false;
+  float coupling = 0.0f;  // arrival delta into the center's arc input
+  float center_in_slew = target_stage_.input_slew;
+
+  // Fanin stages whose load changes: re-evaluate; sibling loads are
+  // frontier observations, and the stage feeding the center's arc input
+  // couples its arrival/slew change into the center stage.
+  for (size_t i = 0; i < fanin_stages_.size(); ++i) {
+    const SubgraphStage& stage = fanin_stages_[i];
+    if (delta_by_stage[i] == 0.0f) {
+      continue;
+    }
+    SubgraphStageEval eval;
+    if (!evalStage(stage,
+                   stage.arc,
+                   stage.input_slew,
+                   stage.load_cap + delta_by_stage[i],
+                   eval)) {
+      return false;
+    }
+    appendFrontierSlacks(stage, eval, 0.0f, on_path, on_path_seen, neighbors);
+    if (stage.feeds_on_path_input && stage.has_target_input_index) {
+      const size_t idx = stage.target_input_load_index;
+      coupling = eval.gate_delay - stage.old_gate_delay;
+      if (idx < eval.wire_delay.size()) {
+        coupling += eval.wire_delay[idx] - stage.old_wire_delay[idx];
+        // Receiver-slew ratio: preserve the net's degradation ratio when
+        // scaling the center's input slew (estimateReceiverInputSlew).
+        const float denom
+            = std::max(stage.old_drvr_slew, kMinSlewRatioDenominator);
+        center_in_slew = target_stage_.input_slew * (eval.drvr_slew / denom);
+      }
+    }
+  }
+
+  // Center stage with the substituted arc, coupled input slew, and any
+  // explicit load-cap delta (split/clone move loads off the center net).
+  float center_load_cap = target_stage_.load_cap;
+  const auto center_delta = move.load_cap_delta.find(target_stage_.drvr_pin);
+  if (center_delta != move.load_cap_delta.end()) {
+    center_load_cap = std::max(0.0f, center_load_cap + center_delta->second);
+  }
+  SubgraphStageEval center_eval;
+  if (!evalStage(target_stage_,
+                 center_arc,
+                 center_in_slew,
+                 center_load_cap,
+                 center_eval)) {
+    return false;
+  }
+  const float center_gate_delta
+      = center_eval.gate_delay - target_stage_.old_gate_delay;
+
+  // Virtual appendage stages (table-only: their nets do not exist yet).
+  // Precompute each stage's delay/output slew at its moved cap.
+  struct VirtualEval
+  {
+    const SubgraphMove::VirtualStage* spec;
+    float delay;
+    float out_slew;
+  };
+  std::vector<VirtualEval> virtuals;
+  for (const SubgraphMove::VirtualStage& vs : move.virtual_stages) {
+    sta::LibertyCell* v_cell
+        = const_cast<sta::LibertyCell*>(vs.cell)->sceneCell(scene_, min_max_);
+    if (v_cell == nullptr) {
+      return false;
+    }
+    float moved_cap = 0.0f;
+    for (const sta::Pin* pin : vs.moved_loads) {
+      const sta::LibertyPort* port = resizer_.network()->libertyPort(pin);
+      if (port != nullptr) {
+        moved_cap += port->capacitance(min_max_);
+      }
+    }
+    const sta::TimingArc* v_arc = nullptr;
+    if (v_cell->isBuffer()) {
+      sta::LibertyPort* v_in = nullptr;
+      sta::LibertyPort* v_out = nullptr;
+      v_cell->bufferPorts(v_in, v_out);
+      if (v_in == nullptr || v_out == nullptr) {
+        return false;
+      }
+      for (const sta::TimingArcSet* arc_set :
+           v_cell->timingArcSets(v_in, v_out)) {
+        if (arc_set->role()->isTimingCheck() || arc_set->arcs().empty()) {
+          continue;
+        }
+        v_arc = arc_set->arcs().front();
+        break;
+      }
+    } else {
+      v_arc = findCandidateArc(target_stage_.arc, vs.cell, scene_, min_max_);
+    }
+    if (v_arc == nullptr) {
+      return false;
+    }
+    // Driven through the center (split buffer): sees the center's NEW
+    // output slew.  Replacing the center for its loads (clone): sees the
+    // center's coupled input slew.
+    const float v_in_slew
+        = vs.replaces_center ? center_in_slew : center_eval.drvr_slew;
+    float v_delay = 0.0f;
+    float v_out_slew = 0.0f;
+    if (!tableDelay(target_stage_.pvt,
+                    v_arc,
+                    v_in_slew,
+                    moved_cap,
+                    v_delay,
+                    v_out_slew)) {
+      return false;
+    }
+    virtuals.push_back({&vs, v_delay, v_out_slew});
+  }
+
+  // Center frontier: moved loads go through their virtual stage; the rest
+  // see the re-evaluated center.
+  for (const SubgraphLoad& load : target_stage_.frontier) {
+    const size_t i = load.load_index;
+    const VirtualEval* via_virtual = nullptr;
+    for (const VirtualEval& ve : virtuals) {
+      if (ve.spec->moved_loads.count(load.pin) > 0) {
+        via_virtual = &ve;
+        break;
+      }
+    }
+    float delta = 0.0f;
+    if (via_virtual != nullptr) {
+      const float old_slew = i < target_stage_.old_load_slew.size()
+                                 ? target_stage_.old_load_slew[i]
+                                 : target_stage_.old_drvr_slew;
+      if (via_virtual->spec->replaces_center) {
+        // Clone: the virtual gate replaces the center gate for this load;
+        // wire delay retained (the clone lands at the moved-load centroid).
+        delta = coupling + (via_virtual->delay - target_stage_.old_gate_delay)
+                + receiverSlewToDelay(load, old_slew, via_virtual->out_slew);
+      } else {
+        // Split buffer: center relief, then the buffer stage; wire delay
+        // retained (the buffer lands near the driver).
+        delta = center_gate_delta + via_virtual->delay
+                + receiverSlewToDelay(load, old_slew, via_virtual->out_slew);
+      }
+    } else {
+      delta = coupling + loadArrivalDelta(target_stage_, center_eval, load);
+    }
+    const LocalSlack entry{load.slack_before, load.slack_before - delta};
+    if (load.on_path) {
+      on_path = entry;
+      on_path_seen = true;
+    } else {
+      neighbors.push_back(entry);
+    }
+  }
+
+  if (!on_path_seen) {
+    // Endpoint-side load unobservable in the region: fall back to the
+    // target's own slack with the gate-level delta (no wire term).
+    const float delta = coupling + center_gate_delta;
+    on_path = LocalSlack{target_slack_, target_slack_ - delta};
   }
   return true;
 }
@@ -562,80 +777,12 @@ bool SubgraphTimer::evaluateCellSwap(const sta::LibertyCell* candidate,
                                      LocalSlack& on_path,
                                      std::vector<LocalSlack>& neighbors)
 {
-  neighbors.clear();
   if (!valid_ || candidate == nullptr) {
     return false;
   }
-  const sta::TimingArc* candidate_arc
-      = findCandidateArc(target_stage_.arc, candidate, scene_, min_max_);
-  if (candidate_arc == nullptr) {
-    return false;
-  }
-  std::vector<float> delta_by_stage;
-  if (!faninCapDeltas(candidate, delta_by_stage)) {
-    return false;
-  }
-
-  bool on_path_seen = false;
-  float on_path_input_delta = 0.0f;
-  float target_in_slew = target_stage_.input_slew;
-
-  // Fanin stages whose target input cap changes: re-evaluate with the new
-  // load; their sibling loads are neighbors, and the on-path stage couples
-  // its arrival/slew change into the target stage.
-  for (size_t s = 0; s < fanin_stages_.size(); ++s) {
-    const SubgraphStage& stage = fanin_stages_[s];
-    if (delta_by_stage[s] == 0.0f) {
-      continue;
-    }
-    SubgraphStageEval eval;
-    if (!evalStage(stage,
-                   stage.arc,
-                   stage.input_slew,
-                   stage.load_cap + delta_by_stage[s],
-                   eval)) {
-      return false;
-    }
-    appendFrontierSlacks(stage, eval, 0.0f, on_path, on_path_seen, neighbors);
-    if (stage.feeds_on_path_input && stage.has_target_input_index) {
-      const size_t idx = stage.target_input_load_index;
-      on_path_input_delta = (eval.gate_delay - stage.old_gate_delay);
-      if (idx < eval.wire_delay.size()) {
-        on_path_input_delta += eval.wire_delay[idx] - stage.old_wire_delay[idx];
-        // Receiver-slew ratio: preserve the net's degradation ratio when
-        // scaling the target's input slew (estimateReceiverInputSlew).
-        const float denom
-            = std::max(stage.old_drvr_slew, kMinSlewRatioDenominator);
-        target_in_slew = target_stage_.input_slew * (eval.drvr_slew / denom);
-      }
-    }
-  }
-
-  // Target stage with the candidate cell's arc and the coupled input slew.
-  SubgraphStageEval target_eval;
-  if (!evalStage(target_stage_,
-                 candidate_arc,
-                 target_in_slew,
-                 target_stage_.load_cap,
-                 target_eval)) {
-    return false;
-  }
-  appendFrontierSlacks(target_stage_,
-                       target_eval,
-                       on_path_input_delta,
-                       on_path,
-                       on_path_seen,
-                       neighbors);
-
-  if (!on_path_seen) {
-    // Endpoint-side load unobservable: fall back to the target's own slack
-    // with the gate-level delta (no wire term).
-    const float delta
-        = on_path_input_delta
-          + (target_eval.gate_delay - target_stage_.old_gate_delay);
-    on_path = LocalSlack{target_slack_, target_slack_ - delta};
-  }
-  return true;
+  SubgraphMove move;
+  move.cell_subs[target_stage_.inst] = candidate;
+  return evaluate(move, on_path, neighbors);
 }
 
 bool SubgraphTimer::evaluatePinSwap(const sta::LibertyPort* input_port,
@@ -789,7 +936,6 @@ bool SubgraphTimer::evaluateSplitLoad(const sta::LibertyCell* buffer_cell,
                                       LocalSlack& on_path,
                                       std::vector<LocalSlack>& neighbors)
 {
-  neighbors.clear();
   if (!valid_ || buffer_cell == nullptr) {
     return false;
   }
@@ -801,88 +947,24 @@ bool SubgraphTimer::evaluateSplitLoad(const sta::LibertyCell* buffer_cell,
   sta::LibertyPort* buf_in = nullptr;
   sta::LibertyPort* buf_out = nullptr;
   buf_cell->bufferPorts(buf_in, buf_out);
-  if (buf_in == nullptr || buf_out == nullptr) {
+  if (buf_in == nullptr) {
     return false;
   }
-
   float moved_cap = 0.0f;
+  SubgraphMove move;
+  SubgraphMove::VirtualStage buffer_stage;
+  buffer_stage.cell = buffer_cell;
   for (const sta::Pin* pin : moved_loads) {
+    buffer_stage.moved_loads.insert(pin);
     const sta::LibertyPort* port = resizer_.network()->libertyPort(pin);
     if (port != nullptr) {
       moved_cap += port->capacitance(min_max_);
     }
   }
-  const float new_load_cap = std::max(
-      0.0f, target_stage_.load_cap - moved_cap + buf_in->capacitance(min_max_));
-
-  SubgraphStageEval target_eval;
-  if (!evalStage(target_stage_,
-                 target_stage_.arc,
-                 target_stage_.input_slew,
-                 new_load_cap,
-                 target_eval)) {
-    return false;
-  }
-
-  // The buffer stage is Liberty-table only: its net does not exist yet, so
-  // no parasitic can exist for it.
-  const sta::TimingArc* buf_arc = nullptr;
-  for (const sta::TimingArcSet* arc_set :
-       buf_cell->timingArcSets(buf_in, buf_out)) {
-    if (arc_set->role()->isTimingCheck()) {
-      continue;
-    }
-    for (const sta::TimingArc* arc : arc_set->arcs()) {
-      buf_arc = arc;  // worst chosen below via delay compare
-      break;
-    }
-    if (buf_arc != nullptr) {
-      break;
-    }
-  }
-  if (buf_arc == nullptr) {
-    return false;
-  }
-  float buf_delay = 0.0f;
-  float buf_out_slew = 0.0f;
-  if (!tableDelay(target_stage_.pvt,
-                  buf_arc,
-                  target_eval.drvr_slew,
-                  moved_cap,
-                  buf_delay,
-                  buf_out_slew)) {
-    return false;
-  }
-
-  const float gate_delta
-      = target_eval.gate_delay - target_stage_.old_gate_delay;
-  bool on_path_seen = false;
-  for (const SubgraphLoad& load : target_stage_.frontier) {
-    const size_t i = load.load_index;
-    float delta = 0.0f;
-    if (moved_loads.count(load.pin) > 0) {
-      // Moved load: relief at the driver, then the buffer stage; wire delay
-      // to the load is retained (the buffer lands near the driver).
-      const float old_slew = i < target_stage_.old_load_slew.size()
-                                 ? target_stage_.old_load_slew[i]
-                                 : target_stage_.old_drvr_slew;
-      delta = gate_delta + buf_delay
-              + receiverSlewToDelay(load, old_slew, buf_out_slew);
-    } else {
-      delta = loadArrivalDelta(target_stage_, target_eval, load);
-    }
-    const LocalSlack entry{load.slack_before, load.slack_before - delta};
-    if (load.on_path) {
-      on_path = entry;
-      on_path_seen = true;
-    } else {
-      neighbors.push_back(entry);
-    }
-  }
-  if (!on_path_seen) {
-    on_path = LocalSlack{target_slack_, target_slack_ - gate_delta};
-  }
-  return true;
+  move.load_cap_delta[target_stage_.drvr_pin]
+      = buf_in->capacitance(min_max_) - moved_cap;
+  move.virtual_stages.push_back(std::move(buffer_stage));
+  return evaluate(move, on_path, neighbors);
 }
 
 bool SubgraphTimer::evaluateClone(const sta::LibertyCell* clone_cell,
@@ -890,135 +972,41 @@ bool SubgraphTimer::evaluateClone(const sta::LibertyCell* clone_cell,
                                   LocalSlack& on_path,
                                   std::vector<LocalSlack>& neighbors)
 {
-  neighbors.clear();
   if (!valid_ || clone_cell == nullptr) {
     return false;
   }
-  const sta::TimingArc* clone_arc
-      = findCandidateArc(target_stage_.arc, clone_cell, scene_, min_max_);
-  if (clone_arc == nullptr) {
+  sta::LibertyCell* scene_cell
+      = const_cast<sta::LibertyCell*>(clone_cell)->sceneCell(scene_, min_max_);
+  if (scene_cell == nullptr) {
     return false;
   }
-  // Every fanin net gains the clone's FULL input cap (old_cell == nullptr
-  // semantics of the lumped model).
-  std::vector<float> delta_by_stage(fanin_stages_.size(), 0.0f);
-  {
-    sta::LibertyCell* scene_cell = const_cast<sta::LibertyCell*>(clone_cell)
-                                       ->sceneCell(scene_, min_max_);
-    if (scene_cell == nullptr) {
-      return false;
-    }
-    for (size_t s = 0; s < fanin_stages_.size(); ++s) {
-      const sta::LibertyPort* cur_port
-          = resizer_.network()->libertyPort(fanin_stages_[s].target_input_pin);
-      const sta::LibertyPort* clone_port
-          = cur_port != nullptr ? scene_cell->findLibertyPort(cur_port->name())
-                                : nullptr;
-      if (clone_port != nullptr) {
-        delta_by_stage[s] = clone_port->capacitance(min_max_);
-      }
+  SubgraphMove move;
+  // Every fanin net gains the clone's FULL input cap (the clone is a new
+  // gate on the net; the original keeps its pin).
+  for (const SubgraphStage& stage : fanin_stages_) {
+    const sta::LibertyPort* cur_port
+        = resizer_.network()->libertyPort(stage.target_input_pin);
+    const sta::LibertyPort* clone_port
+        = cur_port != nullptr ? scene_cell->findLibertyPort(cur_port->name())
+                              : nullptr;
+    if (clone_port != nullptr) {
+      move.load_cap_delta[stage.drvr_pin] += clone_port->capacitance(min_max_);
     }
   }
-
+  SubgraphMove::VirtualStage clone_stage;
+  clone_stage.cell = clone_cell;
+  clone_stage.replaces_center = true;
   float moved_cap = 0.0f;
-  sta::PinSet moved_set(resizer_.network());
   for (sta::Pin* pin : moved_loads) {
-    moved_set.insert(pin);
+    clone_stage.moved_loads.insert(pin);
     const sta::LibertyPort* port = resizer_.network()->libertyPort(pin);
     if (port != nullptr) {
       moved_cap += port->capacitance(min_max_);
     }
   }
-
-  bool on_path_seen = false;
-  float on_path_input_delta = 0.0f;
-  float target_in_slew = target_stage_.input_slew;
-  float clone_in_slew = target_stage_.input_slew;
-
-  for (size_t s = 0; s < fanin_stages_.size(); ++s) {
-    const SubgraphStage& stage = fanin_stages_[s];
-    if (delta_by_stage[s] == 0.0f) {
-      continue;
-    }
-    SubgraphStageEval eval;
-    if (!evalStage(stage,
-                   stage.arc,
-                   stage.input_slew,
-                   stage.load_cap + delta_by_stage[s],
-                   eval)) {
-      return false;
-    }
-    appendFrontierSlacks(stage, eval, 0.0f, on_path, on_path_seen, neighbors);
-    if (stage.feeds_on_path_input && stage.has_target_input_index) {
-      const size_t idx = stage.target_input_load_index;
-      on_path_input_delta = eval.gate_delay - stage.old_gate_delay;
-      if (idx < eval.wire_delay.size()) {
-        on_path_input_delta += eval.wire_delay[idx] - stage.old_wire_delay[idx];
-        const float denom
-            = std::max(stage.old_drvr_slew, kMinSlewRatioDenominator);
-        const float ratio = eval.drvr_slew / denom;
-        target_in_slew = target_stage_.input_slew * ratio;
-        clone_in_slew = target_in_slew;
-      }
-    }
-  }
-
-  // Original driver keeps the remaining loads.
-  const float kept_load_cap
-      = std::max(0.0f, target_stage_.load_cap - moved_cap);
-  SubgraphStageEval target_eval;
-  if (!evalStage(target_stage_,
-                 target_stage_.arc,
-                 target_in_slew,
-                 kept_load_cap,
-                 target_eval)) {
-    return false;
-  }
-
-  // Table-only clone stage driving the moved caps.
-  float clone_delay = 0.0f;
-  float clone_out_slew = 0.0f;
-  const sta::Pvt* clone_pvt = target_stage_.pvt;
-  if (!tableDelay(clone_pvt,
-                  clone_arc,
-                  clone_in_slew,
-                  moved_cap,
-                  clone_delay,
-                  clone_out_slew)) {
-    return false;
-  }
-
-  for (const SubgraphLoad& load : target_stage_.frontier) {
-    const size_t i = load.load_index;
-    float delta = 0.0f;
-    if (moved_set.count(load.pin) > 0) {
-      // Moved load: fanin coupling + clone gate replaces original gate +
-      // wire (wire delay retained: the clone lands at the moved-load
-      // centroid, typically no farther than the original driver).
-      const float old_slew = i < target_stage_.old_load_slew.size()
-                                 ? target_stage_.old_load_slew[i]
-                                 : target_stage_.old_drvr_slew;
-      delta = on_path_input_delta + (clone_delay - target_stage_.old_gate_delay)
-              + receiverSlewToDelay(load, old_slew, clone_out_slew);
-    } else {
-      delta = on_path_input_delta
-              + loadArrivalDelta(target_stage_, target_eval, load);
-    }
-    const LocalSlack entry{load.slack_before, load.slack_before - delta};
-    if (load.on_path) {
-      on_path = entry;
-      on_path_seen = true;
-    } else {
-      neighbors.push_back(entry);
-    }
-  }
-  if (!on_path_seen) {
-    const float delta
-        = on_path_input_delta
-          + (target_eval.gate_delay - target_stage_.old_gate_delay);
-    on_path = LocalSlack{target_slack_, target_slack_ - delta};
-  }
-  return true;
+  move.load_cap_delta[target_stage_.drvr_pin] += -moved_cap;
+  move.virtual_stages.push_back(std::move(clone_stage));
+  return evaluate(move, on_path, neighbors);
 }
 
 }  // namespace rsz
