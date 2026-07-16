@@ -149,13 +149,14 @@ bool MoveGenerator::subgraphVeto(const Target& target,
                                  sta::Instance* inst,
                                  sta::Pin* drvr_pin,
                                  const char* what,
+                                 const RegionSpec& spec,
                                  const SubgraphEvalFn& eval) const
 {
   if (!policy_config_.generate_on_main_thread) {
     return false;  // worker-thread generation: permissive skip
   }
   SubgraphTimer timer(resizer_);
-  if (!timer.build(target, inst, drvr_pin)) {
+  if (!timer.build(target, inst, drvr_pin, spec)) {
     return false;
   }
   LocalSlack on_path;
@@ -197,6 +198,7 @@ bool MoveGenerator::subgraphCellSwapVeto(
                       inst,
                       drvr_pin,
                       "cell-swap",
+                      RegionSpec{},
                       [candidate](SubgraphTimer& timer,
                                   LocalSlack& on_path,
                                   std::vector<LocalSlack>& neighbors) {
@@ -216,6 +218,7 @@ bool MoveGenerator::subgraphPinSwapVeto(const Target& target,
       inst,
       drvr_pin,
       "pin-swap",
+      RegionSpec{},
       [input_port, swap_port](SubgraphTimer& timer,
                               LocalSlack& on_path,
                               std::vector<LocalSlack>& neighbors) {
@@ -234,6 +237,7 @@ bool MoveGenerator::subgraphSplitLoadVeto(const Target& target,
       inst,
       drvr_pin,
       "split-load",
+      RegionSpec{},
       [buffer_cell, &moved_loads](SubgraphTimer& timer,
                                   LocalSlack& on_path,
                                   std::vector<LocalSlack>& neighbors) {
@@ -254,6 +258,13 @@ bool MoveGenerator::subgraphCloneVeto(
       inst,
       drvr_pin,
       "clone",
+      // Fanouts of the fanins: the doubled fanin load slows the fanin
+      // drivers' OTHER receivers; promote them to full stages so the harm
+      // propagates to their loads instead of stopping at their inputs.
+      RegionSpec{.fanin_levels = 1,
+                 .fanout_levels = 1,
+                 .expand_center_fanouts = false,
+                 .expand_fanin_fanouts = true},
       [clone_cell, &moved_loads](SubgraphTimer& timer,
                                  LocalSlack& on_path,
                                  std::vector<LocalSlack>& neighbors) {

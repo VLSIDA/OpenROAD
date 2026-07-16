@@ -27,6 +27,7 @@ namespace rsz {
 class Resizer;
 class MoveCommitter;
 class SubgraphTimer;
+struct RegionSpec;
 
 // === Generator input bundles ===============================================
 
@@ -201,6 +202,7 @@ class MoveGenerator
       sta::Instance* inst,
       sta::Pin* drvr_pin,
       const char* what,
+      const RegionSpec& spec,
       const std::function<
           bool(SubgraphTimer&, LocalSlack&, std::vector<LocalSlack>&)>& eval)
       const;
