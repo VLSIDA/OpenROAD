@@ -2338,38 +2338,50 @@ bool Rebuffer::hasTopLevelOutputPort(sta::Net* net)
 }
 
 bool Rebuffer::rebufferHarmsFanouts(const BufferedNetPtr& bnet,
-                                    const FixedDelay driver_gain,
                                     const FixedDelay drvr_slack_before)
 {
-  const double gain = driver_gain.toSeconds();
+  // Per-leaf post-tree slack from the tree's OWN annotated timing: a load
+  // node's slack is the leaf's budget referenced to the driver output
+  // (annotateLoadSlacks), and every wire/via/buffer node carries its modeled
+  // delay (annotateTiming), so
+  //   after(leaf) = leaf_budget - (path delay root->leaf) + gate correction
+  // where the correction is the driver gate delay change for the tree's
+  // load (the same term slackAtDriverPin applies).  Unlike a
+  // buffer-delay-only charge against graph slacks, this credits the removed
+  // unsegmented wire delay -- the reason buffering long nets helps every
+  // sink.  Van Ginneken maximizes the minimum of these afters, so a veto
+  // here should be rare: when it fires, the chosen tree (e.g. after area
+  // recovery) genuinely makes a fanout the region's governing worst slack,
+  // and rejecting it is the right call.
+  sta::Delay correction;
+  std::tie(std::ignore, correction, std::ignore) = drvrPinTiming(bnet);
+  const FixedDelay corr = FixedDelay(correction, resizer_);
 
-  // Walk the chosen tree top-down, accumulating the buffer delay inserted on
-  // the path from the driver to each fanout leaf.  An unbalanced tree stacks
-  // more buffers on some branches than others, so this differs per leaf --
-  // the reason to check every fanout, not just the critical one.
-  std::vector<std::pair<double, double>> leaves;  // (slack_before, buf_delay)
+  const float drvr_before = drvr_slack_before.toSeconds();
+  const LocalSlack on_path{drvr_before, (bnet->slack() + corr).toSeconds()};
+  std::vector<LocalSlack> neighbors;
   visitTree(
-      [&](auto& recurse, int level, const BnetPtr& node, FixedDelay buf_delay)
+      [&](auto& recurse, int level, const BnetPtr& node, FixedDelay path_delay)
           -> int {
         switch (node->type()) {
           case BnetType::buffer:
-            recurse(node->ref(), buf_delay + node->delay());
-            break;
           case BnetType::wire:
           case BnetType::via:
-            recurse(node->ref(), buf_delay);
+            recurse(node->ref(), path_delay + node->delay());
             break;
           case BnetType::junction:
-            recurse(node->ref(), buf_delay);
-            recurse(node->ref2(), buf_delay);
+            recurse(node->ref(), path_delay);
+            recurse(node->ref2(), path_delay);
             break;
           case BnetType::load: {
             sta::Vertex* vertex = graph_->pinLoadVertex(node->loadPin());
-            const double slack_before = vertex != nullptr
-                                            ? sta::delayAsFloat(sta_->slack(
-                                                  vertex, sta::MinMax::max()))
-                                            : 0.0;
-            leaves.emplace_back(slack_before, buf_delay.toSeconds());
+            if (vertex == nullptr || !(node->slack() < FixedDelay::INF)) {
+              break;  // untraced load (annotateLoadSlacks warned): skip
+            }
+            const float before
+                = sta::delayAsFloat(sta_->slack(vertex, sta::MinMax::max()));
+            const float after = (node->slack() - path_delay + corr).toSeconds();
+            neighbors.push_back({before, after});
             break;
           }
         }
@@ -2378,29 +2390,22 @@ bool Rebuffer::rebufferHarmsFanouts(const BufferedNetPtr& bnet,
       bnet,
       FixedDelay::ZERO);
 
-  if (leaves.size() < 2) {
+  // The tree-critical leaf IS the on-path story: it defines bnet->slack()
+  // (the root slack is the min over leaves by construction), so it is
+  // already represented by the on_path entry and the accept machinery --
+  // including recoverArea's deliberate slack giveback -- is the authority
+  // for it.  Listing it as a neighbor would make every area-recovered tree
+  // veto itself.  Judge only the OTHER fanouts.
+  if (neighbors.size() < 2) {
     return false;  // single fanout: no other fanout to protect
   }
-
-  // Charge harm only to fanouts that HAD positive slack: a fanout already
-  // in violation is part of what this rebuffering repairs, not a harmed
-  // neighbor.  Buffering also relieves the driver, an improvement shared by
-  // every fanout, so the net extra delay a positive-slack fanout suffers is
-  // its branch buffer delay minus that shared gain.  WNS rule: veto when
-  // such a fanout becomes the local region's governing worst slack (the
-  // driver's own before/after entry represents the repaired path).
-  const float drvr_before = drvr_slack_before.toSeconds();
-  const LocalSlack on_path{drvr_before, drvr_before + static_cast<float>(gain)};
-  std::vector<LocalSlack> neighbors;
-  neighbors.reserve(leaves.size());
-  for (const auto& [slack_before, branch_buf_delay] : leaves) {
-    if (slack_before <= 0.0) {
-      continue;  // already violating: a repair target, not a harmed neighbor
+  size_t critical = 0;
+  for (size_t i = 1; i < neighbors.size(); ++i) {
+    if (neighbors[i].after < neighbors[critical].after) {
+      critical = i;
     }
-    const double net_added_delay = branch_buf_delay - gain;
-    neighbors.push_back({static_cast<float>(slack_before),
-                         static_cast<float>(slack_before - net_added_delay)});
   }
+  neighbors.erase(neighbors.begin() + critical);
   return wnsDegraded(on_path, neighbors);
 }
 
@@ -2501,12 +2506,10 @@ int Rebuffer::rebufferPin(const sta::Pin* drvr_pin)
     // the critical fanout) while pushing a non-critical fanout on a slower
     // branch further into violation -- which the endpoint repair loop cannot
     // see (it re-checks only the target endpoint).  Reject the whole
-    // rebuffering when a positive-slack fanout becomes the local region's
-    // governing worst slack (WNS rule).
+    // rebuffering when a fanout becomes the local region's governing worst
+    // slack (WNS rule over the tree's own annotated per-leaf timing).
     if (resizer_->neighborCheckEnabled()) {
-      const FixedDelay driver_gain
-          = slackAtDriverPin(bnet) - pre_buffer_drvr_slack;
-      if (rebufferHarmsFanouts(bnet, driver_gain, pre_buffer_drvr_slack)) {
+      if (rebufferHarmsFanouts(bnet, pre_buffer_drvr_slack)) {
         debugPrint(logger_,
                    RSZ,
                    "rebuffer",
