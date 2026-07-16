@@ -170,8 +170,8 @@ std::vector<std::unique_ptr<MoveCandidate>> SplitLoadGenerator::generate(
     // buffer: each moved load's path gains the buffer delay, offset by the
     // driver relief that every fanout shares.  The loads are picked for
     // having the most slack, but nothing above verifies they can absorb the
-    // buffer delay.  Veto when the worst moved load gives up more slack than
-    // the driver relief is worth.  Already-violating moved loads are repair
+    // buffer delay.  Veto when a moved load becomes the local region's
+    // governing worst slack.  Already-violating moved loads are repair
     // targets rather than harmed neighbors and are not charged.
     const sta::Scene* scene = target.activeScene(resizer_);
     const sta::MinMax* min_max = target.minMax(resizer_);
@@ -202,7 +202,7 @@ std::vector<std::unique_ptr<MoveCandidate>> SplitLoadGenerator::generate(
           impacts.push_back({slack_before, buf_delay - gain});
         }
       }
-      if (neighborCheckVeto(gain, impacts)) {
+      if (neighborCheckVeto(sta::delayAsFloat(target.slack), gain, impacts)) {
         return candidates;
       }
     }

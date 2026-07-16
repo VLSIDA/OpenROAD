@@ -3,9 +3,11 @@
 
 #pragma once
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <stdexcept>
@@ -402,11 +404,12 @@ struct OptimizerRunConfig
   bool skip_vt_swap{false};
   bool skip_crit_vt_swap{false};
   // Optional neighbor feasibility check (repair_timing -neighbor_check):
-  // suppress a candidate move when the extra delay it imposes on an off-path
-  // neighbor drives that neighbor's slack below zero by more than
-  // neighbor_check_lambda times the move's own predicted gain.  Off by
-  // default; when off, no neighbor data is collected and behavior is
-  // unchanged.
+  // suppress a candidate move when an off-path neighbor it slows becomes the
+  // governing worst slack of the move's local region (WNS rule, see
+  // wnsDegraded below).  Off by default; when off, no neighbor data is
+  // collected and behavior is unchanged.  neighbor_check_lambda belonged to
+  // the earlier gain/harm trade rule; it is parsed for option compatibility
+  // but ignored by the WNS rule.
   bool neighbor_check{false};
   float neighbor_check_lambda{0.25};
   std::vector<MoveType> sequence;
@@ -426,6 +429,39 @@ struct NeighborImpact
   float slack_before{0.0f};  // neighbor's slack before the move (snapshot)
   float delay_delta{0.0f};   // added delay this move imposes (>0 => slower)
 };
+
+// One local timing observation for the WNS-degradation veto rule: the slack
+// of a pin the move touches (on-path target or off-path neighbor) before the
+// move and its predicted slack after.  All observations share the frozen
+// boundary assumption: arrivals/slews entering the local region and required
+// times leaving it are unchanged by the move.
+struct LocalSlack
+{
+  float before{0.0f};
+  float after{0.0f};
+};
+
+// Veto rule: a move is suppressed when it degrades the worst slack of its
+// local region AND the pin governing that new worst slack is an off-path
+// neighbor.  When the on-path target governs, the ordinary accept machinery
+// (estimate + endpoint recheck) is the authority and no veto applies here.
+// The tolerance absorbs float noise (1 ps).
+inline bool wnsDegraded(const LocalSlack& on_path,
+                        const std::vector<LocalSlack>& neighbors)
+{
+  if (neighbors.empty()) {
+    return false;
+  }
+  constexpr float kSlackTolerance = 1e-12f;
+  float wns_before = on_path.before;
+  float neighbor_after = std::numeric_limits<float>::max();
+  for (const LocalSlack& n : neighbors) {
+    wns_before = std::min(wns_before, n.before);
+    neighbor_after = std::min(neighbor_after, n.after);
+  }
+  return neighbor_after < wns_before - kSlackTolerance
+         && neighbor_after <= on_path.after + kSlackTolerance;
+}
 
 // Policy-to-generator configuration channel for tunable knobs that do not
 // belong in the OptimizerRunConfig.

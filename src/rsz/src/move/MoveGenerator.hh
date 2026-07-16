@@ -121,13 +121,14 @@ class MoveGenerator
 
   bool neighborCheckEnabled() const { return run_config_.neighbor_check; }
 
-  // Veto decision: reject when the worst single neighbor gives up more
-  // negative slack than neighbor_check_lambda times the move's predicted
-  // gain (net = gain - lambda * worst_harm <= 0).  A difference of same-unit
-  // quantities rather than a harm/gain ratio, so a tiny gain cannot blow the
-  // metric up.  Per-neighbor (not summed): each neighbor sits on its own
-  // path.
-  bool neighborCheckVeto(float gain,
+  // Veto decision: WNS-degradation rule (wnsDegraded in OptimizerTypes.hh).
+  // The local region is the on-path target -- {slack, slack + gain} under
+  // the frozen-boundary assumption -- plus one {slack_before,
+  // slack_before - delay_delta} entry per perturbed neighbor.  Reject when a
+  // neighbor becomes the region's governing worst slack and degrades it;
+  // when the on-path pin governs, the ordinary accept machinery decides.
+  bool neighborCheckVeto(float on_path_slack,
+                         float gain,
                          const std::vector<NeighborImpact>& impacts) const;
 
   // Snapshot a vertex's slack ONLY if it is a pure cache read (arrivals valid

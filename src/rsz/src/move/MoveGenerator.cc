@@ -25,20 +25,21 @@
 namespace rsz {
 
 bool MoveGenerator::neighborCheckVeto(
+    const float on_path_slack,
     const float gain,
     const std::vector<NeighborImpact>& impacts) const
 {
-  if (gain <= 0.0f || impacts.empty()) {
+  if (impacts.empty()) {
     return false;
   }
-  float worst_given_up = 0.0f;
+  const LocalSlack on_path{on_path_slack, on_path_slack + gain};
+  std::vector<LocalSlack> neighbors;
+  neighbors.reserve(impacts.size());
   for (const NeighborImpact& impact : impacts) {
-    const float absorbed = std::max(0.0f, impact.slack_before);
-    const float negative_harm = std::max(0.0f, impact.delay_delta - absorbed);
-    worst_given_up = std::max(worst_given_up, negative_harm);
+    neighbors.push_back(
+        {impact.slack_before, impact.slack_before - impact.delay_delta});
   }
-  return worst_given_up > 0.0f
-         && gain - run_config_.neighbor_check_lambda * worst_given_up <= 0.0f;
+  return wnsDegraded(on_path, neighbors);
 }
 
 bool MoveGenerator::cachedSlack(sta::Vertex* vertex, float& slack_out) const

@@ -237,7 +237,8 @@ std::vector<std::unique_ptr<MoveCandidate>> CloneGenerator::generate(
     // Cloning duplicates every input pin: each fanin net now drives BOTH
     // gates, so all off-path fanin drivers slow down by the clone's full
     // input capacitance.  Gain = the original driver's relief from the moved
-    // loads.  Veto when the worst fanin gives up more slack than that.
+    // loads.  Veto when a slowed fanin becomes the local region's governing
+    // worst slack.
     const sta::MinMax* min_max = target.minMax(resizer_);
     const sta::LibertyPort* drvr_port
         = resizer_.network()->libertyPort(drvr_pin);
@@ -251,10 +252,11 @@ std::vector<std::unique_ptr<MoveCandidate>> CloneGenerator::generate(
     const float gain = driverDelayDelta(
         drvr_port != nullptr ? drvr_port->driveResistance() : 0.0f, moved_cap);
     const sta::Path* input_path = target.inputPath(resizer_);
-    const sta::Pin* on_path_pin
-        = input_path != nullptr ? input_path->pin(resizer_.staState())
-                                : nullptr;
-    if (neighborCheckVeto(gain,
+    const sta::Pin* on_path_pin = input_path != nullptr
+                                      ? input_path->pin(resizer_.staState())
+                                      : nullptr;
+    if (neighborCheckVeto(sta::delayAsFloat(target.slack),
+                          gain,
                           faninSlowdownImpacts(drvr_inst,
                                                /*old_cell=*/nullptr,
                                                clone_cell,

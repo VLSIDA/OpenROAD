@@ -150,7 +150,7 @@ std::vector<std::unique_ptr<MoveCandidate>> SwapPinsGenerator::buildCandidates(
     // the OTHER net (currently on swap_port) over to input_port; commutative
     // pins can have different input caps (e.g. a tapered transistor stack),
     // so that net's driver sees a new load and can be pushed critical.  Veto
-    // when that neighbor gives up more slack than the swap gains.
+    // when that neighbor becomes the local region's governing worst slack.
     sta::Pin* swap_pin = resizer_.dbNetwork()->findPin(drvr, swap_port->name());
     if (swap_pin != nullptr) {
       std::vector<NeighborImpact> impacts;
@@ -164,7 +164,9 @@ std::vector<std::unique_ptr<MoveCandidate>> SwapPinsGenerator::buildCandidates(
           impacts.push_back({slack_before, other_delta});
         }
       }
-      if (neighborCheckVeto(current_delay - swap_delay, impacts)) {
+      if (neighborCheckVeto(sta::delayAsFloat(target.slack),
+                            current_delay - swap_delay,
+                            impacts)) {
         return candidates;
       }
     }
