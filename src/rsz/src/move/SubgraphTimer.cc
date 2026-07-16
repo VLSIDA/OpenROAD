@@ -312,10 +312,12 @@ void SubgraphTimer::collectFrontier(SubgraphStage& stage,
 
 bool SubgraphTimer::build(const Target& target,
                           sta::Instance* inst,
-                          sta::Pin* drvr_pin)
+                          sta::Pin* drvr_pin,
+                          const RegionSpec& spec)
 {
   valid_ = false;
   fanin_stages_.clear();
+  fanout_stages_.clear();
   target_stage_ = SubgraphStage{};
   if (!guardOK() || inst == nullptr || drvr_pin == nullptr
       || !target.canBePathDriver()) {
@@ -480,7 +482,82 @@ bool SubgraphTimer::build(const Target& target,
     }
   }
 
+  // Fanout-stage promotion (fanout_levels = 1): selected frontier
+  // receivers become full dcalc stages so the delta propagates to THEIR
+  // loads instead of stopping at a depth-1 table conversion.
+  if (spec.fanout_levels > 0) {
+    if (spec.expand_center_fanouts) {
+      const std::vector<SubgraphLoad> frontier = target_stage_.frontier;
+      for (const SubgraphLoad& load : frontier) {
+        promoteFanoutStage(target_stage_, SubgraphStage::kUpstreamCenter, load);
+      }
+    }
+    if (spec.expand_fanin_fanouts) {
+      for (size_t i = 0; i < fanin_stages_.size(); ++i) {
+        const std::vector<SubgraphLoad> frontier = fanin_stages_[i].frontier;
+        for (const SubgraphLoad& load : frontier) {
+          promoteFanoutStage(fanin_stages_[i], static_cast<int>(i), load);
+        }
+      }
+    }
+    if (fanout_stages_.size() > static_cast<size_t>(kMaxFrontierLoads)) {
+      return false;  // oversized region: permissive skip
+    }
+  }
+
   valid_ = true;
+  return true;
+}
+
+bool SubgraphTimer::promoteFanoutStage(SubgraphStage& parent,
+                                       const int parent_ref,
+                                       const SubgraphLoad& load)
+{
+  // The receiver gate's output driver is the promoted stage.  Loads that
+  // are not gate inputs (ports, macros) stay as depth-1 frontier entries.
+  if (load.rcv_arc == nullptr || load.on_path) {
+    return false;  // on-path load stays a frontier observation
+  }
+  sta::Instance* rcv_inst = resizer_.network()->instance(load.pin);
+  if (rcv_inst == nullptr || rcv_inst == target_stage_.inst) {
+    return false;
+  }
+  // Find the receiver's output driver pin via its worst out-edge arc.
+  sta::Vertex* load_vertex = load.vertex;
+  sta::Vertex* rcv_drvr = nullptr;
+  sta::VertexOutEdgeIterator out_iter(load_vertex, resizer_.graph());
+  while (out_iter.hasNext()) {
+    sta::Edge* edge = out_iter.next();
+    if (!edge->isWire() && !edge->role()->isTimingCheck()) {
+      rcv_drvr = edge->to(resizer_.graph());
+      break;
+    }
+  }
+  if (rcv_drvr == nullptr || rcv_drvr->pin() == nullptr) {
+    return false;
+  }
+  const sta::TimingArc* arc = nullptr;
+  float in_slew = 0.0f;
+  if (!worstGraphArcInto(rcv_drvr, arc, in_slew)) {
+    return false;
+  }
+  SubgraphStage stage;
+  if (!buildStage(rcv_drvr->pin(), arc, in_slew, stage)) {
+    return false;
+  }
+  collectFrontier(stage, nullptr, on_path_load_pin_);
+  stage.upstream_stage = parent_ref;
+  stage.upstream_load_index = load.load_index;
+  stage.upstream_load_pin = load.pin;
+  fanout_stages_.push_back(std::move(stage));
+  // The promoted receiver's input pin leaves the parent's frontier: its
+  // slack is now observed through the promoted stage's own frontier.
+  for (size_t i = 0; i < parent.frontier.size(); ++i) {
+    if (parent.frontier[i].pin == load.pin) {
+      parent.frontier.erase(parent.frontier.begin() + i);
+      break;
+    }
+  }
   return true;
 }
 
@@ -613,6 +690,8 @@ bool SubgraphTimer::evaluate(const SubgraphMove& move,
   bool on_path_seen = false;
   float coupling = 0.0f;  // arrival delta into the center's arc input
   float center_in_slew = target_stage_.input_slew;
+  // Per-fanin-stage evals kept for fanout-stage linkage.
+  std::vector<SubgraphStageEval> fanin_evals(fanin_stages_.size());
 
   // Fanin stages whose load changes: re-evaluate; sibling loads are
   // frontier observations, and the stage feeding the center's arc input
@@ -631,6 +710,7 @@ bool SubgraphTimer::evaluate(const SubgraphMove& move,
       return false;
     }
     appendFrontierSlacks(stage, eval, 0.0f, on_path, on_path_seen, neighbors);
+    fanin_evals[i] = eval;
     if (stage.feeds_on_path_input && stage.has_target_input_index) {
       const size_t idx = stage.target_input_load_index;
       coupling = eval.gate_delay - stage.old_gate_delay;
@@ -761,6 +841,77 @@ bool SubgraphTimer::evaluate(const SubgraphMove& move,
       on_path_seen = true;
     } else {
       neighbors.push_back(entry);
+    }
+  }
+
+  // Promoted fanout stages: propagate the upstream delta and slew ratio
+  // through the linkage, re-evaluate the receiver gate (with any cell sub,
+  // e.g. size down fanout), and emit its frontier.
+  for (const SubgraphStage& stage : fanout_stages_) {
+    // Upstream contribution at the coupling pin (gate + wire, no depth-1
+    // receiver term: this stage replaces it).
+    const SubgraphStage* up = nullptr;
+    const SubgraphStageEval* up_eval = nullptr;
+    float up_base = 0.0f;
+    if (stage.upstream_stage == SubgraphStage::kUpstreamCenter) {
+      up = &target_stage_;
+      up_eval = &center_eval;
+      up_base = coupling;
+    } else if (stage.upstream_stage >= 0
+               && static_cast<size_t>(stage.upstream_stage)
+                      < fanin_stages_.size()) {
+      up = &fanin_stages_[stage.upstream_stage];
+      up_eval = &fanin_evals[stage.upstream_stage];
+    } else {
+      continue;
+    }
+    const sta::TimingArc* stage_arc = stage.arc;
+    float stage_load_cap = stage.load_cap;
+    const auto sub = move.cell_subs.find(stage.inst);
+    if (sub != move.cell_subs.end()) {
+      stage_arc = findCandidateArc(stage.arc, sub->second, scene_, min_max_);
+      if (stage_arc == nullptr) {
+        return false;
+      }
+    }
+    const auto cap_delta = move.load_cap_delta.find(stage.drvr_pin);
+    if (cap_delta != move.load_cap_delta.end()) {
+      stage_load_cap = std::max(0.0f, stage_load_cap + cap_delta->second);
+    }
+    float up_delta = 0.0f;
+    float stage_in_slew = stage.input_slew;
+    const bool up_affected = up_eval->valid;
+    if (up_affected) {
+      const size_t idx = stage.upstream_load_index;
+      up_delta = up_base + (up_eval->gate_delay - up->old_gate_delay);
+      if (idx < up_eval->wire_delay.size()) {
+        up_delta += up_eval->wire_delay[idx] - up->old_wire_delay[idx];
+        const float denom
+            = std::max(up->old_load_slew[idx], kMinSlewRatioDenominator);
+        stage_in_slew = stage.input_slew * (up_eval->load_slew[idx] / denom);
+      }
+    }
+    if (!up_affected && stage_arc == stage.arc
+        && stage_load_cap == stage.load_cap) {
+      continue;  // nothing about this stage changes
+    }
+    SubgraphStageEval eval;
+    if (!evalStage(stage, stage_arc, stage_in_slew, stage_load_cap, eval)) {
+      return false;
+    }
+    appendFrontierSlacks(
+        stage, eval, up_delta, on_path, on_path_seen, neighbors);
+    // The promoted receiver's own input-pin slack observation: charge the
+    // upstream delta at the coupling pin (its slack was captured before
+    // promotion removed it from the parent's frontier) -- via the stage's
+    // driver-side entry so the pin itself is still protected.
+    if (up_affected && stage.upstream_load_pin != nullptr) {
+      sta::Vertex* in_vertex = resizer_.graph()->pinLoadVertex(
+          const_cast<sta::Pin*>(stage.upstream_load_pin));
+      float in_slack = 0.0f;
+      if (cachedSlack(in_vertex, in_slack)) {
+        neighbors.push_back({in_slack, in_slack - up_delta});
+      }
     }
   }
 

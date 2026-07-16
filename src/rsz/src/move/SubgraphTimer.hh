@@ -88,6 +88,15 @@ struct SubgraphStage
   size_t target_input_load_index{0};
   bool has_target_input_index{false};
   bool feeds_on_path_input{false};
+  // For fanout stages (promoted frontier receivers): which region stage
+  // feeds this stage's input and at which load index in that stage's
+  // load_map, so cumulative arrival/slew deltas propagate through the
+  // linkage in one topological walk.  kUpstreamCenter = the center stage;
+  // >= 0 indexes fanin_stages_.
+  static constexpr int kUpstreamCenter = -1;
+  int upstream_stage{kUpstreamCenter};
+  size_t upstream_load_index{0};
+  const sta::Pin* upstream_load_pin{nullptr};
   // OLD-model baseline (from build()).
   float old_gate_delay{0.0f};
   float old_drvr_slew{0.0f};
@@ -132,6 +141,19 @@ struct SubgraphMove
   std::vector<VirtualStage> virtual_stages;
 };
 
+// Region expansion depths.  fanin_levels is fixed at 1 today.  When
+// fanout_levels is 1, frontier receivers selected by the builder (all of
+// the center's gate loads for size down fanout; the fanin stages' sibling
+// receivers for clone) are promoted from depth-1 table conversions to full
+// dcalc stages, and the arrival/slew delta propagates to THEIR loads.
+struct RegionSpec
+{
+  int fanin_levels{1};
+  int fanout_levels{0};
+  bool expand_center_fanouts{false};  // promote center gate-load receivers
+  bool expand_fanin_fanouts{false};   // promote fanin sibling receivers
+};
+
 class SubgraphTimer
 {
  public:
@@ -145,7 +167,10 @@ class SubgraphTimer
   // Uses the path arc when the center is the endpoint-path driver, the
   // graph-worst arc otherwise.  Main thread only; false => caller skips
   // the veto (permissive).
-  bool build(const Target& target, sta::Instance* inst, sta::Pin* drvr_pin);
+  bool build(const Target& target,
+             sta::Instance* inst,
+             sta::Pin* drvr_pin,
+             const RegionSpec& spec = RegionSpec{});
 
   // Generic walker: evaluate the declarative move over the region.  On
   // success fills the on-path observation and the neighbor observations
@@ -252,10 +277,18 @@ class SubgraphTimer
   const sta::Scene* scene_{nullptr};
   const sta::MinMax* min_max_{nullptr};
   bool valid_{false};
+  // Promote a frontier receiver of `parent` into a full fanout stage
+  // linked at (parent_ref, load_index); removes the load from the parent's
+  // frontier on success.
+  bool promoteFanoutStage(SubgraphStage& parent,
+                          int parent_ref,
+                          const SubgraphLoad& load);
+
   float target_slack_{0.0f};  // fallback on-path observation
   const sta::Pin* on_path_load_pin_{nullptr};
   SubgraphStage target_stage_;
   std::vector<SubgraphStage> fanin_stages_;
+  std::vector<SubgraphStage> fanout_stages_;  // promoted receivers (topo last)
 
   static constexpr int kMaxFaninStages = 8;
   static constexpr int kMaxFrontierLoads = 64;
