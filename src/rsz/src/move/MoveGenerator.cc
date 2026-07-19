@@ -272,6 +272,33 @@ bool MoveGenerator::subgraphCloneVeto(
       });
 }
 
+bool MoveGenerator::subgraphSizeDownFanoutVeto(
+    const Target& target,
+    sta::Instance* drvr_inst,
+    sta::Pin* drvr_pin,
+    const std::vector<std::pair<const sta::Pin*, const sta::LibertyCell*>>&
+        downsizes) const
+{
+  return subgraphVeto(
+      target,
+      drvr_inst,
+      drvr_pin,
+      "size-down-fanout",
+      // Joint region: the shared critical driver is the center and every
+      // candidate downsized gate is a promoted fanout stage, so the driver
+      // relief is the SUM of the input-cap shrinks and each gate's slowdown
+      // propagates to its own loads.
+      RegionSpec{.fanin_levels = 1,
+                 .fanout_levels = 1,
+                 .expand_center_fanouts = true,
+                 .expand_fanin_fanouts = false},
+      [&downsizes](SubgraphTimer& timer,
+                   LocalSlack& on_path,
+                   std::vector<LocalSlack>& neighbors) {
+        return timer.evaluateSizeDownFanout(downsizes, on_path, neighbors);
+      });
+}
+
 bool MoveGenerator::estimatedSwapGain(const Target& target,
                                       const sta::LibertyCell* candidate_cell,
                                       float& gain_out) const

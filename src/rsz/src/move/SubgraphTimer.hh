@@ -6,6 +6,7 @@
 #include <map>
 #include <memory>
 #include <set>
+#include <utility>
 #include <vector>
 
 #include "OptimizerTypes.hh"
@@ -199,6 +200,19 @@ class SubgraphTimer
                          const sta::PinSet& moved_loads,
                          LocalSlack& on_path,
                          std::vector<LocalSlack>& neighbors);
+
+  // Move builder: jointly downsize fanout gates of the center driver
+  // (size down fanout).  Build with expand_center_fanouts so each
+  // downsized gate is a promoted fanout stage carrying a cell sub; the
+  // center's load-cap relief is the SUM of the input-pin shrinks (the
+  // per-gate view sees only its own sliver of the shared relief).  Each
+  // entry pairs the gate's load pin on the center net with its smaller
+  // replacement cell.
+  bool evaluateSizeDownFanout(
+      const std::vector<std::pair<const sta::Pin*, const sta::LibertyCell*>>&
+          downsizes,
+      LocalSlack& on_path,
+      std::vector<LocalSlack>& neighbors);
 
   // Move builder: clone the center gate -- moved_loads transfer to a
   // table-only clone stage and every fanin net gains the clone's full

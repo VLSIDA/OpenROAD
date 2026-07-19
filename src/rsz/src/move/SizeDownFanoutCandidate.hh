@@ -37,6 +37,10 @@ class SizeDownFanoutCandidate : public MoveCandidate
   MoveResult apply() override;
   MoveType type() const override { return MoveType::kSizeDownFanout; }
 
+  // === Joint neighbor-check access ==========================================
+  sta::Pin* loadPin() const { return load_pin_; }
+  sta::LibertyCell* replacement() const { return replacement_; }
+
  private:
   // === Candidate state ======================================================
   sta::Pin* drvr_pin_{nullptr};

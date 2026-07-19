@@ -721,7 +721,29 @@ std::vector<std::unique_ptr<MoveCandidate>> SizeDownFanoutGenerator::generate(
     return {};
   }
 
-  return buildCandidates(ctx);
+  std::vector<std::unique_ptr<MoveCandidate>> candidates = buildCandidates(ctx);
+
+  if (neighborCheckEnabled() && !candidates.empty()) {
+    // Joint feasibility over ALL candidate downsizes at once: the shared
+    // driver's relief is the sum of the input-cap shrinks, and each
+    // downsized gate's slowdown propagates to its own loads through a
+    // promoted fanout stage.  The per-gate delay-budget screen above
+    // remains the primary filter; this veto adds the cross-gate view.
+    std::vector<std::pair<const sta::Pin*, const sta::LibertyCell*>> downsizes;
+    downsizes.reserve(candidates.size());
+    for (const std::unique_ptr<MoveCandidate>& candidate : candidates) {
+      const auto* size_down
+          = static_cast<const SizeDownFanoutCandidate*>(candidate.get());
+      downsizes.emplace_back(size_down->loadPin(), size_down->replacement());
+    }
+    sta::Instance* drvr_inst = resizer_.network()->instance(ctx.drvr_pin);
+    if (subgraphSizeDownFanoutVeto(
+            target, drvr_inst, ctx.drvr_pin, downsizes)) {
+      candidates.clear();
+    }
+  }
+
+  return candidates;
 }
 
 }  // namespace rsz

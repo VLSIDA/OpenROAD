@@ -6,6 +6,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "MoveCandidate.hh"
@@ -195,6 +196,13 @@ class MoveGenerator
                          sta::Pin* drvr_pin,
                          const sta::LibertyCell* clone_cell,
                          const std::vector<sta::Pin*>& moved_loads) const;
+
+  bool subgraphSizeDownFanoutVeto(
+      const Target& target,
+      sta::Instance* drvr_inst,
+      sta::Pin* drvr_pin,
+      const std::vector<std::pair<const sta::Pin*, const sta::LibertyCell*>>&
+          downsizes) const;
 
   // Shared build/evaluate/decide skeleton behind the subgraph*Veto helpers.
   bool subgraphVeto(

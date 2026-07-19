@@ -1160,4 +1160,43 @@ bool SubgraphTimer::evaluateClone(const sta::LibertyCell* clone_cell,
   return evaluate(move, on_path, neighbors);
 }
 
+bool SubgraphTimer::evaluateSizeDownFanout(
+    const std::vector<std::pair<const sta::Pin*, const sta::LibertyCell*>>&
+        downsizes,
+    LocalSlack& on_path,
+    std::vector<LocalSlack>& neighbors)
+{
+  if (!valid_ || downsizes.empty()) {
+    return false;
+  }
+  SubgraphMove move;
+  float center_delta = 0.0f;
+  for (const auto& [load_pin, smaller] : downsizes) {
+    sta::Instance* inst = resizer_.network()->instance(load_pin);
+    if (inst == nullptr || smaller == nullptr) {
+      return false;
+    }
+    sta::LibertyCell* scene_cell
+        = const_cast<sta::LibertyCell*>(smaller)->sceneCell(scene_, min_max_);
+    const sta::LibertyPort* cur_port
+        = resizer_.network()->libertyPort(load_pin);
+    if (scene_cell == nullptr || cur_port == nullptr) {
+      return false;
+    }
+    const sta::LibertyPort* new_port
+        = scene_cell->findLibertyPort(cur_port->name());
+    if (new_port == nullptr) {
+      return false;
+    }
+    move.cell_subs[inst] = smaller;
+    // The walker derives fanin-stage deltas from cell subs of fed
+    // instances, but deliberately not the center's own load: charge the
+    // summed input-pin shrink on the center net explicitly.
+    center_delta
+        += new_port->capacitance(min_max_) - cur_port->capacitance(min_max_);
+  }
+  move.load_cap_delta[target_stage_.drvr_pin] = center_delta;
+  return evaluate(move, on_path, neighbors);
+}
+
 }  // namespace rsz
