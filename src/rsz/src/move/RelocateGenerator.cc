@@ -354,7 +354,14 @@ bool RelocateGenerator::computeBestLocation(const Target& target,
     // endpoint pin, which the local Elmore model over-favors but real timing
     // punishes).
     const double half_span = std::abs(b_coord - a_coord) / 2.0;
-    double shift_dbu = resizer_.metersToDbu(shift_m);
+    // shift_m is signed: positive pulls toward the sinks (this gate is the
+    // weaker driver / more heavily loaded), negative pulls toward the upstream
+    // driver.  metersToDbu() rejects negative distances, so convert the
+    // magnitude and reapply the sign.
+    double shift_dbu = resizer_.metersToDbu(std::abs(shift_m));
+    if (shift_m < 0.0) {
+      shift_dbu = -shift_dbu;
+    }
     shift_dbu = std::clamp(shift_dbu, -half_span, half_span);
     const double dir = (b_coord > a_coord) ? 1.0 : -1.0;
     const double rc_shift = midpoint + dir * shift_dbu;
