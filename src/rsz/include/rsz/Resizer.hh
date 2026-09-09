@@ -112,6 +112,7 @@ enum class MoveType : uint8_t
   kUnbuffer,
   kSplitLoad,
   kReroute,
+  kRelocate,
   kCount
 };
 
@@ -859,6 +860,12 @@ class Resizer : public sta::dbStaState, public sta::dbNetworkObserver
   void insertBufferPostProcess(odb::dbInst* buffer_inst);
 
   void setLocation(odb::dbInst* db_inst, const odb::Point& pt);
+  // Snap db_inst to a legal placement site when a placement grid is available.
+  // The grid is only initialized (initMacrosAndGrid) under routing-based
+  // parasitics; before routing a subsequent detailed placement legalizes the
+  // position, so this is a no-op then.  Mirrors the legalization step in
+  // makeInstance()/insertBufferPostProcess().
+  void legalizeCellPos(odb::dbInst* db_inst);
   odb::Point clampLocToCore(const odb::Point& loc, odb::dbMaster* master) const;
   sta::LibertyCell* findTargetCell(sta::LibertyCell* cell,
                                    float load_cap,

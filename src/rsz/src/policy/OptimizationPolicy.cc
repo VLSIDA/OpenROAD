@@ -16,6 +16,7 @@
 #include "DelayEstimator.hh"
 #include "MoveCommitter.hh"
 #include "OptimizerTypes.hh"
+#include "RelocateGenerator.hh"
 #include "RepairSetupContext.hh"
 #include "RepairTargetCollector.hh"
 #include "RerouteGenerator.hh"
@@ -326,6 +327,9 @@ void OptimizationPolicy::buildMoveGenerators(
         break;
       case MoveType::kReroute:
         generator = std::make_unique<RerouteGenerator>(context);
+        break;
+      case MoveType::kRelocate:
+        generator = std::make_unique<RelocateGenerator>(context);
         break;
       case MoveType::kCount:
         break;

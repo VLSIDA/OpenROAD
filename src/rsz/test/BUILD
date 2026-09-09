@@ -143,6 +143,7 @@ TESTS = [
     "repair_setup_invalid_phase",
     "repair_setup_move_tracker_level1",
     "repair_setup_pin_command",
+    "repair_setup_relocate",
     "repair_setup_reroute1",
     "repair_setup_reroute2",
     "repair_setup_size_down_fanout_only",
