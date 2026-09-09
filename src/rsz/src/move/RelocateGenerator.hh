@@ -24,27 +24,32 @@ namespace rsz {
 //
 // The framework hands this generator the standard path-driver critical
 // candidate (the same driver pin/path CloneGenerator and SizeUpGenerator
-// receive).  Rather than the plain geometric midpoint of one input driver and
-// one output load, the generator anchors the gate on ALL near-critical fanin
-// drivers and ALL fanout sinks, each weighted by timing criticality, and uses
-// an Elmore-RC estimate that accounts for drive-strength and load asymmetry.
+// receive).  The gate has one input anchor -- the driver of its critical input
+// net (location L_D, upstream drive resistance R_up, gate input pin cap C_pin)
+// -- and a set of fanout sinks.  Only the CRITICAL (negative-slack) sinks
+// anchor the gate; the non-critical loads are pruned so a sink's many
+// non-critical siblings cannot dilute the placement off the critical corridor.
+// (The whole fanout still contributes to the total output load C_load, which
+// sets the gate-side drive-delay magnitude.)
 //
-// Per the Elmore model (Manhattan wirelength separates x and y so each axis is
-// optimized independently) minimizing the criticality-weighted sum of wire
-// delays over the gate position p shifts the plain midpoint toward the sinks
-// when this gate is the weaker driver / more heavily loaded, and toward the
-// upstream driver otherwise:
+// For each critical sink s_i the Elmore-ideal gate position on the
+// L_D -> gate -> s_i path is, per axis (Manhattan wirelength separates x and y
+// so each axis is optimized independently),
 //
-//   p* = (A + B)/2 + (R_g - R_up)/(2r) + (C_load - C_pin)/(2c)
+//   p_i = midpoint(L_D, L_i) + rc_shift   along the L_D -> L_i direction
+//   rc_shift = (R_g - R_up)/(2r) + (C_load - C_pin)/(2c)
 //
-// where A/B are the (weighted) driver/sink coordinates, R_up/R_g the upstream
-// and this-gate drive resistances, C_pin/C_load the input pin and total output
-// load caps, and r/c the wire resistance/capacitance per unit length.
+// where R_g is this gate's drive resistance and r/c the wire resistance/
+// capacitance per unit length.  The gate slides toward the sinks when it is the
+// weaker driver (R_g > R_up) and/or drives the heavier load (C_load > C_pin),
+// and toward the upstream driver otherwise.  The final target is the
+// criticality-weighted average P = (Sum_i w_i p_i) / (Sum_i w_i) with
+// w_i = max(0, -slack_i).
 //
-// The generator computes a small set of candidate locations (RC-shifted point,
-// criticality-weighted median, criticality-weighted mean, and the driver/sink
-// brackets), scores each with the criticality-weighted Elmore estimate, and
-// emits the single best as a RelocateCandidate.  (The setup legacy policy
+// The generator scores the weighted-average point and the plain (unshifted)
+// weighted midpoint with the criticality-weighted Elmore estimate and emits the
+// cheaper as a RelocateCandidate.  When the gate has no critical sink it falls
+// back to the plain two-point critical-path midpoint.  (The setup legacy policy
 // commits the first legal candidate rather than ranking by estimate(), so the
 // best-location choice is made here; real timing then gates the move at the
 // endpoint-pass journal level.)  Single-threaded (reads live pin locations and
@@ -87,24 +92,24 @@ class RelocateGenerator : public MoveGenerator
                      sta::Instance*& drvr_inst,
                      odb::dbInst*& db_inst) const;
 
-  // Collect the near-critical fanin-driver and fanout-sink anchors for the
-  // target gate and their per-anchor RC data, plus the total output load cap
-  // (used by the RC-shift closed form).  Returns false when neither a usable
-  // fanin nor fanout anchor can be located.
+  // Collect the input-driver anchor and the critical (negative-slack) fanout
+  // sink anchors for the target gate and their per-anchor RC data, plus the
+  // total output load cap (used by the RC-shift closed form).  Returns false
+  // when the gate has no critical sink (the caller then falls back to the plain
+  // critical-path midpoint).
   bool collectAnchors(const Target& target,
                       sta::Pin* drvr_pin,
-                      sta::Instance* drvr_inst,
                       std::vector<RelocateAnchor>& anchors,
                       double& c_load_total) const;
 
-  // Rank a small candidate set (RC-shifted point, weighted median/mean, driver
-  // and sink brackets, plain midpoint) by the criticality-weighted Elmore wire
-  // delay and return the best location.  Falls back to the plain two-point
-  // midpoint when anchors are insufficient.  Returns false when no location can
-  // be computed.
+  // Compute the relocation target as the criticality-weighted average, over the
+  // critical sinks, of each sink's Elmore-ideal gate position on the
+  // driver -> gate -> sink path, and pick the cheaper of the plain-midpoint and
+  // RC-shifted variants by the criticality-weighted Elmore wire delay.  Falls
+  // back to the plain two-point midpoint when no critical sink exists.  Returns
+  // false when no location can be computed.
   bool computeBestLocation(const Target& target,
                            sta::Pin* drvr_pin,
-                           sta::Instance* drvr_inst,
                            odb::Point& result) const;
 
   // Plain midpoint of the most-critical input driver and the critical output

@@ -6,7 +6,6 @@
 #include <algorithm>
 #include <cmath>
 #include <memory>
-#include <utility>
 #include <vector>
 
 #include "MoveCandidate.hh"
@@ -28,7 +27,6 @@
 #include "sta/NetworkClass.hh"
 #include "sta/Path.hh"
 #include "sta/PathExpanded.hh"
-#include "sta/PortDirection.hh"
 #include "utl/Logger.h"
 
 namespace rsz {
@@ -41,20 +39,6 @@ namespace {
 int axisCoord(const odb::Point& p, int axis)
 {
   return axis == 0 ? p.getX() : p.getY();
-}
-
-// Criticality-weighted mean of anchor coordinates on one axis.  Returns
-// fallback when the weight sum is non-positive.
-double weightedMean(const std::vector<std::pair<double, double>>& weighted,
-                    double fallback)
-{
-  double num = 0.0;
-  double den = 0.0;
-  for (const auto& [coord, weight] : weighted) {
-    num += weight * coord;
-    den += weight;
-  }
-  return den > 0.0 ? num / den : fallback;
 }
 
 }  // namespace
@@ -116,7 +100,6 @@ bool RelocateGenerator::resolveDriver(const Target& target,
 
 bool RelocateGenerator::collectAnchors(const Target& target,
                                        sta::Pin* drvr_pin,
-                                       sta::Instance* drvr_inst,
                                        std::vector<RelocateAnchor>& anchors,
                                        double& c_load_total) const
 {
@@ -133,26 +116,51 @@ bool RelocateGenerator::collectAnchors(const Target& target,
   // This gate's own drive resistance sets the output-net (fanout) segment R.
   const double r_g = resizer_.driveResistance(drvr_pin);
 
-  // Near-critical filter: an incident pin is an anchor if its slack lies within
-  // the setup slack margin of the target path slack.
-  const double slack_threshold = target.slack + run_config_.setup_slack_margin;
+  // --- Input anchor: driver of the gate's critical input net ----------------
+  // The worst path enters the gate through one input stage.  inputPath() is the
+  // gate's critical input pin (its cap is C_pin); prevDriverPath() is the
+  // upstream driver's output pin that feeds it -- its location is L_D and its
+  // drive resistance is R_up.  When the gate is fed directly by a startpoint /
+  // primary input (no upstream logic driver on this stage) anchor on the input
+  // pin itself with neutral RC (R_up = R_g) so the input side adds no RC shift.
+  const sta::Path* in_path = target.inputPath(resizer_);
+  const sta::Path* prev_path = target.prevDriverPath(resizer_);
+  const sta::Pin* in_pin
+      = in_path != nullptr ? in_path->pin(resizer_.staState()) : nullptr;
+  const sta::Pin* up_pin
+      = prev_path != nullptr ? prev_path->pin(resizer_.staState()) : nullptr;
 
-  // Raw anchors carry slack; criticality weights are assigned once the slack
-  // window across all anchors is known.
-  struct RawAnchor
-  {
-    odb::Point loc;
-    double slack;
-    double res;
-    double cap;
-    bool is_fanout;
-  };
-  std::vector<RawAnchor> raw_fanins;
-  std::vector<RawAnchor> raw_fanouts;
+  odb::Point l_d;
+  double r_up = r_g;
+  if (up_pin != nullptr) {
+    l_d = db_network->location(up_pin);
+    r_up = resizer_.driveResistance(up_pin);
+  } else if (in_pin != nullptr) {
+    l_d = db_network->location(in_pin);
+  } else {
+    // No critical input available; the plain-midpoint fallback handles it.
+    return false;
+  }
 
-  // --- Fanout sinks on the output net ---------------------------------------
-  // Every load contributes its pin cap to the total output load (which sets the
-  // gate-side delay magnitude); each load is also a weighted geometric anchor.
+  double c_pin = 0.0;
+  if (in_pin != nullptr) {
+    sta::LibertyPort* in_port = network->libertyPort(in_pin);
+    if (in_port != nullptr) {
+      c_pin = resizer_.portCapacitance(in_port, scene);
+    }
+  }
+  // Input-side criticality weight for the Elmore cost scoring (the geometric
+  // average below is driven by the sink weights).  The path slack is negative
+  // on a violating target; floor keeps the anchor's weight positive.
+  const double w_in = std::max(-static_cast<double>(target.slack), 1e-12);
+
+  // --- Output anchors: negative-slack (critical) fanout sinks only ----------
+  // C_load sums EVERY fanout pin cap -- the gate-side drive delay depends on
+  // the whole net -- but only critical (negative-slack) sinks anchor the gate
+  // geometrically.  Pruning the non-critical loads removes the high-fanout
+  // dilution where a sink's many non-critical siblings pulled the gate off the
+  // critical corridor.
+  std::vector<RelocateAnchor> sinks;
   sta::Vertex* drvr_vertex = graph->pinDrvrVertex(drvr_pin);
   if (drvr_vertex != nullptr) {
     sta::VertexOutEdgeIterator edge_iter(drvr_vertex, graph);
@@ -169,136 +177,40 @@ bool RelocateGenerator::collectAnchors(const Target& target,
         cap = resizer_.portCapacitance(load_port, scene);
       }
       c_load_total += cap;
-      const sta::Slack slack = sta->slack(load_vertex, min_max);
-      raw_fanouts.push_back({db_network->location(load_pin),
-                             static_cast<double>(slack),
-                             r_g,
-                             cap,
-                             /*is_fanout=*/true});
-    }
-  }
-
-  // --- Fanin drivers of each input pin --------------------------------------
-  // Each near-critical input net contributes its upstream driver as an anchor;
-  // the relevant segment R is the upstream driver's drive resistance and the
-  // far-end cap is this gate's input pin cap.
-  std::unique_ptr<sta::InstancePinIterator> pin_iter(
-      network->pinIterator(drvr_inst));
-  while (pin_iter->hasNext()) {
-    const sta::Pin* in_pin = pin_iter->next();
-    if (!network->direction(in_pin)->isInput()
-        || network->isRegClkPin(in_pin)) {
-      continue;
-    }
-    sta::PinSet* drivers = network->drivers(in_pin);
-    if (drivers == nullptr || drivers->empty()) {
-      continue;
-    }
-    const sta::Pin* up_pin = *drivers->begin();
-    if (up_pin == nullptr || up_pin == in_pin) {
-      continue;
-    }
-    sta::Vertex* in_vertex = graph->pinLoadVertex(in_pin);
-    if (in_vertex == nullptr) {
-      continue;
-    }
-    const sta::Slack slack = sta->slack(in_vertex, min_max);
-    double c_pin = 0.0;
-    sta::LibertyPort* in_port = network->libertyPort(in_pin);
-    if (in_port != nullptr) {
-      c_pin = resizer_.portCapacitance(in_port, scene);
-    }
-    const double r_up = resizer_.driveResistance(up_pin);
-    raw_fanins.push_back({db_network->location(up_pin),
-                          static_cast<double>(slack),
-                          r_up,
-                          c_pin,
-                          /*is_fanout=*/false});
-  }
-
-  // When no upstream driver anchor was found (e.g. a combinational gate fed
-  // directly by a startpoint / primary input, with no on-net logic driver),
-  // fall back to the worst-path input anchor the plain-midpoint heuristic uses.
-  // Neutral RC data (this gate's own R and the total output load) zeroes the RC
-  // shift for this synthetic anchor, so such a gate degrades gracefully to
-  // midpoint placement rather than stacking on its load.
-  if (raw_fanins.empty()) {
-    const sta::Path* from_path = target.prevDriverPath(resizer_);
-    if (from_path == nullptr) {
-      from_path = target.inputPath(resizer_);
-    }
-    if (from_path != nullptr) {
-      const sta::Pin* from_pin = from_path->pin(resizer_.staState());
-      if (from_pin != nullptr) {
-        raw_fanins.push_back({db_network->location(from_pin),
-                              target.slack,
-                              r_g,
-                              c_load_total,
-                              /*is_fanout=*/false});
+      const double slack
+          = static_cast<double>(sta->slack(load_vertex, min_max));
+      if (slack < 0.0) {
+        // weight = max(0, -slack); strictly positive for a critical sink.
+        sinks.push_back({db_network->location(load_pin),
+                         -slack,
+                         r_g,
+                         cap,
+                         /*is_fanout=*/true});
       }
     }
   }
 
-  if (raw_fanins.empty() && raw_fanouts.empty()) {
+  if (sinks.empty()) {
+    // No critical sinks: caller falls back to the plain critical-path midpoint
+    // rather than anchoring on non-critical loads.
     return false;
   }
 
-  // Decide the included set per side: keep every near-critical anchor, but
-  // always keep the single most-critical anchor of each non-empty side so the
-  // path endpoints still anchor the gate even at a zero slack margin.
-  auto select = [&](std::vector<RawAnchor>& raw) {
-    std::vector<RawAnchor> kept;
-    const RawAnchor* worst = nullptr;
-    for (const RawAnchor& a : raw) {
-      if (a.slack <= slack_threshold) {
-        kept.push_back(a);
-      }
-      if (worst == nullptr || a.slack < worst->slack) {
-        worst = &a;
-      }
-    }
-    if (kept.empty() && worst != nullptr) {
-      kept.push_back(*worst);
-    }
-    return kept;
-  };
-  std::vector<RawAnchor> fanins = select(raw_fanins);
-  std::vector<RawAnchor> fanouts = select(raw_fanouts);
-
-  // Criticality weight: (slack_threshold - slack) grows with negative slack; a
-  // floor proportional to the slack window keeps every included anchor's weight
-  // positive and collapses to uniform weights when all slacks are equal (so the
-  // weighted driver/sink centroids degrade gracefully to plain centroids).
-  double s_min = slack_threshold;
-  for (const RawAnchor& a : fanins) {
-    s_min = std::min(s_min, a.slack);
+  // Emit the single input anchor first, then the critical sinks.
+  anchors.push_back({l_d, w_in, r_up, c_pin, /*is_fanout=*/false});
+  for (const RelocateAnchor& s : sinks) {
+    anchors.push_back(s);
   }
-  for (const RawAnchor& a : fanouts) {
-    s_min = std::min(s_min, a.slack);
-  }
-  const double window = std::max(slack_threshold - s_min, 0.0);
-  const double floor = 0.25 * std::max(window, 1e-12);
-
-  auto append = [&](const std::vector<RawAnchor>& kept) {
-    for (const RawAnchor& a : kept) {
-      const double weight = std::max(slack_threshold - a.slack, 0.0) + floor;
-      anchors.push_back({a.loc, weight, a.res, a.cap, a.is_fanout});
-    }
-  };
-  append(fanins);
-  append(fanouts);
-
-  return !anchors.empty();
+  return true;
 }
 
 bool RelocateGenerator::computeBestLocation(const Target& target,
                                             sta::Pin* drvr_pin,
-                                            sta::Instance* drvr_inst,
                                             odb::Point& result) const
 {
   std::vector<RelocateAnchor> anchors;
   double c_load_total = 0.0;
-  if (!collectAnchors(target, drvr_pin, drvr_inst, anchors, c_load_total)) {
+  if (!collectAnchors(target, drvr_pin, anchors, c_load_total)) {
     // No usable anchors: fall back to the plain path midpoint.
     return computeCriticalPathLocation(target, drvr_pin, result);
   }
@@ -308,88 +220,75 @@ bool RelocateGenerator::computeBestLocation(const Target& target,
   double wire_cap = 0.0;  // farads/meter
   resizer_.estimateParasitics()->wireSignalRC(scene, wire_res, wire_cap);
 
-  // This gate's drive resistance and the weighted upstream driver resistance /
-  // input pin cap feed the RC shift closed form.
   const double r_g = resizer_.driveResistance(drvr_pin);
 
-  // Two candidate locations, computed per axis (Manhattan wirelength separates
-  // x and y so each axis is optimized independently):
-  //   0: plain midpoint of the criticality-weighted driver / sink centroids.
-  //   1: the RC/criticality-shifted point.
-  // Both are "central" points on the worst-path corridor; the weighted median
-  // and the driver/sink brackets are deliberately not used -- their per-axis
-  // choice is an anchor coordinate, which combines across axes into a
-  // geometrically poor 2-D point that scores well under the local Elmore model
-  // but hurts real timing.
+  // anchors.front() is the input anchor (is_fanout == false); the remaining
+  // anchors are the critical (negative-slack) sinks.  L_D / R_up / C_pin come
+  // from that input anchor.
+  const RelocateAnchor& input = anchors.front();
+  const odb::Point l_d = input.loc;
+  const double r_up = input.res;
+  const double c_pin = input.cap;
+
+  // RC/criticality shift as a signed wire length:
+  //   rc_shift = (R_g - R_up)/(2r) + (C_load - C_pin)/(2c)
+  // The gate slides toward the sinks when it is the weaker driver (R_g > R_up)
+  // and/or drives the heavier load (C_load > C_pin), and toward the upstream
+  // driver otherwise.  The magnitude is independent of which sink we consider;
+  // only its direction (toward each sink) and the per-sink half-span clamp
+  // differ, so it is computed once here and reapplied per sink below.
+  double shift_m = 0.0;
+  if (wire_res > 0.0) {
+    shift_m += (r_g - r_up) / (2.0 * wire_res);
+  }
+  if (wire_cap > 0.0) {
+    shift_m += (c_load_total - c_pin) / (2.0 * wire_cap);
+  }
+  // metersToDbu() rejects negative distances, so carry the magnitude and sign
+  // separately.
+  const double shift_dbu_mag = resizer_.metersToDbu(std::abs(shift_m));
+  const double shift_sign = shift_m < 0.0 ? -1.0 : 1.0;
+
+  // Two candidate locations, each a criticality-weighted average over the
+  // critical sinks of the per-sink ideal gate position on the L_D -> s_i path
+  // (Manhattan wirelength separates x and y, so each axis is optimized
+  // independently):
+  //   0: plain midpoint(L_D, s_i)                       (no RC shift)
+  //   1: midpoint(L_D, s_i) + rc_shift along L_D -> s_i (per-sink Elmore ideal)
+  // Averaging the per-sink points -- rather than shifting one lumped centroid
+  // -- keeps each sink's own driver->sink corridor and half-span clamp.
   constexpr int kRcShift = 1;
   constexpr int kNumCandidates = 2;
   odb::Point candidates_axis[2][kNumCandidates];
   for (int axis = 0; axis < 2; ++axis) {
-    std::vector<std::pair<double, double>> fanin;  // driver side (coord,weight)
-    std::vector<std::pair<double, double>> fanout;  // sink side (coord,weight)
-    double fanin_w = 0.0;
-    double fanin_r_num = 0.0;
-    double fanin_c_num = 0.0;
-    int coord_min = axisCoord(anchors.front().loc, axis);
-    int coord_max = coord_min;
-    for (const RelocateAnchor& a : anchors) {
-      const double coord = axisCoord(a.loc, axis);
-      coord_min = std::min<int>(coord_min, static_cast<int>(coord));
-      coord_max = std::max<int>(coord_max, static_cast<int>(coord));
-      if (a.is_fanout) {
-        fanout.emplace_back(coord, a.weight);
-      } else {
-        fanin.emplace_back(coord, a.weight);
-        fanin_w += a.weight;
-        fanin_r_num += a.weight * a.res;
-        fanin_c_num += a.weight * a.cap;
+    const double a_coord = axisCoord(l_d, axis);
+    double w_sum = 0.0;
+    double mid_num = 0.0;
+    double rc_num = 0.0;
+    for (const RelocateAnchor& s : anchors) {
+      if (!s.is_fanout) {
+        continue;
       }
+      const double b_coord = axisCoord(s.loc, axis);
+      const double midpoint = (a_coord + b_coord) / 2.0;
+      // Cap the shift to half the driver-sink span so the RC-shifted point
+      // stays interior to this sink's corridor (a genuine shift, never a jump
+      // onto an endpoint pin, which the local Elmore model over-favors but real
+      // timing punishes).
+      const double half_span = std::abs(b_coord - a_coord) / 2.0;
+      const double shift_dbu
+          = std::clamp(shift_sign * shift_dbu_mag, -half_span, half_span);
+      const double dir = (b_coord > a_coord) ? 1.0 : -1.0;
+      const double p_i = midpoint + dir * shift_dbu;
+      w_sum += s.weight;
+      mid_num += s.weight * midpoint;
+      rc_num += s.weight * p_i;
     }
-
-    const double center = (coord_min + coord_max) / 2.0;
-    const double a_coord = weightedMean(fanin, center);   // driver centroid A
-    const double b_coord = weightedMean(fanout, center);  // sink centroid B
-    const double midpoint = (a_coord + b_coord) / 2.0;
-
-    // RC/criticality-shifted midpoint:
-    //   p* = (A + B)/2 + (R_g - R_up)/(2r) + (C_load - C_pin)/(2c)
-    // The gate slides toward the sinks when it is the weaker driver
-    // (R_g > R_up) and/or drives the heavier load (C_load > C_pin), and toward
-    // the upstream driver otherwise.  The shift is a signed length applied
-    // along the driver -> sink direction on this axis.
-    const double r_up = fanin_w > 0.0 ? fanin_r_num / fanin_w : r_g;
-    const double c_pin = fanin_w > 0.0 ? fanin_c_num / fanin_w : c_load_total;
-    double shift_m = 0.0;
-    if (wire_res > 0.0) {
-      shift_m += (r_g - r_up) / (2.0 * wire_res);
-    }
-    if (wire_cap > 0.0) {
-      shift_m += (c_load_total - c_pin) / (2.0 * wire_cap);
-    }
-    // Cap the shift to half the driver-sink span so the RC-shifted point stays
-    // interior (a genuine shift toward the sink/driver, never a jump onto an
-    // endpoint pin, which the local Elmore model over-favors but real timing
-    // punishes).
-    const double half_span = std::abs(b_coord - a_coord) / 2.0;
-    // shift_m is signed: positive pulls toward the sinks (this gate is the
-    // weaker driver / more heavily loaded), negative pulls toward the upstream
-    // driver.  metersToDbu() rejects negative distances, so convert the
-    // magnitude and reapply the sign.
-    double shift_dbu = resizer_.metersToDbu(std::abs(shift_m));
-    if (shift_m < 0.0) {
-      shift_dbu = -shift_dbu;
-    }
-    shift_dbu = std::clamp(shift_dbu, -half_span, half_span);
-    const double dir = (b_coord > a_coord) ? 1.0 : -1.0;
-    const double rc_shift = midpoint + dir * shift_dbu;
-
-    auto clamp = [&](double v) {
-      return std::clamp(
-          v, static_cast<double>(coord_min), static_cast<double>(coord_max));
-    };
-    const double picks[kNumCandidates] = {midpoint, rc_shift};
+    const double midpoint_avg = w_sum > 0.0 ? mid_num / w_sum : a_coord;
+    const double rc_avg = w_sum > 0.0 ? rc_num / w_sum : a_coord;
+    const double picks[kNumCandidates] = {midpoint_avg, rc_avg};
     for (int i = 0; i < kNumCandidates; ++i) {
-      const int coord = static_cast<int>(std::lround(clamp(picks[i])));
+      const int coord = static_cast<int>(std::lround(picks[i]));
       candidates_axis[axis][i]
           = axis == 0 ? odb::Point(coord, 0) : odb::Point(0, coord);
     }
@@ -517,7 +416,7 @@ std::vector<std::unique_ptr<MoveCandidate>> RelocateGenerator::generate(
   }
 
   odb::Point new_loc;
-  if (!computeBestLocation(target, drvr_pin, drvr_inst, new_loc)) {
+  if (!computeBestLocation(target, drvr_pin, new_loc)) {
     return candidates;
   }
 
