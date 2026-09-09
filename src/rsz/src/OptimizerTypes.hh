@@ -479,6 +479,8 @@ inline const char* moveName(const MoveType move_type)
       return "RerouteMove";
     case MoveType::kBufferToInverters:
       return "BufferToInvertersMove";
+    case MoveType::kRelocate:
+      return "RelocateMove";
     case MoveType::kCount:
       break;
   }

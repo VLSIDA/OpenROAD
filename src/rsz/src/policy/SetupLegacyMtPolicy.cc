@@ -18,6 +18,7 @@
 #include "MoveGenerator.hh"
 #include "OptimizationPolicy.hh"
 #include "OptimizerTypes.hh"
+#include "RelocateGenerator.hh"
 #include "RerouteGenerator.hh"
 #include "SizeDownFanoutGenerator.hh"
 #include "SizeUpMatchGenerator.hh"
@@ -98,6 +99,11 @@ void SetupLegacyMtPolicy::buildMoveGenerators(
         break;
       case MoveType::kBufferToInverters:
         generator = std::make_unique<BufferToInvertersGenerator>(context);
+        break;
+      case MoveType::kRelocate:
+        // Placement move: reads live pin locations / expands the path on the
+        // main thread, so it runs single-threaded like Clone/SplitLoad.
+        generator = std::make_unique<RelocateGenerator>(context);
         break;
       case MoveType::kCount:
         break;

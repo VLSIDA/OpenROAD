@@ -6026,6 +6026,18 @@ void Resizer::insertBufferPostProcess(dbInst* buffer_inst)
   inserted_buffer_count_++;
 }
 
+void Resizer::legalizeCellPos(dbInst* db_inst)
+{
+  // The placement grid is only initialized under routing-based parasitics;
+  // before routing a later detailed placement legalizes the position.
+  if (estimate_parasitics_->getParasiticsSrc()
+          == est::ParasiticsSrc::kGlobalRouting
+      || estimate_parasitics_->getParasiticsSrc()
+             == est::ParasiticsSrc::kDetailedRouting) {
+    opendp_->legalCellPos(db_inst);
+  }
+}
+
 void Resizer::setLocation(dbInst* db_inst, const odb::Point& pt)
 {
   const odb::Point loc = clampLocToCore(pt, db_inst->getMaster());
@@ -6545,6 +6557,9 @@ MoveType Resizer::moveTypeFromString(const std::string& s)
   }
   if (lower == "buffer_to_inverters") {
     return MoveType::kBufferToInverters;
+  }
+  if (lower == "relocate") {
+    return MoveType::kRelocate;
   }
   throw std::invalid_argument("Invalid move type: " + s);
 }

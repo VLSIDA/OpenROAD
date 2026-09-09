@@ -194,6 +194,9 @@ void SetupLegacyBase::buildMainMoveSequence(const bool log_sequence)
           pushMoveIfEnabled(!config_.skip_buffer_to_inverters,
                             MoveType::kBufferToInverters);
           break;
+        case MoveType::kRelocate:
+          move_sequence_.push_back(MoveType::kRelocate);
+          break;
         case MoveType::kCount:
           break;
       }
