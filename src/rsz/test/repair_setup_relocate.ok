@@ -1,0 +1,23 @@
+[INFO ODB-0227] LEF file: Nangate45/Nangate45.lef, created 22 layers, 27 vias, 135 library cells
+[INFO ODB-0128] Design: reg1
+[INFO ODB-0130]     Created 1 pins.
+[INFO ODB-0131]     Created 17 components and 92 component-terminals.
+[INFO ODB-0132]     Created 2 special nets and 34 connections.
+[INFO ODB-0133]     Created 7 nets and 30 connections.
+initial QoR
+worst slack max -0.33
+tns max -0.420
+[INFO RSZ-0100] Repair move sequence: RelocateMove 
+[INFO RSZ-0094] Found 4 endpoints with setup violations.
+[INFO RSZ-0099] Repairing 4 out of 4 (100.00%) violating endpoints...
+   Iter   | Removed | Resized | Inserted | Cloned |  Pin  |   Area   |    WNS   |   StTNS    |   EnTNS    |  Viol  |  Worst  
+          | Buffers |  Gates  | Buffers  |  Gates | Swaps |          |          |            |            | Endpts | St/EnPt 
+------------------------------------------------------------------------------------------------------------------------------
+       0* |       0 |       0 |        0 |      0 |     0 |    +0.0% |   -0.333 |       -0.3 |       -0.4 |      4 | r2/D
+      76* |       0 |       0 |        0 |      0 |     0 |    +0.0% |   -0.089 |       -0.1 |       -0.2 |      4 | r2/D
+    final |       0 |       0 |        0 |      0 |     0 |    +0.0% |   -0.089 |       -0.1 |       -0.2 |      5 | r2/D
+------------------------------------------------------------------------------------------------------------------------------
+[WARNING RSZ-0062] Unable to repair all setup violations.
+post relocate QoR
+worst slack max -0.09
+tns max -0.243

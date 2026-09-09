@@ -51,6 +51,8 @@ add_library(rsz_lib
     move/MeasuredVtSwapGenerator.cc
     move/MoveCandidate.cc
     move/MoveGenerator.cc
+    move/RelocateCandidate.cc
+    move/RelocateGenerator.cc
     move/RerouteCandidate.cc
     move/RerouteGenerator.cc
     move/SizeDownFanoutCandidate.cc
