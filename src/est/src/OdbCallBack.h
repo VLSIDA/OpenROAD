@@ -25,8 +25,15 @@ class OdbCallBack : public odb::dbBlockCallBackObj
   void inDbITermPostConnect(odb::dbITerm* iterm) override;
   void inDbITermPostDisconnect(odb::dbITerm* iterm, odb::dbNet* net) override;
   void inDbInstSwapMasterAfter(odb::dbInst* inst) override;
+  void inDbPostMoveInst(odb::dbInst* inst) override;
 
  private:
+  // Invalidate the estimated parasitics of every signal net connected to
+  // inst.  Relocating (or reverting the relocation of) a gate changes the
+  // geometry of each net it touches, so the placement wire RC must be
+  // re-derived from the new pin locations before the next timing update.
+  void invalidateInstConnectedNets(odb::dbInst* inst);
+
   EstimateParasitics* estimate_parasitics_;
   sta::Network* network_;
   sta::dbNetwork* db_network_;

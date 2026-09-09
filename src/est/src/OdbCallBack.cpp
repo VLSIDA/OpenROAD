@@ -132,4 +132,44 @@ void OdbCallBack::inDbInstSwapMasterAfter(odb::dbInst* inst)
   }
 }
 
+void OdbCallBack::inDbPostMoveInst(odb::dbInst* inst)
+{
+  // Only track moves while an incremental-parasitics session is live (i.e.
+  // during a resizer repair).  Outside that window the caller owns parasitics
+  // consistency and re-estimates explicitly; invalidating here would leave a
+  // stale "parasitics invalid" flag that trips the IncrementalParasiticsGuard
+  // consistency check on the next repair.
+  if (!estimate_parasitics_->isIncrementalParasiticsEnabled()) {
+    return;
+  }
+  debugPrint(estimate_parasitics_->getLogger(),
+             utl::EST,
+             "odb",
+             1,
+             "inDbPostMoveInst {}",
+             inst->getName());
+  // Moving a gate (relocate move) or reverting that move through the odb ECO
+  // journal both fire this callback.  The forward apply invalidates parasitics
+  // explicitly, but the journal undo restores the origin without any explicit
+  // invalidation, so without this hook a rejected relocation leaves the
+  // parasitics (and hence timing) frozen at the moved location.  Re-derive the
+  // wire RC of every net the gate touches so the accept/reject check sees the
+  // restored geometry.
+  invalidateInstConnectedNets(inst);
+}
+
+void OdbCallBack::invalidateInstConnectedNets(odb::dbInst* inst)
+{
+  Instance* sta_inst = db_network_->dbToSta(inst);
+  std::unique_ptr<InstancePinIterator> pin_iter{
+      network_->pinIterator(sta_inst)};
+  while (pin_iter->hasNext()) {
+    Pin* pin = pin_iter->next();
+    Net* net = network_->net(pin);
+    if (net != nullptr && !network_->isPower(net) && !network_->isGround(net)) {
+      estimate_parasitics_->parasiticsInvalid(net);
+    }
+  }
+}
+
 }  // namespace est
