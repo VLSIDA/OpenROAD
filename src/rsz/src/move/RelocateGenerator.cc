@@ -80,6 +80,23 @@ bool RelocateGenerator::resolveDriver(const Target& target,
     return false;
   }
 
+  // Only relocate combinational logic.  isLogicStdCell() accepts any CORE
+  // master, which includes registers, latches and integrated clock-gating
+  // cells; moving those disturbs the clock tree and CTS placement.
+  // isCombinational() rejects sequential cells (isSequential()), clock gates
+  // (isClockGate()), macros and pads.
+  sta::LibertyCell* lib_cell = resizer_.network()->libertyCell(drvr_inst);
+  if (lib_cell == nullptr || !resizer_.isCombinational(lib_cell)) {
+    debugPrint(resizer_.logger(),
+               RSZ,
+               "relocate_move",
+               2,
+               "REJECT RelocateMove {}: not combinational (sequential, clock "
+               "gate, macro or pad)",
+               resizer_.network()->pathName(drvr_pin));
+    return false;
+  }
+
   db_inst = resizer_.dbNetwork()->staToDb(drvr_inst);
   if (db_inst == nullptr) {
     return false;
@@ -199,12 +216,12 @@ bool RelocateGenerator::collectAnchors(const Target& target,
                           /*is_fanout=*/false});
   }
 
-  // When no upstream driver anchor was found (e.g. a register/startpoint whose
-  // only fanin is its clock), fall back to the worst-path input anchor the
-  // plain-midpoint heuristic uses.  Neutral RC data (this gate's own R and the
-  // total output load) zeroes the RC shift for this synthetic anchor, so such a
-  // gate degrades gracefully to midpoint placement rather than stacking on its
-  // load.
+  // When no upstream driver anchor was found (e.g. a combinational gate fed
+  // directly by a startpoint / primary input, with no on-net logic driver),
+  // fall back to the worst-path input anchor the plain-midpoint heuristic uses.
+  // Neutral RC data (this gate's own R and the total output load) zeroes the RC
+  // shift for this synthetic anchor, so such a gate degrades gracefully to
+  // midpoint placement rather than stacking on its load.
   if (raw_fanins.empty()) {
     const sta::Path* from_path = target.prevDriverPath(resizer_);
     if (from_path == nullptr) {
