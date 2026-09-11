@@ -205,6 +205,7 @@ void SetupLegacyBase::buildMainMoveSequence(const bool log_sequence)
     pushMoveIfEnabled(!config_.skip_buffer_removal, MoveType::kUnbuffer);
     pushMoveIfEnabled(!config_.skip_vt_swap && hasVtSwapCells(),
                       MoveType::kVtSwap);
+    move_sequence_.push_back(MoveType::kRelocate);
     move_sequence_.push_back(MoveType::kSizeUp);
     if (!config_.skip_size_down_fanout) {
       // Disabled by default for legacy parity.
