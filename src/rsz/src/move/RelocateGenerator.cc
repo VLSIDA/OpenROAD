@@ -19,6 +19,7 @@
 #include "odb/db.h"
 #include "odb/geom.h"
 #include "rsz/Resizer.hh"
+#include "sta/Delay.hh"
 #include "sta/Graph.hh"
 #include "sta/GraphClass.hh"
 #include "sta/Liberty.hh"
@@ -27,6 +28,7 @@
 #include "sta/NetworkClass.hh"
 #include "sta/Path.hh"
 #include "sta/PathExpanded.hh"
+#include "sta/Transition.hh"
 #include "utl/Logger.h"
 
 namespace rsz {
@@ -206,12 +208,14 @@ bool RelocateGenerator::collectAnchors(const Target& target,
 
 bool RelocateGenerator::computeBestLocation(const Target& target,
                                             sta::Pin* drvr_pin,
-                                            odb::Point& result) const
+                                            odb::Point& result,
+                                            RelocatePlan& plan) const
 {
+  plan = RelocatePlan{};
   std::vector<RelocateAnchor> anchors;
   double c_load_total = 0.0;
   if (!collectAnchors(target, drvr_pin, anchors, c_load_total)) {
-    // No usable anchors: fall back to the plain path midpoint.
+    // No usable anchors: fall back to the plain path midpoint (guards skipped).
     return computeCriticalPathLocation(target, drvr_pin, result);
   }
 
@@ -298,7 +302,10 @@ bool RelocateGenerator::computeBestLocation(const Target& target,
   // delay and keep the cheapest.  L is the true Manhattan distance (in meters);
   // the per-anchor position-dependent delay is
   //   (R*c + r*C)*L + (r*c/2)*L^2.
-  auto cost = [&](const odb::Point& p) {
+  // `weighted` toggles the criticality weight: the location pick uses the
+  // weighted cost (so critical sinks dominate), while the gate-dominance test
+  // in generate() needs the unweighted incident wire delay in real seconds.
+  auto cost = [&](const odb::Point& p, bool weighted) {
     double total = 0.0;
     for (const RelocateAnchor& a : anchors) {
       const int manh = std::abs(p.getX() - a.loc.getX())
@@ -306,7 +313,7 @@ bool RelocateGenerator::computeBestLocation(const Target& target,
       const double len = resizer_.dbuToMeters(manh);
       const double linear = (a.res * wire_cap + wire_res * a.cap) * len;
       const double quad = 0.5 * wire_res * wire_cap * len * len;
-      total += a.weight * (linear + quad);
+      total += (weighted ? a.weight : 1.0) * (linear + quad);
     }
     return total;
   };
@@ -317,7 +324,7 @@ bool RelocateGenerator::computeBestLocation(const Target& target,
   for (int i = 0; i < kNumCandidates; ++i) {
     const odb::Point p(candidates_axis[0][i].getX(),
                        candidates_axis[1][i].getY());
-    const double c = cost(p);
+    const double c = cost(p, /*weighted=*/true);
     if (!have_best || c < best_cost) {
       best_cost = c;
       result = p;
@@ -325,17 +332,77 @@ bool RelocateGenerator::computeBestLocation(const Target& target,
       best_i = i;
     }
   }
+
+  // Wire/gate accounting for the acceptance guards.  The current gate location
+  // is the driver pin's location; cur_wire_delay(_weighted) is the incident
+  // Elmore wire delay there, and gate_delay is this gate's own drive+intrinsic
+  // delay driving the full output load (the "cell" term of the stage delay).
+  const odb::Point cur_loc = resizer_.dbNetwork()->location(drvr_pin);
+  plan.cur_wire_delay = cost(cur_loc, /*weighted=*/false);
+  plan.cur_wire_delay_weighted = cost(cur_loc, /*weighted=*/true);
+  plan.best_wire_delay = best_cost;
+  plan.gate_delay = 0.0;
+  sta::LibertyPort* drvr_port = resizer_.network()->libertyPort(drvr_pin);
+  if (drvr_port != nullptr) {
+    sta::ArcDelay gd[sta::RiseFall::index_count];
+    sta::Slew gs[sta::RiseFall::index_count];
+    resizer_.gateDelays(drvr_port,
+                        static_cast<float>(c_load_total),
+                        scene,
+                        resizer_.maxAnalysisMode(),
+                        gd,
+                        gs);
+    for (int rf : sta::RiseFall::rangeIndex()) {
+      plan.gate_delay = std::max(plan.gate_delay, static_cast<double>(gd[rf]));
+    }
+  }
+  plan.have_rc = true;
+
   debugPrint(resizer_.logger(),
              RSZ,
              "relocate_move",
              3,
-             "RELOCATE {}: anchors={} pick={} loc=({}, {})",
+             "RELOCATE {}: anchors={} pick={} loc=({}, {}) wire_cur={:.3e} "
+             "wire_best={:.3e} gate={:.3e}",
              resizer_.network()->pathName(drvr_pin),
              anchors.size(),
              best_i == kRcShift ? "rc_shift" : "midpoint",
              result.getX(),
-             result.getY());
+             result.getY(),
+             plan.cur_wire_delay,
+             plan.best_wire_delay,
+             plan.gate_delay);
   return have_best;
+}
+
+double RelocateGenerator::incidentStarWirelength(
+    odb::dbInst* db_inst,
+    const odb::Point& gate_loc) const
+{
+  double span = 0.0;
+  for (odb::dbITerm* iterm : db_inst->getITerms()) {
+    odb::dbNet* net = iterm->getNet();
+    if (net == nullptr || net->getSigType().isSupply()) {
+      continue;
+    }
+    for (odb::dbITerm* other : net->getITerms()) {
+      if (other == iterm || other->getInst() == db_inst) {
+        continue;
+      }
+      int ox = 0;
+      int oy = 0;
+      other->getInst()->getLocation(ox, oy);
+      span += std::abs(gate_loc.getX() - ox) + std::abs(gate_loc.getY() - oy);
+    }
+    for (odb::dbBTerm* bterm : net->getBTerms()) {
+      int bx = 0;
+      int by = 0;
+      if (bterm->getFirstPinLocation(bx, by)) {
+        span += std::abs(gate_loc.getX() - bx) + std::abs(gate_loc.getY() - by);
+      }
+    }
+  }
+  return span;
 }
 
 bool RelocateGenerator::computeCriticalPathLocation(const Target& target,
@@ -416,12 +483,111 @@ std::vector<std::unique_ptr<MoveCandidate>> RelocateGenerator::generate(
   }
 
   odb::Point new_loc;
-  if (!computeBestLocation(target, drvr_pin, new_loc)) {
+  RelocatePlan plan;
+  if (!computeBestLocation(target, drvr_pin, new_loc, plan)) {
     return candidates;
   }
 
+  // Round-1 acceptance guards.  These run only on the RC-aware anchor path;
+  // the plain-midpoint fallback (plan.have_rc == false) keeps its prior
+  // behaviour.  Tunable thresholds:
+  //   kMinWireFraction : the gate's incident wire delay must be at least this
+  //                      fraction of the stage delay (wire + gate).  On
+  //                      gate-delay-dominated paths (e.g. asap7/aes, ~2-3%
+  //                      wire) a placement move cannot recover meaningful
+  //                      delay, so relocate is skipped instead of churning
+  //                      moves that the endpoint timing gate will revert.
+  //   kMinWireGainFrac : the chosen location must cut the criticality-weighted
+  //                      incident wire delay by at least this fraction, else
+  //                      the move is not worth the perturbation.
+  //   kSpanTolerance   : the move may not grow the cell's own star wirelength
+  //                      by more than this fraction.  A timing-driven move
+  //                      toward the critical sink necessarily grows the span to
+  //                      the cell's non-critical pins, so this only rejects
+  //                      egregious blowups (the gate flung across the die) whose
+  //                      pre-route Elmore gain routing would not preserve
+  //                      (WNS-survival heuristic); the real endpoint timing gate
+  //                      handles the finer accept/reject.
+  constexpr double kMinWireFraction = 0.15;
+  constexpr double kMinWireGainFrac = 0.02;
+  constexpr double kSpanTolerance = 0.15;
+
+  // (#3) Evaluate at the location that will actually be applied: setLocation
+  // clamps to the core, and (at GRT/route) legalization snaps to a site.  Use
+  // the clamped point for the guards so the decision reflects reality, and drop
+  // the move when clamping collapses it back to the current location.
+  const odb::Point clamped_loc
+      = resizer_.clampLocToCore(new_loc, db_inst->getMaster());
+  int cx = 0;
+  int cy = 0;
+  db_inst->getLocation(cx, cy);
+  const odb::Point cur_loc(cx, cy);
+  if (clamped_loc == cur_loc) {
+    debugPrint(resizer_.logger(),
+               RSZ,
+               "relocate_move",
+               2,
+               "REJECT RelocateMove {}: clamped to current location",
+               resizer_.network()->pathName(drvr_pin));
+    return candidates;
+  }
+
+  if (plan.have_rc) {
+    // (#2) Wire-delay targeting: skip gate-delay-dominated stages.
+    const double stage_delay = plan.cur_wire_delay + plan.gate_delay;
+    const double wire_frac
+        = stage_delay > 0.0 ? plan.cur_wire_delay / stage_delay : 0.0;
+    if (wire_frac < kMinWireFraction) {
+      debugPrint(resizer_.logger(),
+                 RSZ,
+                 "relocate_move",
+                 2,
+                 "REJECT RelocateMove {}: gate-dominated (wire_frac {:.3f} < "
+                 "{:.3f})",
+                 resizer_.network()->pathName(drvr_pin),
+                 wire_frac,
+                 kMinWireFraction);
+      return candidates;
+    }
+
+    // (#2) Require a meaningful weighted wire-delay reduction.
+    if (plan.cur_wire_delay_weighted > 0.0) {
+      const double gain = (plan.cur_wire_delay_weighted - plan.best_wire_delay)
+                          / plan.cur_wire_delay_weighted;
+      if (gain < kMinWireGainFrac) {
+        debugPrint(resizer_.logger(),
+                   RSZ,
+                   "relocate_move",
+                   2,
+                   "REJECT RelocateMove {}: wire-delay gain {:.3f} < {:.3f}",
+                   resizer_.network()->pathName(drvr_pin),
+                   gain,
+                   kMinWireGainFrac);
+        return candidates;
+      }
+    }
+
+    // (#1) Wirelength-aware acceptance (WNS-survival): reject relocations that
+    // lengthen the moved cell's own nets beyond tolerance.
+    const double old_span = incidentStarWirelength(db_inst, cur_loc);
+    const double new_span = incidentStarWirelength(db_inst, clamped_loc);
+    if (new_span > old_span * (1.0 + kSpanTolerance)) {
+      debugPrint(resizer_.logger(),
+                 RSZ,
+                 "relocate_move",
+                 2,
+                 "REJECT RelocateMove {}: star wirelength grows {:.0f} -> "
+                 "{:.0f} (> {:.0f}%)",
+                 resizer_.network()->pathName(drvr_pin),
+                 old_span,
+                 new_span,
+                 kSpanTolerance * 100.0);
+      return candidates;
+    }
+  }
+
   candidates.push_back(std::make_unique<RelocateCandidate>(
-      resizer_, target, drvr_pin, drvr_inst, db_inst, new_loc));
+      resizer_, target, drvr_pin, drvr_inst, db_inst, clamped_loc));
   return candidates;
 }
 
