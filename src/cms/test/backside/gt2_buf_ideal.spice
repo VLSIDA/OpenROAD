@@ -1,0 +1,15 @@
+* Behavioral CMOS buffer for GT2N gt2_6t_buf_x4_w31_lvt (0.7V) --
+* Level-1 MOSFET two-inverter chain, same style as asap7_buf_ideal.spice.
+* Not a calibrated 2nm GAAFET model: gives realistic slew/loading behavior so
+* MESH skew (RC-dominated) is meaningful; absolute buffer delay is approximate.
+* Pin order matches the gt2n LEF/lib: A vdd vss Y
+.MODEL NBUF2N NMOS Level=1 VT0=0.25 KP=400e-6 LAMBDA=0.02 GAMMA=0.4 PHI=0.65 TOX=2e-9 CGSO=1e-10 CGDO=1e-10
+.MODEL PBUF2N PMOS Level=1 VT0=-0.25 KP=160e-6 LAMBDA=0.02 GAMMA=0.4 PHI=0.65 TOX=2e-9 CGSO=1e-10 CGDO=1e-10
+.SUBCKT gt2_6t_buf_x4_w31_lvt A vdd vss Y
+* Stage 1 - inverter (A -> AN)
+MP1 AN A vdd vdd PBUF2N W=0.30u L=0.10u
+MN1 AN A vss vss NBUF2N W=0.15u L=0.10u
+* Stage 2 - inverter (AN -> Y), 4x drive
+MP2 Y AN vdd vdd PBUF2N W=1.20u L=0.10u
+MN2 Y AN vss vss NBUF2N W=0.60u L=0.10u
+.ENDS

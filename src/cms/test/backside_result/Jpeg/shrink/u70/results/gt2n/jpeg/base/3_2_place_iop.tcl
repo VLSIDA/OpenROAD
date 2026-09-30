@@ -1,0 +1,51 @@
+#Edge: BOTTOM
+place_pin -pin_name amp[10] -layer M3 -location {50.204 0.014} -force_to_die_boundary
+place_pin -pin_name amp[11] -layer M3 -location {59.556 0.014} -force_to_die_boundary
+place_pin -pin_name amp[1] -layer M3 -location {59.052 0.014} -force_to_die_boundary
+place_pin -pin_name amp[4] -layer M3 -location {58.548 0.014} -force_to_die_boundary
+place_pin -pin_name amp[5] -layer M3 -location {58.996 0.014} -force_to_die_boundary
+place_pin -pin_name amp[6] -layer M3 -location {58.436 0.014} -force_to_die_boundary
+place_pin -pin_name amp[7] -layer M3 -location {57.988 0.014} -force_to_die_boundary
+place_pin -pin_name amp[8] -layer M3 -location {57.596 0.014} -force_to_die_boundary
+place_pin -pin_name amp[9] -layer M3 -location {57.708 0.014} -force_to_die_boundary
+place_pin -pin_name clk -layer M3 -location {2.38 0.014} -force_to_die_boundary
+place_pin -pin_name din[5] -layer M3 -location {25.732 0.014} -force_to_die_boundary
+place_pin -pin_name din[7] -layer M3 -location {39.06 0.014} -force_to_die_boundary
+place_pin -pin_name ena -layer M3 -location {22.876 0.014} -force_to_die_boundary
+place_pin -pin_name qnt_cnt[0] -layer M3 -location {27.692 0.014} -force_to_die_boundary
+place_pin -pin_name qnt_cnt[1] -layer M3 -location {27.748 0.014} -force_to_die_boundary
+place_pin -pin_name qnt_cnt[2] -layer M3 -location {27.972 0.014} -force_to_die_boundary
+place_pin -pin_name qnt_cnt[3] -layer M3 -location {27.916 0.014} -force_to_die_boundary
+place_pin -pin_name qnt_cnt[4] -layer M3 -location {28.028 0.014} -force_to_die_boundary
+place_pin -pin_name qnt_cnt[5] -layer M3 -location {28.308 0.014} -force_to_die_boundary
+place_pin -pin_name qnt_val[0] -layer M3 -location {24.164 0.014} -force_to_die_boundary
+place_pin -pin_name qnt_val[1] -layer M3 -location {23.212 0.014} -force_to_die_boundary
+place_pin -pin_name qnt_val[2] -layer M3 -location {21.924 0.014} -force_to_die_boundary
+place_pin -pin_name qnt_val[3] -layer M3 -location {21.028 0.014} -force_to_die_boundary
+place_pin -pin_name qnt_val[4] -layer M3 -location {19.852 0.014} -force_to_die_boundary
+place_pin -pin_name qnt_val[5] -layer M3 -location {19.74 0.014} -force_to_die_boundary
+place_pin -pin_name qnt_val[6] -layer M3 -location {20.244 0.014} -force_to_die_boundary
+place_pin -pin_name qnt_val[7] -layer M3 -location {29.484 0.014} -force_to_die_boundary
+#Edge: RIGHT
+place_pin -pin_name amp[0] -layer M2 -location {64.708 5.784} -force_to_die_boundary
+place_pin -pin_name amp[2] -layer M2 -location {64.708 5.4} -force_to_die_boundary
+place_pin -pin_name amp[3] -layer M2 -location {64.708 4.872} -force_to_die_boundary
+place_pin -pin_name din[0] -layer M2 -location {64.708 29.4} -force_to_die_boundary
+place_pin -pin_name din[1] -layer M2 -location {64.708 29.544} -force_to_die_boundary
+place_pin -pin_name din[2] -layer M2 -location {64.708 29.592} -force_to_die_boundary
+place_pin -pin_name din[4] -layer M2 -location {64.708 22.488} -force_to_die_boundary
+place_pin -pin_name din[6] -layer M2 -location {64.708 23.064} -force_to_die_boundary
+place_pin -pin_name douten -layer M2 -location {64.708 10.248} -force_to_die_boundary
+place_pin -pin_name rlen[0] -layer M2 -location {64.708 9.912} -force_to_die_boundary
+place_pin -pin_name rlen[1] -layer M2 -location {64.708 7.224} -force_to_die_boundary
+place_pin -pin_name rlen[2] -layer M2 -location {64.708 7.08} -force_to_die_boundary
+place_pin -pin_name rlen[3] -layer M2 -location {64.708 9.864} -force_to_die_boundary
+place_pin -pin_name rst -layer M2 -location {64.708 10.008} -force_to_die_boundary
+place_pin -pin_name size[0] -layer M2 -location {64.708 6.216} -force_to_die_boundary
+place_pin -pin_name size[1] -layer M2 -location {64.708 6.648} -force_to_die_boundary
+place_pin -pin_name size[2] -layer M2 -location {64.708 7.944} -force_to_die_boundary
+place_pin -pin_name size[3] -layer M2 -location {64.708 10.728} -force_to_die_boundary
+#Edge: TOP
+#Edge: LEFT
+place_pin -pin_name din[3] -layer M2 -location {0.012 22.68} -force_to_die_boundary
+place_pin -pin_name dstrb -layer M2 -location {0.012 30.744} -force_to_die_boundary

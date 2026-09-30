@@ -1,0 +1,8 @@
+iterations: 5009   sinks: 1938   failed measures: 0
+skew  mean =   15.386 ps
+skew  sigma=    1.165 ps
+skew  min  =   11.718 ps
+skew  max  =   19.539 ps
+mean + 3*sigma =   18.882 ps
+convergence: sigma(first half) = 1.173 ps vs sigma(all) = 1.165 ps (ok)
+slew  mean =    5.702 ps   worst =   22.856 ps

@@ -1,0 +1,87 @@
+PROCESS GT2 {
+}
+
+DIELECTRIC BRDL_diel {
+        epsilon 2.5
+        thickness 0.612
+        next_met 1
+}
+
+DIELECTRIC BM4_diel {
+        epsilon 2.5
+        thickness 0.224
+        next_met 2
+}
+
+DIELECTRIC BM3_diel {
+        epsilon 2.5
+        thickness 0.224
+        next_met 3
+}
+
+DIELECTRIC BM2_diel {
+        epsilon 2.5
+        thickness 0.224
+        next_met 4
+}
+
+DIELECTRIC BM1_diel {
+        epsilon 3.9
+        thickness 0.412
+        next_met 5
+}
+
+DIELECTRIC BPR_diel {
+        epsilon 3.9
+        thickness 0.09
+        next_met 6
+}
+
+CONDUCTOR BRDL {
+        distance 0.05
+        thickness 0.5
+        min_width 1.6
+        min_spacing 1.6
+        resistivity 0.005
+}
+
+CONDUCTOR BM4 {
+        distance 0.112
+        thickness 0.112
+        min_width 0.36
+        min_spacing 0.36
+        resistivity 0.02576
+}
+
+CONDUCTOR BM3 {
+        distance 0.112
+        thickness 0.112
+        min_width 0.36
+        min_spacing 0.36
+        resistivity 0.02576
+}
+
+CONDUCTOR BM2 {
+        distance 0.112
+        thickness 0.112
+        min_width 0.056
+        min_spacing 0.056
+        resistivity 0.04693
+}
+
+CONDUCTOR BM1 {
+        distance 0.112
+        thickness 0.112
+        min_width 0.056
+        min_spacing 0.056
+        resistivity 0.04693
+}
+
+CONDUCTOR BPR {
+        distance 0.3
+        thickness 0.09
+        min_width 0.032
+        min_spacing 0.112
+        resistivity 0.07
+}
+

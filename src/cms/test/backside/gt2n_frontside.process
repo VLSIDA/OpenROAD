@@ -1,0 +1,115 @@
+PROCESS GT2 {
+}
+
+DIELECTRIC M0_diel {
+        epsilon 2.4
+        thickness 0.048
+        next_met 1
+}
+
+DIELECTRIC M1_diel {
+        epsilon 2.4
+        thickness 0.056
+        next_met 2
+}
+
+DIELECTRIC M2_diel {
+        epsilon 2.4
+        thickness 0.048
+        next_met 3
+}
+
+DIELECTRIC M3_diel {
+        epsilon 2.4
+        thickness 0.056
+        next_met 4
+}
+
+DIELECTRIC M4_diel {
+        epsilon 2.5
+        thickness 0.084
+        next_met 5
+}
+
+DIELECTRIC M5_diel {
+        epsilon 2.5
+        thickness 0.084
+        next_met 6
+}
+
+DIELECTRIC M6_diel {
+        epsilon 2.5
+        thickness 0.152
+        next_met 7
+}
+
+DIELECTRIC M7_diel {
+        epsilon 2.5
+        thickness 0.152
+        next_met 8
+}
+
+CONDUCTOR M0 {
+        distance 0.05
+        thickness 0.024
+        min_width 0.012
+        min_spacing 0.012
+        resistivity 0.17906
+}
+
+CONDUCTOR M1 {
+        distance 0.024
+        thickness 0.028
+        min_width 0.014
+        min_spacing 0.014
+        resistivity 0.1715
+}
+
+CONDUCTOR M2 {
+        distance 0.028
+        thickness 0.024
+        min_width 0.012
+        min_spacing 0.012
+        resistivity 0.17906
+}
+
+CONDUCTOR M3 {
+        distance 0.024
+        thickness 0.028
+        min_width 0.014
+        min_spacing 0.014
+        resistivity 0.1715
+}
+
+CONDUCTOR M4 {
+        distance 0.028
+        thickness 0.042
+        min_width 0.021
+        min_spacing 0.021
+        resistivity 0.14725
+}
+
+CONDUCTOR M5 {
+        distance 0.042
+        thickness 0.042
+        min_width 0.021
+        min_spacing 0.021
+        resistivity 0.14725
+}
+
+CONDUCTOR M6 {
+        distance 0.042
+        thickness 0.076
+        min_width 0.038
+        min_spacing 0.038
+        resistivity 0.07668
+}
+
+CONDUCTOR M7 {
+        distance 0.076
+        thickness 0.076
+        min_width 0.038
+        min_spacing 0.038
+        resistivity 0.07668
+}
+

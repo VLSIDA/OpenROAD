@@ -1,0 +1,24 @@
+# Backside mesh study: only scripts/docs are tracked. Simulation outputs,
+# databases, decks and PDK-derived model data stay local (hundreds of GB).
+*.odb
+*.guide
+*.def
+*.rpt
+*.log
+*.lis
+*.ic0
+*.mt0
+*.st0
+*.mc0
+*.mpp0
+*.annotate
+*.csv
+*.sp
+*.lib
+*.cdl
+*.tgz
+*.pyc
+*.png
+*.pdf
+__pycache__/
+results/

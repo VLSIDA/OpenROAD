@@ -1,0 +1,51 @@
+{
+  "sigma_vth_p": 0.02,
+  "sigma_vth_n": 0.015,
+  "l_nom": 1.4e-08,
+  "sigma_l": 1.67e-10,
+  "w_nom": 3.1e-08,
+  "sigma_w": 1.67e-10,
+  "t_nom": 5e-09,
+  "sigma_t": 1.33e-10,
+  "vdd_nom": 0.7,
+  "sigma_vdd": 0.018,
+  "vdd_scope": "iid",
+  "sigma_r_front": 0.125,
+  "sigma_r_back": 0.0625,
+  "sigma_r_tsv": 0.0625,
+  "sigma_c": 0.03,
+  "sigma_c_sink": 0.03,
+  "rho_rc": 0.0,
+  "sheets": "shared",
+  "n_sheet": 3,
+  "mesh_is_backside": false,
+  "seed": 20260901,
+  "network": "fsdirect",
+  "samples": 10000,
+  "config_hash": "00f033d90efe0788c54c878a76f1063d",
+  "template": {
+    "deck": "/home/wali2/backside/OpenROAD/src/cms/test/backside/mc_sigma10/fsdirect_s10.sp",
+    "cdl": "/home/wali2/backside/GT2N/cdl/gt2_6t_w31_lvt.cdl",
+    "model_card": "/home/wali2/backside/OpenROAD/src/cms/test/backside/gt2_w31_lvt_tt_renamed.sp",
+    "deck_md5": "1016e3e60d8c76a7dcdb02965bdfd61e",
+    "n_sinks": 1938,
+    "n_instances": 55,
+    "n_fingers": 624,
+    "n_r": 21813,
+    "n_c": 22823,
+    "r_cats": {
+      "front": 21813,
+      "back": 0,
+      "tsv": 0
+    },
+    "c_cats": {
+      "wire": 20885,
+      "sink": 1938
+    },
+    "cells": [
+      "gt2_6t_buf_x12_w31_lvt",
+      "gt2_6t_buf_x1_w31_lvt",
+      "gt2_6t_buf_x4_w31_lvt"
+    ]
+  }
+}

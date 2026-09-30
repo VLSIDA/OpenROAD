@@ -1,0 +1,1 @@
+{"sample": 0, "is_nominal": 1, "vdd": 0.7000000000000001, "skew_ps": 32.42499999999992, "max_slew_ps": 14.25606, "latency_ps": 134.68899999999996, "t_root_ps": 1105.0, "arr_min_ps": 1207.2640000000001, "arr_max_ps": 1239.689, "n_sinks": 1938, "hspice_s": 8.6}

@@ -1,0 +1,51 @@
+#Edge: BOTTOM
+place_pin -pin_name amp[0] -layer M3 -location {58.436 0.014} -force_to_die_boundary
+place_pin -pin_name amp[10] -layer M3 -location {52.22 0.014} -force_to_die_boundary
+place_pin -pin_name amp[11] -layer M3 -location {62.804 0.014} -force_to_die_boundary
+place_pin -pin_name amp[1] -layer M3 -location {59.22 0.014} -force_to_die_boundary
+place_pin -pin_name amp[2] -layer M3 -location {59.332 0.014} -force_to_die_boundary
+place_pin -pin_name amp[3] -layer M3 -location {59.5 0.014} -force_to_die_boundary
+place_pin -pin_name amp[4] -layer M3 -location {59.78 0.014} -force_to_die_boundary
+place_pin -pin_name amp[5] -layer M3 -location {59.276 0.014} -force_to_die_boundary
+place_pin -pin_name amp[6] -layer M3 -location {59.668 0.014} -force_to_die_boundary
+place_pin -pin_name amp[7] -layer M3 -location {59.444 0.014} -force_to_die_boundary
+place_pin -pin_name amp[8] -layer M3 -location {59.052 0.014} -force_to_die_boundary
+place_pin -pin_name amp[9] -layer M3 -location {59.836 0.014} -force_to_die_boundary
+place_pin -pin_name clk -layer M3 -location {2.324 0.014} -force_to_die_boundary
+place_pin -pin_name din[3] -layer M3 -location {36.484 0.014} -force_to_die_boundary
+place_pin -pin_name din[5] -layer M3 -location {27.244 0.014} -force_to_die_boundary
+place_pin -pin_name din[7] -layer M3 -location {39.844 0.014} -force_to_die_boundary
+place_pin -pin_name ena -layer M3 -location {22.876 0.014} -force_to_die_boundary
+place_pin -pin_name qnt_cnt[0] -layer M3 -location {30.492 0.014} -force_to_die_boundary
+place_pin -pin_name qnt_cnt[1] -layer M3 -location {33.852 0.014} -force_to_die_boundary
+place_pin -pin_name qnt_cnt[2] -layer M3 -location {34.188 0.014} -force_to_die_boundary
+place_pin -pin_name qnt_cnt[3] -layer M3 -location {34.244 0.014} -force_to_die_boundary
+place_pin -pin_name qnt_cnt[4] -layer M3 -location {34.076 0.014} -force_to_die_boundary
+place_pin -pin_name qnt_cnt[5] -layer M3 -location {34.3 0.014} -force_to_die_boundary
+place_pin -pin_name qnt_val[0] -layer M3 -location {24.612 0.014} -force_to_die_boundary
+place_pin -pin_name qnt_val[1] -layer M3 -location {23.548 0.014} -force_to_die_boundary
+place_pin -pin_name qnt_val[2] -layer M3 -location {22.932 0.014} -force_to_die_boundary
+place_pin -pin_name qnt_val[3] -layer M3 -location {22.316 0.014} -force_to_die_boundary
+place_pin -pin_name qnt_val[4] -layer M3 -location {21.588 0.014} -force_to_die_boundary
+place_pin -pin_name qnt_val[5] -layer M3 -location {21.14 0.014} -force_to_die_boundary
+place_pin -pin_name qnt_val[6] -layer M3 -location {21.084 0.014} -force_to_die_boundary
+place_pin -pin_name qnt_val[7] -layer M3 -location {29.148 0.014} -force_to_die_boundary
+place_pin -pin_name rlen[1] -layer M3 -location {59.164 0.014} -force_to_die_boundary
+place_pin -pin_name rlen[2] -layer M3 -location {59.108 0.014} -force_to_die_boundary
+place_pin -pin_name size[0] -layer M3 -location {59.388 0.014} -force_to_die_boundary
+place_pin -pin_name size[1] -layer M3 -location {59.556 0.014} -force_to_die_boundary
+place_pin -pin_name size[2] -layer M3 -location {59.612 0.014} -force_to_die_boundary
+#Edge: RIGHT
+place_pin -pin_name din[0] -layer M2 -location {67 23.016} -force_to_die_boundary
+place_pin -pin_name din[1] -layer M2 -location {67 22.776} -force_to_die_boundary
+place_pin -pin_name din[2] -layer M2 -location {67 22.968} -force_to_die_boundary
+place_pin -pin_name din[4] -layer M2 -location {67 23.352} -force_to_die_boundary
+place_pin -pin_name din[6] -layer M2 -location {67 25.416} -force_to_die_boundary
+place_pin -pin_name douten -layer M2 -location {67 10.824} -force_to_die_boundary
+place_pin -pin_name rlen[0] -layer M2 -location {67 10.248} -force_to_die_boundary
+place_pin -pin_name rlen[3] -layer M2 -location {67 10.872} -force_to_die_boundary
+place_pin -pin_name rst -layer M2 -location {67 10.008} -force_to_die_boundary
+place_pin -pin_name size[3] -layer M2 -location {67 10.392} -force_to_die_boundary
+#Edge: TOP
+#Edge: LEFT
+place_pin -pin_name dstrb -layer M2 -location {0.012 32.712} -force_to_die_boundary

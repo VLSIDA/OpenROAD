@@ -1,0 +1,26 @@
+# Backside mesh results: only scripts, small configs and Pareto CSVs are
+# tracked. Design databases, routing guides, SPICE decks, simulator outputs
+# and Optuna DBs stay local (hundreds of GB).
+*.odb
+*.guide
+*.def
+*.rpt
+*.log
+*.lis
+*.ic0
+*.mt0
+*.st0
+*.mc0
+*.mpp0
+*.sp
+*.v
+*.rtlil
+*.db
+*.db-journal
+*.lo
+*.l
+*.pyc
+*.png
+*.pdf
+mem.json
+__pycache__/
