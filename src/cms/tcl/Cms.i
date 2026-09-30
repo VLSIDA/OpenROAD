@@ -27,7 +27,9 @@ void create_mesh_grid_cmd(const char* clock_name,
                           Tcl_Obj* buffer_list_obj,
                           int macro_halo_dbu,
                           Tcl_Obj* cts_buffer_list_obj,
-                          const char* mesh_strategy)
+                          const char* mesh_strategy,
+                          int remove_colliding,
+                          int checkerboard_buffers)
 {
   cms::ClockMesh* mesh_obj = ord::getClockMesh();
   if (!mesh_obj) {
@@ -102,7 +104,122 @@ void create_mesh_grid_cmd(const char* clock_name,
                                  : "adaptive";
 
   // Call the main mesh grid creation function (wire width auto-computed from tech)
-  mesh_obj->createMeshGrid(clock_name, h_layer, v_layer, pitch, buffer_list, macro_halo_dbu, cts_buffer_list, strategy_str);
+  mesh_obj->createMeshGrid(clock_name, h_layer, v_layer, pitch, buffer_list, macro_halo_dbu, cts_buffer_list, strategy_str, remove_colliding != 0, checkerboard_buffers != 0);
+}
+
+// Verification: compute the deterministic frozen grid and log a fragment report.
+// All ints in dbu. Does not modify the design.
+void compute_frozen_grid_cmd(const char* h_layer_name, const char* v_layer_name,
+                             int pitch, int v_strap_pitch, int v_strap_offset,
+                             int v_strap_width)
+{
+  cms::ClockMesh* mesh_obj = ord::getClockMesh();
+  if (!mesh_obj) {
+    return;
+  }
+  ord::OpenRoad* openroad = ord::OpenRoad::openRoad();
+  odb::dbDatabase* db = openroad->getDb();
+  if (!db) {
+    return;
+  }
+  odb::dbTech* tech = db->getTech();
+  if (!tech) {
+    return;
+  }
+  odb::dbTechLayer* h_layer = tech->findLayer(h_layer_name);
+  odb::dbTechLayer* v_layer = tech->findLayer(v_layer_name);
+  if (!h_layer || !v_layer) {
+    openroad->getLogger()->error(utl::CMS, 202, "mesh layer not found");
+    return;
+  }
+  mesh_obj->reportFrozenGrid(h_layer, v_layer, pitch, v_strap_pitch,
+                             v_strap_offset, v_strap_width);
+}
+
+// Phase 1 reserve: place TSV cells + layer-selective keepouts on the frozen
+// grid. All ints in dbu. Run at floorplan, before tapcell/PDN.
+void reserve_clock_mesh_cmd(const char* h_layer_name, const char* v_layer_name,
+                            int pitch, int v_strap_pitch, int v_strap_offset,
+                            int v_strap_width, const char* tsv_master,
+                            int keepout_w, int keepout_h, int target_spacing)
+{
+  cms::ClockMesh* mesh_obj = ord::getClockMesh();
+  if (!mesh_obj) {
+    return;
+  }
+  ord::OpenRoad* openroad = ord::OpenRoad::openRoad();
+  odb::dbDatabase* db = openroad->getDb();
+  if (!db) {
+    return;
+  }
+  odb::dbTech* tech = db->getTech();
+  if (!tech) {
+    return;
+  }
+  odb::dbTechLayer* h_layer = tech->findLayer(h_layer_name);
+  odb::dbTechLayer* v_layer = tech->findLayer(v_layer_name);
+  if (!h_layer || !v_layer) {
+    openroad->getLogger()->error(utl::CMS, 203, "mesh layer not found");
+    return;
+  }
+  mesh_obj->reserveMeshTsvSites(h_layer, v_layer, pitch, v_strap_pitch,
+                                v_strap_offset, v_strap_width, tsv_master,
+                                keepout_w, keepout_h, target_spacing);
+}
+
+// Sink-side: place sink-taps + assign FFs to nearest tap (capacity-bounded).
+// Run after create_clock_mesh + setup_proxy_bterms; before break_bpr_at_tsvs.
+void create_sink_taps_cmd(const char* h_layer_name, const char* v_layer_name,
+                          const char* tsv_master, const char* sink_buffer,
+                          int capacity, int halo)
+{
+  cms::ClockMesh* mesh_obj = ord::getClockMesh();
+  if (!mesh_obj) {
+    return;
+  }
+  ord::OpenRoad* openroad = ord::OpenRoad::openRoad();
+  odb::dbDatabase* db = openroad->getDb();
+  if (!db) {
+    return;
+  }
+  odb::dbTech* tech = db->getTech();
+  if (!tech) {
+    return;
+  }
+  odb::dbTechLayer* h_layer = tech->findLayer(h_layer_name);
+  odb::dbTechLayer* v_layer = tech->findLayer(v_layer_name);
+  if (!h_layer || !v_layer) {
+    openroad->getLogger()->error(utl::CMS, 704, "mesh layer not found");
+    return;
+  }
+  mesh_obj->createSinkTaps(h_layer, v_layer, tsv_master, sink_buffer,
+                           capacity, halo);
+}
+
+// Break BPR power rails at every front<->back TSV (drive + sink), relocate, and
+// drop stranded taps. Run after all TSVs are placed; detailed_placement after.
+void break_bpr_at_tsvs_cmd(const char* bpr_layer_name, const char* tsv_master,
+                           const char* tap_master, int halo, int relocate_rows)
+{
+  cms::ClockMesh* mesh_obj = ord::getClockMesh();
+  if (!mesh_obj) {
+    return;
+  }
+  ord::OpenRoad* openroad = ord::OpenRoad::openRoad();
+  odb::dbDatabase* db = openroad->getDb();
+  if (!db) {
+    return;
+  }
+  odb::dbTech* tech = db->getTech();
+  if (!tech) {
+    return;
+  }
+  odb::dbTechLayer* bpr = tech->findLayer(bpr_layer_name);
+  if (!bpr) {
+    openroad->getLogger()->error(utl::CMS, 712, "BPR layer not found");
+    return;
+  }
+  mesh_obj->breakBprAtTsvs(bpr, tsv_master, tap_master, halo, relocate_rows);
 }
 
 // Connect sinks via router - places BTerms at grid intersections for router-based connections
@@ -191,6 +308,28 @@ void connect_proxy_bterms_to_mesh_cmd(const char* clock_name)
   mesh_obj->connectProxyBTermsToMesh(clock_name);
 }
 
+// Author sink_tap special wires at the sink buffers' FINAL positions
+// (call after the post-break detailed_placement). use_router=true leaves the
+// nets to GRT/DRT instead (no special wire, no SPICE-prep re-author).
+void connect_sink_taps_cmd(bool use_router)
+{
+  cms::ClockMesh* mesh_obj = ord::getClockMesh();
+  if (!mesh_obj) {
+    return;
+  }
+  mesh_obj->connectSinkTaps(use_router);
+}
+
+// Re-map FFs to nearest sink buffer at FINAL positions (post-placement).
+void reassign_sink_ffs_cmd(int capacity)
+{
+  cms::ClockMesh* mesh_obj = ord::getClockMesh();
+  if (!mesh_obj) {
+    return;
+  }
+  mesh_obj->reassignSinkFFs(capacity);
+}
+
 // Capture CTS leaf arrival times from STA (call before merge)
 void capture_leaf_arrivals_cmd(const char* clock_name)
 {
@@ -225,7 +364,7 @@ void convert_swire_to_wire_cmd(const char* clock_name)
 void write_mesh_spice_cmd(const char* clock_name, const char* spice_file,
                           float vdd_voltage, float rise_time, float fall_time,
                           Tcl_Obj* spice_models_obj, bool zero_delay,
-                          bool full_tree, bool finfet)
+                          bool full_tree, bool finfet, float tsv_res)
 {
   cms::ClockMesh* mesh_obj = ord::getClockMesh();
   if (!mesh_obj) {
@@ -249,7 +388,7 @@ void write_mesh_spice_cmd(const char* clock_name, const char* spice_file,
 
   mesh_obj->writeMeshSpice(clock_name, spice_file,
                            vdd_voltage, rise_time, fall_time, spice_models, zero_delay,
-                           full_tree, finfet);
+                           full_tree, finfet, tsv_res);
 }
 
 // Write mesh-merged Verilog netlist with correct connectivity

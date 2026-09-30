@@ -18,7 +18,7 @@
 proc create_clock_mesh { args } {
     sta::parse_key_args "create_clock_mesh" args \
         keys {-clock -h_layer -v_layer -pitch -buffers -cts_buffers -macro_halo -mesh_strategy} \
-        flags {}
+        flags {-remove_colliding_wires -checkerboard_buffers}
 
     if { [info exists keys(-clock)] } {
         set clock_name $keys(-clock)
@@ -88,7 +88,111 @@ proc create_clock_mesh { args } {
         }
     }
 
-    cms::create_mesh_grid_cmd $clock_name $h_layer $v_layer $pitch_dbu $buffer_list $macro_halo_dbu $cts_buffer_list $mesh_strategy
+    set remove_colliding [info exists flags(-remove_colliding_wires)]
+    # -checkerboard_buffers: mesh drivers at every OTHER intersection
+    # ((row+col) even), so no driver has a driven up/down/left/right neighbor.
+    # Halves the driver/TSV count; the mesh wire grid is unchanged.
+    set checkerboard [info exists flags(-checkerboard_buffers)]
+    cms::create_mesh_grid_cmd $clock_name $h_layer $v_layer $pitch_dbu $buffer_list $macro_halo_dbu $cts_buffer_list $mesh_strategy $remove_colliding $checkerboard
+}
+
+# Verification: compute the deterministic frozen grid and log a fragment report
+# (CMS-144 summary + CMS-146 fragment sizes). Does not modify the design.
+# Usage: compute_frozen_grid -h_layer BM2 -v_layer BM1 -pitch 1.0 \
+#            -strap_pitch 2.16 -strap_offset 1.08 -strap_width 0.36
+proc compute_frozen_grid { args } {
+    sta::parse_key_args "compute_frozen_grid" args \
+        keys {-h_layer -v_layer -pitch -strap_pitch -strap_offset -strap_width} \
+        flags {}
+    set pitch [ord::microns_to_dbu $keys(-pitch)]
+    set sp    [ord::microns_to_dbu $keys(-strap_pitch)]
+    set so    [ord::microns_to_dbu $keys(-strap_offset)]
+    set sw    [ord::microns_to_dbu $keys(-strap_width)]
+    cms::compute_frozen_grid_cmd $keys(-h_layer) $keys(-v_layer) $pitch $sp $so $sw
+}
+
+# Phase 1 RESERVE: place TSV cells + layer-selective keepouts at the frozen
+# grid's intersections. Run at floorplan, BEFORE tapcell/PDN, so the PDN breaks
+# the BPR rails around the keepouts automatically.
+# Usage: reserve_clock_mesh -h_layer BM2 -v_layer BM1 -pitch 1.0 \
+#            -strap_pitch 2.16 -strap_offset 1.08 -strap_width 0.36 \
+#            -tsv_master gt2_6t_TSV [-keepout_w 0.31] [-keepout_h 0.176] [-spacing 2.0]
+proc reserve_clock_mesh { args } {
+    sta::parse_key_args "reserve_clock_mesh" args \
+        keys {-h_layer -v_layer -pitch -strap_pitch -strap_offset -strap_width \
+              -tsv_master -keepout_w -keepout_h -spacing} \
+        flags {}
+    set pitch [ord::microns_to_dbu $keys(-pitch)]
+    set sp    [ord::microns_to_dbu $keys(-strap_pitch)]
+    set so    [ord::microns_to_dbu $keys(-strap_offset)]
+    set sw    [ord::microns_to_dbu $keys(-strap_width)]
+    set kw [expr {[info exists keys(-keepout_w)] ? \
+        [ord::microns_to_dbu $keys(-keepout_w)] : [ord::microns_to_dbu 0.31]}]
+    set kh [expr {[info exists keys(-keepout_h)] ? \
+        [ord::microns_to_dbu $keys(-keepout_h)] : [ord::microns_to_dbu 0.176]}]
+    set spc [expr {[info exists keys(-spacing)] ? \
+        [ord::microns_to_dbu $keys(-spacing)] : [ord::microns_to_dbu 2.0]}]
+    cms::reserve_clock_mesh_cmd $keys(-h_layer) $keys(-v_layer) $pitch \
+        $sp $so $sw $keys(-tsv_master) $kw $kh $spc
+}
+
+# Create sink-taps that bring the backside mesh up to local sink-buffers.
+# Run AFTER create_clock_mesh + setup_proxy_bterms (the mesh + drive side must
+# exist); BEFORE break_bpr_at_tsvs + detailed_placement.
+# Usage: create_sink_taps -h_layer BM2 -v_layer BM1 -buffer <master> \
+#            [-capacity 16] [-tsv_master gt2_6t_TSV] [-halo 0.112]
+# -capacity: max FF clock pins one sink-buffer drives (nearest assignment,
+#            spill to next-nearest when full).
+proc create_sink_taps { args } {
+    sta::parse_key_args "create_sink_taps" args \
+        keys {-h_layer -v_layer -buffer -capacity -tsv_master -halo} \
+        flags {-no_tsv}
+    foreach req {-h_layer -v_layer -buffer} {
+        if { ![info exists keys($req)] } {
+            utl::error CMS 311 "Missing required argument: $req"
+        }
+    }
+    # -no_tsv (frontside LCB tier): no TSV cell -- the LCB input is routed to
+    # a proxy BTerm pinned on the nearest mesh wire instead.
+    if { [info exists flags(-no_tsv)] } {
+        set tsv_master ""
+    } else {
+        set tsv_master [expr {[info exists keys(-tsv_master)] ? \
+            $keys(-tsv_master) : "gt2_6t_TSV"}]
+    }
+    set capacity [expr {[info exists keys(-capacity)] ? $keys(-capacity) : 16}]
+    set halo [expr {[info exists keys(-halo)] ? \
+        [ord::microns_to_dbu $keys(-halo)] : [ord::microns_to_dbu 0.112]}]
+    cms::create_sink_taps_cmd $keys(-h_layer) $keys(-v_layer) \
+        $tsv_master $keys(-buffer) $capacity $halo
+}
+
+# Break BPR power rails at every front<->back TSV (drive + sink). Run AFTER all
+# TSVs are placed (create_clock_mesh + create_sink_taps); run detailed_placement
+# afterward to relocate the cells stranded by the cut blockages.
+# Usage: break_bpr_at_tsvs [-bpr_layer BPR] [-tsv_master gt2_6t_TSV] \
+#            [-tap_master gt2_6t_tapbspdn_w31_lvt] [-halo 0.224] [-relocate_rows 1]
+proc break_bpr_at_tsvs { args } {
+    sta::parse_key_args "break_bpr_at_tsvs" args \
+        keys {-bpr_layer -tsv_master -tap_master -halo -relocate_rows} \
+        flags {}
+    set bpr_layer [expr {[info exists keys(-bpr_layer)] ? \
+        $keys(-bpr_layer) : "BPR"}]
+    # -no_tsv (frontside LCB tier): no TSV cell -- the LCB input is routed to
+    # a proxy BTerm pinned on the nearest mesh wire instead.
+    if { [info exists flags(-no_tsv)] } {
+        set tsv_master ""
+    } else {
+        set tsv_master [expr {[info exists keys(-tsv_master)] ? \
+            $keys(-tsv_master) : "gt2_6t_TSV"}]
+    }
+    set tap_master [expr {[info exists keys(-tap_master)] ? \
+        $keys(-tap_master) : "gt2_6t_tapbspdn_w31_lvt"}]
+    set halo [expr {[info exists keys(-halo)] ? \
+        [ord::microns_to_dbu $keys(-halo)] : [ord::microns_to_dbu 0.224]}]
+    set rrows [expr {[info exists keys(-relocate_rows)] ? \
+        $keys(-relocate_rows) : 1}]
+    cms::break_bpr_at_tsvs_cmd $bpr_layer $tsv_master $tap_master $halo $rrows
 }
 
 # Connect sinks via router - places BTerms at grid intersections for router-based connections
@@ -175,6 +279,26 @@ proc connect_proxy_bterms_to_mesh { args } {
     cms::connect_proxy_bterms_to_mesh_cmd $clock_name
 }
 
+# Author sink_tap special wires (buffer.A -> TSV.A) at the sink buffers' FINAL
+# positions. Call AFTER the post-break detailed_placement so the wires reach the
+# legalized buffer locations. With -use_router the nets are instead left as
+# ordinary routed nets for GRT/DRT (no special wire, no SPICE-prep re-author).
+# Usage: connect_sink_taps [-use_router]
+proc connect_sink_taps { args } {
+    sta::parse_key_args "connect_sink_taps" args keys {} flags {-use_router}
+    cms::connect_sink_taps_cmd [info exists flags(-use_router)]
+}
+
+# Re-map FFs to their nearest sink buffer using FINAL (post-placement) positions,
+# capacity-capped. Repairs stale FF->buffer assignments left by the break_bpr
+# displacement. Call AFTER the post-break detailed_placement, BEFORE
+# connect_sink_taps. Usage: reassign_sink_ffs -capacity <F_max>
+proc reassign_sink_ffs { args } {
+    sta::parse_key_args "reassign_sink_ffs" args keys {-capacity} flags {}
+    set cap [expr {[info exists keys(-capacity)] ? $keys(-capacity) : 0}]
+    cms::reassign_sink_ffs_cmd $cap
+}
+
 # Capture CTS leaf arrival times from STA for SPICE skew analysis
 # Must be called BEFORE merge_mesh_nets while STA timing graph is valid.
 # The captured arrivals are used by write_mesh_spice to generate per-leaf-net
@@ -248,7 +372,7 @@ proc convert_mesh_swire { args } {
 #                         [-rise_time <ns>] [-fall_time <ns>]
 proc write_mesh_spice { args } {
     sta::parse_key_args "write_mesh_spice" args \
-        keys {-clock -output -vdd -rise_time -fall_time -spice_models} \
+        keys {-clock -output -vdd -rise_time -fall_time -spice_models -tsv_res} \
         flags {-zero_delay -full_tree -finfet}
 
     if { [info exists keys(-clock)] } {
@@ -293,7 +417,16 @@ proc write_mesh_spice { args } {
     set full_tree  [info exists flags(-full_tree)]
     set finfet     [info exists flags(-finfet)]
 
-    cms::write_mesh_spice_cmd $clock_name $spice_file $vdd $rise_time $fall_time $spice_models $zero_delay $full_tree $finfet
+    # TSV crossing resistance (ohm): passive front<->back via stack, from the
+    # real GT2N ITF: V0 54.99 + VSD 36.86 + VBPR 32.0 + BV0 25.10 = 149
+    # (chain M1 -> M0 -> SDCON -> BPR -> BM1)
+    if { [info exists keys(-tsv_res)] } {
+        set tsv_res $keys(-tsv_res)
+    } else {
+        set tsv_res 149.0
+    }
+
+    cms::write_mesh_spice_cmd $clock_name $spice_file $vdd $rise_time $fall_time $spice_models $zero_delay $full_tree $finfet $tsv_res
 }
 
 # Write mesh-merged Verilog netlist with correct connectivity

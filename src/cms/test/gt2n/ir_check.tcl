@@ -14,7 +14,7 @@ read_sdc     $res/6_final.sdc
 
 # --- strip floating frontside (M1/M0) power shapes from the tap master ---
 set db  [ord::get_db]
-set tap [$db findMaster gt2_6t_tap_w31_lvt]
+set tap [$db findMaster gt2_6t_tapbspdn_w31_lvt]
 set killed 0
 foreach mt [$tap getMTerms] {
   set nm [$mt getName]

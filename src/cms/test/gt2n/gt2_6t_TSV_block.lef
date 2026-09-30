@@ -1,0 +1,41 @@
+VERSION 5.8 ;
+BUSBITCHARS "[]" ;
+DIVIDERCHAR "/" ;
+
+# ----------------------------------------------------------------------------
+# gt2_6t_TSV : front-to-back clock crossing cell (BPR-route feed-through, 1 row).
+#
+#   A (M1, frontside) -V0- M0 -VSD- SDCON -VBPR- BPR -BV0- BM1 (Y, backside)
+#
+#   A : frontside net  -- router routes the clock stub to it.
+#   Y : backside  net  -- abuts the BM1 mesh wire.
+#
+# The column passes through the BPR layer, so it breaks the power followpins
+# under the cell -> BSPDN IR drop must be verified. Passive: no vdd/vss.
+# Verified connected + via/metal min-width clean (check_conn.py).
+# ----------------------------------------------------------------------------
+MACRO gt2_6t_TSV
+  CLASS BLOCK ;
+  ORIGIN 0 0 ;
+  SYMMETRY X Y ;
+  SITE gt2_6t ;
+  SIZE 0.084 BY 0.144 ;
+  PIN A
+    DIRECTION INPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER M1 ;
+        RECT 0.014 0.015 0.028 0.135 ;
+    END
+  END A
+  PIN Y
+    DIRECTION OUTPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER BM1 ;
+        RECT 0.000 0.060 0.056 0.140 ;
+    END
+  END Y
+END gt2_6t_TSV
+
+END LIBRARY
