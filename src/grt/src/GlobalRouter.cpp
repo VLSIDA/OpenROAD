@@ -49,7 +49,6 @@
 #include "odb/dbSet.h"
 #include "odb/dbShape.h"
 #include "odb/dbTypes.h"
-#include "odb/dbWireCodec.h"
 #include "odb/geom.h"
 #include "odb/geom_boost.h"
 #include "odb/wOrder.h"
@@ -466,16 +465,6 @@ void GlobalRouter::finishGlobalRouting(bool save_guides)
       nets.push_back(db_net);
     }
     saveGuides(nets);
-    // Backside clock: the via-stack seed below is intentionally DISABLED.
-    // Seeding a fixed via stack into each clock pin's wire gave the net
-    // "initial routing", which put DRT into incremental mode. Incremental
-    // mode relaxes guide-following, so large clock leaf nets spilled onto
-    // frontside M2/M3 instead of staying on the backside guides. Backside
-    // pin access (M1 clock pin -> BM1 via the nTSV) is now handled in FlexPA
-    // instead, so DRT routes these nets from scratch (ALL mode) and strictly
-    // follows the backside guides. The connectClockPinsToBackside() guide
-    // generation is kept -- only the via-stack seed is removed here.
-    // seedClockPinViaStacks();
   }
 
   if (is_congested_) {
@@ -790,12 +779,6 @@ void GlobalRouter::checkAdjacentLayersDirection(int min_routing_layer,
   for (int l = min_routing_layer; l < max_routing_layer; l++) {
     odb::dbTechLayer* layer_a = tech->findRoutingLayer(l);
     odb::dbTechLayer* layer_b = tech->findRoutingLayer(l + 1);
-    // Skip the front-side/backside boundary (e.g. BPR -> M0). These layers sit
-    // on opposite faces of the die with the device layer between them, so they
-    // are not physically adjacent and need not alternate preferred direction.
-    if (layer_a->isBackside() != layer_b->isBackside()) {
-      continue;
-    }
     if (layer_a->getDirection() == layer_b->getDirection()) {
       logger_->error(
           GRT,
@@ -806,21 +789,6 @@ void GlobalRouter::checkAdjacentLayersDirection(int min_routing_layer,
           layer_a->getDirection().getString());
     }
   }
-}
-
-// Backside layers reserved for power (BPR rail) or otherwise not used for
-// clock routing must carry no routing capacity, mirroring the detailed
-// router's exclusion. Only BM1..BM4 (+ their BV1..BV3 cuts) are routable
-// backside layers; everything else marked LEF58_BACKSIDE (BPR, BV0, BRDL,
-// BV4) is blocked so neither signal nor clock is routed across it.
-static bool isExcludedBacksideLayer(odb::dbTechLayer* layer)
-{
-  if (layer == nullptr || !layer->isBackside()) {
-    return false;
-  }
-  static const std::set<std::string> routable_backside
-      = {"BM1", "BM2", "BM3", "BM4", "BV1", "BV2", "BV3"};
-  return routable_backside.find(layer->getName()) == routable_backside.end();
 }
 
 void GlobalRouter::setCapacities(int min_routing_layer, int max_routing_layer)
@@ -834,8 +802,7 @@ void GlobalRouter::setCapacities(int min_routing_layer, int max_routing_layer)
   for (int layer = 1; layer <= grid_->getNumLayers(); layer++) {
     odb::dbTechLayer* tech_layer = db_->getTech()->findRoutingLayer(layer);
     const bool inside_layer_range
-        = (layer >= min_routing_layer && layer <= max_routing_layer)
-          && !isExcludedBacksideLayer(tech_layer);
+        = (layer >= min_routing_layer && layer <= max_routing_layer);
 
     const RoutingTracks& tracks = getRoutingTracksByIndex(layer);
     const int track_init = tracks.getLocation();
@@ -1607,26 +1574,8 @@ void GlobalRouter::makeFastrouteNet(Net* net)
   // https://github.com/The-OpenROAD-Project/OpenROAD/discussions/2870
   // for a detailed discussion
 
-  // Backside clock distribution: the clock tree routes on the backside
-  // [getMinLayerForClock, getMaxLayerForClock], below the frontside pin layers.
-  // Project each frontside clock pin straight down onto the top backside clock
-  // layer (max_layer) at its (x,y) so FastRoute routes the tree to it on the
-  // backside (the net range is backside-only, see getNetLayerRange). The real
-  // frontside pin is reconnected by the via column added in
-  // connectClockPinsToBackside, so the only frontside structure is the via stack
-  // sitting on the pin -- no horizontal clock wire on M1/M2/M3.
-  odb::dbTechLayer* clk_top_layer
-      = (is_clock && getMaxLayerForClock() > 0)
-            ? db_->getTech()->findRoutingLayer(getMaxLayerForClock())
-            : nullptr;
-  const bool backside_clock
-      = clk_top_layer != nullptr && clk_top_layer->isBackside();
   for (RoutePt& pin_pos : pins_on_grid) {
-    int pin_layer = pin_pos.layer();
-    if (backside_clock && pin_layer > max_layer) {
-      pin_layer = max_layer;
-    }
-    fr_net->addPin(pin_pos.x(), pin_pos.y(), pin_layer - 1);
+    fr_net->addPin(pin_pos.x(), pin_pos.y(), pin_pos.layer() - 1);
   }
 
   // Save stt input on debug file
@@ -1660,82 +1609,14 @@ void GlobalRouter::getNetLayerRange(odb::dbNet* db_net,
     pin_min_layer = std::min(pin_min_layer, pin.getConnectionLayer());
   }
 
-  // Backside clock distribution: apply the clock routing layers to EVERY
-  // clock-type net (trunk AND leaf), not just the non-leaf trunk. OpenROAD's
-  // default restricts -clock layers to non-leaf nets and leaves the leaf
-  // (buffer->FF) hop on signal layers; for a clock tree routed entirely on the
-  // backside we want the leaf nets on BM1/BM2 as well.
-  const bool is_clock = (db_net->getSigType() == odb::dbSigType::CLOCK);
-  min_layer = (is_clock && getMinLayerForClock() > 0)
+  bool is_non_leaf_clock = isNonLeafClock(db_net);
+  min_layer = (is_non_leaf_clock && getMinLayerForClock() > 0)
                   ? getMinLayerForClock()
                   : getMinRoutingLayer();
-  max_layer = (is_clock && getMaxLayerForClock() > 0)
+  min_layer = std::max(min_layer, pin_min_layer);
+  max_layer = (is_non_leaf_clock && getMaxLayerForClock() > 0)
                   ? getMaxLayerForClock()
                   : getMaxRoutingLayer();
-
-  // When the clock's routing layers sit BELOW the pin layers (clock pins reach
-  // the backside metal through the nTSV), the usual "routing starts at or above
-  // the pin layer" assumption is inverted. Keep the net's routing range on the
-  // backside ONLY ([getMinLayerForClock, getMaxLayerForClock]); do NOT extend it
-  // up to the frontside pin layers. Extending it would let FastRoute route clock
-  // TREE segments horizontally on the frontside (M1/M2/M3). Instead the frontside
-  // pins are (a) projected onto the top backside layer when handed to FastRoute
-  // (see makeFastrouteNet) so the tree routes to them on the backside, and (b)
-  // reconnected up to their real frontside layer by an explicit via column placed
-  // on the pin (connectClockPinsToBackside). The only frontside structure is then
-  // that via stack sitting on the pin -- no horizontal clock wire on the front.
-  const bool backside_clock = is_clock && getMaxLayerForClock() > 0
-                              && getMaxLayerForClock() < pin_min_layer;
-  if (!backside_clock) {
-    min_layer = std::max(min_layer, pin_min_layer);
-  }
-
-  // Hybrid backside clock (tree on the frontside, mesh + TSV crossing on the
-  // backside): a clock net whose pins are ALL on backside layers -- the TSV
-  // crossing nets (TSV.Y -> mesh proxy BTerm) -- must stay on the backside. The
-  // global clock max is set high so the frontside tree has room, which would
-  // otherwise let the router climb a stray via column up to top metal at a
-  // crossing. Detect backside-only nets from the pins' ACTUAL geometry layers
-  // (getConnectionLayer mis-reports BTerms) and cap them to those layers.
-  if (is_clock) {
-    bool any_pin = false, all_backside = true;
-    int back_min = std::numeric_limits<int>::max();
-    int back_max = std::numeric_limits<int>::min();
-    auto note = [&](odb::dbTechLayer* layer) {
-      if (layer == nullptr
-          || layer->getType() != odb::dbTechLayerType::ROUTING) {
-        return;
-      }
-      any_pin = true;
-      if (!layer->isBackside()) {
-        all_backside = false;
-      }
-      back_min = std::min(back_min, layer->getRoutingLevel());
-      back_max = std::max(back_max, layer->getRoutingLevel());
-    };
-    for (odb::dbITerm* iterm : db_net->getITerms()) {
-      odb::dbMTerm* mterm = iterm->getMTerm();
-      if (mterm == nullptr) {
-        continue;
-      }
-      for (odb::dbMPin* mpin : mterm->getMPins()) {
-        for (odb::dbBox* box : mpin->getGeometry()) {
-          note(box->getTechLayer());
-        }
-      }
-    }
-    for (odb::dbBTerm* bterm : db_net->getBTerms()) {
-      for (odb::dbBPin* bpin : bterm->getBPins()) {
-        for (odb::dbBox* box : bpin->getBoxes()) {
-          note(box->getTechLayer());
-        }
-      }
-    }
-    if (any_pin && all_backside) {
-      min_layer = std::min(min_layer, back_min);
-      max_layer = std::min(max_layer, back_max);
-    }
-  }
 }
 
 void GlobalRouter::getGridSize(int& x_grids, int& y_grids)
@@ -3462,176 +3343,6 @@ void GlobalRouter::connectTopLevelPins(odb::dbNet* db_net, GRoute& route)
   }
 }
 
-// Backside clock distribution: the clock tree routes on the backside metals
-// (BM1..), but the clock pins sit on front-side layers (M1/M2/M3) that are
-// ABOVE the routing layers. GRT's router builds the backside tree but does not
-// bridge the front/back boundary up to the pins (the inverted-stack case), so
-// every clock pin is left unconnected. Mirror connectTopLevelPins: add an
-// explicit via column from each pin down to the top backside clock layer
-// (getMaxLayerForClock(), e.g. BM1) so the pin connects to the backside tree.
-// saveGuides() turns these via segments into the column's guides.
-void GlobalRouter::connectClockPinsToBackside(odb::dbNet* db_net, GRoute& route)
-{
-  // Span the column from the LOWEST backside clock layer (getMinLayerForClock,
-  // e.g. BM3) up to the pin. The backside tree may reach a given pin's gcell on
-  // any of the backside clock layers (BM1/BM2/BM3); starting at the lowest one
-  // guarantees the column overlaps the tree there (and also stacks all backside
-  // clock layers at the pin), so the pin is connected regardless of which
-  // backside layer the tree used.
-  const int backside_bot = getMinLayerForClock();
-  if (backside_bot <= 0) {
-    return;
-  }
-  std::vector<Pin>& pins = db_net_map_[db_net]->getPins();
-  for (Pin& pin : pins) {
-    const int pin_layer = pin.getConnectionLayer();
-    const odb::Point pin_pos = clockPinAnchor(pin);
-    for (int l = backside_bot; l < pin_layer; l++) {
-      route.push_back(GSegment(
-          pin_pos.x(), pin_pos.y(), l, pin_pos.x(), pin_pos.y(), l + 1));
-    }
-  }
-}
-
-// Anchor point for a clock pin's via column / via stack: the CENTER of the
-// pin's LARGEST rectangle on its connection layer. This is guaranteed to sit on
-// the pin metal and lands mid-cell, away from the M1 power rails.
-//
-// We deliberately do NOT use pin.getPosition(): that is rect.ll() -- the
-// lower-left CORNER of a pin box (and, because makeItermPins never advances its
-// last_layer cursor, it is actually the corner of the last-listed box, not even
-// the connection-layer box). A via centered on a corner straddles the pin edge
-// and, for pins whose box touches the cell boundary (e.g. a buffer Y output box
-// at y=0.027, abutting the VSS rail), drops the via metal onto the power rail --
-// which is exactly the off-pin placement and Short-to-VSS we were seeing.
-// The bbox center is no good either: ASAP7 output pins are C/U shaped, so their
-// bbox center falls in the hollow; the largest-box center always hits metal.
-odb::Point GlobalRouter::clockPinAnchor(const Pin& pin)
-{
-  const int conn_layer = pin.getConnectionLayer();
-  const auto& boxes_map = pin.getBoxes();
-  auto it = boxes_map.find(conn_layer);
-  if (it != boxes_map.end() && !it->second.empty()) {
-    const odb::Rect* best = nullptr;
-    for (const odb::Rect& r : it->second) {
-      if (best == nullptr || r.area() > best->area()) {
-        best = &r;
-      }
-    }
-    return odb::Point((best->xMin() + best->xMax()) / 2,
-                      (best->yMin() + best->yMax()) / 2);
-  }
-  return pin.getPosition();
-}
-
-// Backside clock distribution: encode a FIXED via stack into each clock pin's
-// odb wire, running from the pin's front-side layer (e.g. M3) straight down to
-// the lowest backside clock layer (getMinLayerForClock(), e.g. BM3). Because the
-// net now carries initial routing, DRT runs in incremental mode and PRESERVES
-// this stack -- it routes only the backside tree to meet it, instead of
-// re-deriving pin access and jogging a front-side wire out to the pin. The
-// result is via-on-pin: a clean vertical column at the pin with no front-side
-// jog. This complements connectClockPinsToBackside (which seeds the GRT guides);
-// here we seed the actual wire shapes so the detailed router keeps them.
-void GlobalRouter::seedClockPinViaStacks()
-{
-  const int clk_top = getMaxLayerForClock();
-  if (clk_top <= 0) {
-    return;
-  }
-  odb::dbTechLayer* clk_top_layer = db_->getTech()->findRoutingLayer(clk_top);
-  // Only act when the clock's max layer is a backside layer (the inverted-stack,
-  // pins-above-routing case). On a normal front-side flow this is a no-op.
-  if (clk_top_layer == nullptr || !clk_top_layer->isBackside()) {
-    return;
-  }
-
-  // Lowest routing level the stack should reach (e.g. BM3).
-  const int backside_bot = getMinLayerForClock();
-
-  // Index tech vias by the routing level of their lower layer, so we can stack
-  // single-cut vias level-by-level (top_level-1, top_level-2, ... backside_bot).
-  // Keep the first via found for each level pair.
-  std::map<int, odb::dbTechVia*> via_by_lower_level;
-  for (odb::dbTechVia* via : db_->getTech()->getVias()) {
-    odb::dbTechLayer* bottom = via->getBottomLayer();
-    odb::dbTechLayer* top = via->getTopLayer();
-    if (bottom == nullptr || top == nullptr) {
-      continue;
-    }
-    const int bottom_level = bottom->getRoutingLevel();
-    const int top_level = top->getRoutingLevel();
-    if (bottom_level == 0 || top_level == 0) {
-      continue;
-    }
-    if (std::abs(top_level - bottom_level) == 1) {
-      const int lower = std::min(bottom_level, top_level);
-      via_by_lower_level.emplace(lower, via);
-    }
-  }
-
-  for (const auto& [db_net, net] : db_net_map_) {
-    if (db_net->getSigType() != odb::dbSigType::CLOCK) {
-      continue;
-    }
-    if (net == nullptr || net->getPins().empty()) {
-      continue;
-    }
-
-    // One encoder begin/end per net; multiple newPath (one column per pin).
-    odb::dbWire* wire = db_net->getWire();
-    if (wire == nullptr) {
-      wire = odb::dbWire::create(db_net);
-    }
-    odb::dbWireEncoder enc;
-    enc.begin(wire);
-
-    for (Pin& pin : net->getPins()) {
-      const int top_level = pin.getConnectionLayer();
-      // Already at or below the backside tree -- nothing to stack.
-      if (top_level <= backside_bot) {
-        continue;
-      }
-      const odb::Point pos = clockPinAnchor(pin);
-      odb::dbTechLayer* top_layer = db_->getTech()->findRoutingLayer(top_level);
-      if (top_layer == nullptr) {
-        continue;
-      }
-      // Verify the full via chain exists before emitting anything for this pin,
-      // so we never write a partial (dangling) stack. Missing a via is not an
-      // error -- some techs simply lack a single-cut via between two levels.
-      bool have_all_vias = true;
-      for (int l = top_level - 1; l >= backside_bot; l--) {
-        if (via_by_lower_level.count(l) == 0) {
-          have_all_vias = false;
-          break;
-        }
-      }
-      if (!have_all_vias) {
-        debugPrint(logger_,
-                   utl::GRT,
-                   "backside_clock",
-                   1,
-                   "skip via stack on clock pin of net {}: missing single-cut "
-                   "via between levels {} and {}",
-                   db_net->getConstName(),
-                   backside_bot,
-                   top_level);
-        continue;
-      }
-      // Anchor the column at the pin's real position, then stack vias straight
-      // down to the lowest backside clock layer.
-      enc.newPath(top_layer, odb::dbWireType::ROUTED);
-      enc.addPoint(pos.x(), pos.y());
-      for (int l = top_level - 1; l >= backside_bot; l--) {
-        enc.addTechVia(via_by_lower_level[l]);
-      }
-    }
-
-    enc.end();
-  }
-}
-
 void GlobalRouter::addRemainingGuides(NetRouteMap& routes,
                                       std::vector<Net*>& nets,
                                       int min_routing_layer,
@@ -3651,27 +3362,6 @@ void GlobalRouter::addRemainingGuides(NetRouteMap& routes,
             db_net, route, min_routing_layer, max_routing_layer);
       } else {
         connectTopLevelPins(db_net, route);
-      }
-    }
-  }
-
-  // Backside clock: connect each clock pin down to the backside clock tree.
-  // Done for every clock net whose top clock layer is a backside layer, even
-  // if it already has wires (the front-side pin columns are always missing).
-  const int clk_top = getMaxLayerForClock();
-  if (clk_top > 0) {
-    odb::dbTechLayer* clk_top_layer = db_->getTech()->findRoutingLayer(clk_top);
-    if (clk_top_layer != nullptr && clk_top_layer->isBackside()) {
-      for (Net* net : nets) {
-        odb::dbNet* db_net = net->getDbNet();
-        if (db_net->getSigType() != odb::dbSigType::CLOCK) {
-          continue;
-        }
-        auto it = routes.find(db_net);
-        if (it == routes.end() || it->second.empty()) {
-          continue;
-        }
-        connectClockPinsToBackside(db_net, it->second);
       }
     }
   }
@@ -4936,18 +4626,6 @@ void GlobalRouter::makeItermPins(Net* net,
   int max_routing_layer = (is_clock && getMaxLayerForClock() > 0)
                               ? getMaxLayerForClock()
                               : getMaxRoutingLayer();
-  // Backside clock distribution: when the clock routes on backside metal
-  // (BM1/BM2), its max clock layer is a backside layer that sits BELOW the
-  // front-side pin layer (M1). The pin reaches the backside through the nTSV,
-  // so accept pin geometries up to the global max routing layer instead of
-  // rejecting the front-side pin layer.
-  odb::dbTechLayer* clk_max_layer
-      = (is_clock && getMaxLayerForClock() > 0)
-            ? db_->getTech()->findRoutingLayer(getMaxLayerForClock())
-            : nullptr;
-  if (clk_max_layer != nullptr && clk_max_layer->isBackside()) {
-    max_routing_layer = getMaxRoutingLayer();
-  }
   for (odb::dbITerm* iterm : db_net->getITerms()) {
     odb::dbMTerm* mterm = iterm->getMTerm();
     odb::dbMaster* master = mterm->getMaster();
@@ -4982,11 +4660,6 @@ void GlobalRouter::makeItermPins(Net* net,
 
       for (odb::dbBox* box : mterm->getGeometry()) {
         odb::dbTechLayer* tech_layer = box->getTechLayer();
-        // Via boxes inside a pin port (e.g. the nTSV_tap feed-through) have no
-        // routing layer -- skip them instead of dereferencing a null layer.
-        if (tech_layer == nullptr) {
-          continue;
-        }
         if (tech_layer->getType() != odb::dbTechLayerType::ROUTING) {
           continue;
         }

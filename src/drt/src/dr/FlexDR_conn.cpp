@@ -1340,7 +1340,7 @@ void FlexDRConnectivityChecker::check(int iter)
           if (!adjVisited[idx]) {
             if (idx < (int) netRouteObjs.size()) {
               std::cout << *(netRouteObjs[idx]) << "\n";
-            } else if (idx - (int) netRouteObjs.size() < (int) netPins.size()) {
+            } else if (idx - netRouteObjs.size() < netRouteObjs.size()) {
               std::cout << *(netPins[idx - netRouteObjs.size()]) << "\n";
             }
           }

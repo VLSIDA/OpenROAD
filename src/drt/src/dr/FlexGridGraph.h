@@ -957,13 +957,6 @@ class FlexGridGraph
 
   void setDstTaperBox(frBox3D* t) { dstTaperBox_ = t; }
 
-  // Backside clock: when set, the current net is forbidden from expanding
-  // onto frontside routing layers above M1 (see isExpandable()).
-  void setRestrictClockToBackside(bool v) { restrictClockToBackside_ = v; }
-  // Symmetric rule: when set, the current net is forbidden from expanding onto
-  // BACKSIDE layers (signals stay frontside; the backside is clock-only).
-  void setRestrictToFrontside(bool v) { restrictToFrontside_ = v; }
-
   frCost getCosts(frMIdx gridX,
                   frMIdx gridY,
                   frMIdx gridZ,
@@ -1154,15 +1147,6 @@ class FlexGridGraph
   frNonDefaultRule* ndr_ = nullptr;
   const frBox3D* dstTaperBox_
       = nullptr;  // taper box for the current dest pin in the search
-
-  // backside clock restriction (per-net flag set before each search)
-  bool restrictClockToBackside_ = false;
-  // symmetric rule: confine non-(backside-clock) nets to the frontside so
-  // signals don't leak onto the backside (per-net flag set before each search)
-  bool restrictToFrontside_ = false;
-  // frLayerNum of M1 (lowest non-backside ROUTING layer); -1 = no backside
-  // routing layers exist => feature disabled (zero impact on normal designs)
-  frLayerNum bottomFrontRoutingLNum_ = -1;
 
   // locations of access points. The vector is indexed by layer number.
   frVector<std::set<odb::Point>> ap_locs_;

@@ -630,22 +630,6 @@ bool FlexGridGraph::isExpandable(const FlexWavefrontGrid& currGrid,
       currGrid.getLastDir() == dir) {
     return false;
   }
-  // Backside clock: an internal clock net must not climb onto frontside
-  // metals above M1 -- force its tree onto M1 + backside (BM1/BM2/BM3).
-  // gridZ here is the destination node (after reverse()), so this also
-  // blocks via-ing UP to M2+ while still allowing via-ing DOWN to backside.
-  if (restrictClockToBackside_ && bottomFrontRoutingLNum_ >= 0
-      && getLayerNum(gridZ) > bottomFrontRoutingLNum_) {
-    return false;
-  }
-  // Symmetric rule: confine non-(backside-clock) nets to the FRONTSIDE. Signals
-  // must not leak onto the backside metals (reserved for the clock). Without
-  // this, signals dip to backside (BOTTOM_ROUTING_LAYER was lowered to BM3 for
-  // the clock), placing thousands of stray nTSVs and congesting the backside.
-  if (restrictToFrontside_ && bottomFrontRoutingLNum_ >= 0
-      && getLayerNum(gridZ) < bottomFrontRoutingLNum_) {
-    return false;
-  }
   if (ndr_) {
     frCoord halfWidth
         = (frCoord) getTech()->getLayer(getLayerNum(currGrid.z()))->getWidth()
