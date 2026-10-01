@@ -132,7 +132,7 @@ Iteration |   Area    | Resized | Buffers | Nets repaired | Remaining
       320 |     -0.2% |      57 |       55 |         1
     final |     -0.2% |      57 |       55 |         0
 -------------------------------------------------------
-[INFO RSZ-0100] Repair move sequence: UnbufferMove SizeUpMove BufferMove SplitLoadMove 
+[INFO RSZ-0100] Repair move sequence: UnbufferMove RelocateMove SizeUpMove BufferMove SplitLoadMove 
 [INFO RSZ-0094] Found 33 endpoints with setup violations.
 [INFO RSZ-0099] Repairing 1 out of 33 (1.00%) violating endpoints...
    Iter   | Removed | Resized | Inserted | Cloned |  Pin  |   Area   |    WNS   |    TNS     |  Viol  |  Worst

@@ -41,7 +41,7 @@ Path Type: max
            -0.333   slack (VIOLATED)
 
 
-[INFO RSZ-0100] Repair move sequence: UnbufferMove SizeUpMove SwapPinsMove BufferMove CloneMove SplitLoadMove 
+[INFO RSZ-0100] Repair move sequence: UnbufferMove RelocateMove SizeUpMove SwapPinsMove BufferMove CloneMove SplitLoadMove 
 [DEBUG RSZ-repair_setup] Violating endpoints 4/34 11%
 [INFO RSZ-0094] Found 4 endpoints with setup violations.
 [INFO RSZ-0099] Repairing 4 out of 4 (100.00%) violating endpoints...
@@ -54,6 +54,7 @@ Path Type: max
 [DEBUG RSZ-repair_setup] ENDPOINT_FANIN* Phase: Processing 4 violating endpoints
 [DEBUG RSZ-repair_setup] ENDPOINT_FANIN* Phase: Processing endpoint r2/D (index 0), slack = -0.333
 [DEBUG RSZ-repair_setup] Considering UnbufferMove for r1/Q
+[DEBUG RSZ-repair_setup] Considering RelocateMove for r1/Q
 [DEBUG RSZ-repair_setup] Considering SizeUpMove for r1/Q
 [DEBUG RSZ-repair_setup] Considering UnbufferMove for u5/Z
 [DEBUG RSZ-repair_setup] ENDPOINT_FANIN* Phase: Threshold 1/3: endpoint slack -0.333 -> -0.196 (imp: 0.137), WNS -0.333 -> -0.196, TNS -0.4 -> -0.2, StTNS -0.3 -> -0.2 [ACCEPT]

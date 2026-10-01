@@ -5,6 +5,6 @@
 [INFO ODB-0133]     Created 7 nets and 22 connections.
 [WARNING STA-0450] virtual clock vclk can not be propagated.
 BEFORE_BORROW 0.2004
-[INFO RSZ-0100] Repair move sequence: UnbufferMove SizeUpMove BufferMove SplitLoadMove 
+[INFO RSZ-0100] Repair move sequence: UnbufferMove RelocateMove SizeUpMove BufferMove SplitLoadMove 
 [INFO RSZ-0098] No setup violations found
 AFTER_BORROW 0.2004
