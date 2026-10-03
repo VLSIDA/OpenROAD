@@ -113,6 +113,9 @@ class RelocateGenerator : public MoveGenerator
   //                     test.
   //   cur_wire_delay_weighted : criticality-weighted incident wire delay at the
   //                     current location.
+  //   cur_fanout_wire_delay : unweighted Elmore wire delay from the gate to its
+  //                     worst critical sink at the current location (output
+  //                     net only), the "wire" term for the wire-fraction test.
   //   gate_delay      : the gate's own drive+intrinsic delay driving the whole
   //                     output load, the "cell" term for the wire-fraction
   //                     test.
@@ -123,6 +126,7 @@ class RelocateGenerator : public MoveGenerator
     double cur_wire_delay{0.0};
     double best_wire_delay{0.0};
     double cur_wire_delay_weighted{0.0};
+    double cur_fanout_wire_delay{0.0};
     double gate_delay{0.0};
     bool have_rc{false};
   };
@@ -138,6 +142,12 @@ class RelocateGenerator : public MoveGenerator
                            sta::Pin* drvr_pin,
                            odb::Point& result,
                            RelocatePlan& plan) const;
+
+  // Drivers with more fanout sinks than this are left to buffering.
+  static constexpr int kMaxRelocateFanout = 4;
+
+  // Number of fanout sinks of `drvr_pin` (timing-graph out edges).
+  int fanoutCount(const sta::Pin* drvr_pin) const;
 
   // Single-cell star wirelength (Manhattan): sum over every signal net incident
   // to `db_inst` of the distance from `gate_loc` to each other pin on the net.

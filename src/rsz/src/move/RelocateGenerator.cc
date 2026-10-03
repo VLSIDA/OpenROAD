@@ -305,15 +305,18 @@ bool RelocateGenerator::computeBestLocation(const Target& target,
   // `weighted` toggles the criticality weight: the location pick uses the
   // weighted cost (so critical sinks dominate), while the gate-dominance test
   // in generate() needs the unweighted incident wire delay in real seconds.
+  auto anchor_delay = [&](const odb::Point& p, const RelocateAnchor& a) {
+    const int manh
+        = std::abs(p.getX() - a.loc.getX()) + std::abs(p.getY() - a.loc.getY());
+    const double len = resizer_.dbuToMeters(manh);
+    const double linear = (a.res * wire_cap + wire_res * a.cap) * len;
+    const double quad = 0.5 * wire_res * wire_cap * len * len;
+    return linear + quad;
+  };
   auto cost = [&](const odb::Point& p, bool weighted) {
     double total = 0.0;
     for (const RelocateAnchor& a : anchors) {
-      const int manh = std::abs(p.getX() - a.loc.getX())
-                       + std::abs(p.getY() - a.loc.getY());
-      const double len = resizer_.dbuToMeters(manh);
-      const double linear = (a.res * wire_cap + wire_res * a.cap) * len;
-      const double quad = 0.5 * wire_res * wire_cap * len * len;
-      total += (weighted ? a.weight : 1.0) * (linear + quad);
+      total += (weighted ? a.weight : 1.0) * anchor_delay(p, a);
     }
     return total;
   };
@@ -339,6 +342,17 @@ bool RelocateGenerator::computeBestLocation(const Target& target,
   // delay driving the full output load (the "cell" term of the stage delay).
   const odb::Point cur_loc = resizer_.dbNetwork()->location(drvr_pin);
   plan.cur_wire_delay = cost(cur_loc, /*weighted=*/false);
+  // Output-net wire delay: the Elmore delay from this gate to its worst
+  // critical sink.  Only the fanout net decides whether relocating this gate
+  // can pay -- the input net is the upstream driver's stage, and is handled
+  // when that driver is the target.
+  plan.cur_fanout_wire_delay = 0.0;
+  for (const RelocateAnchor& a : anchors) {
+    if (a.is_fanout) {
+      plan.cur_fanout_wire_delay
+          = std::max(plan.cur_fanout_wire_delay, anchor_delay(cur_loc, a));
+    }
+  }
   plan.cur_wire_delay_weighted = cost(cur_loc, /*weighted=*/true);
   plan.best_wire_delay = best_cost;
   plan.gate_delay = 0.0;
@@ -363,7 +377,7 @@ bool RelocateGenerator::computeBestLocation(const Target& target,
              "relocate_move",
              3,
              "RELOCATE {}: anchors={} pick={} loc=({}, {}) wire_cur={:.3e} "
-             "wire_best={:.3e} gate={:.3e}",
+             "wire_best={:.3e} fanout_wire={:.3e} gate={:.3e}",
              resizer_.network()->pathName(drvr_pin),
              anchors.size(),
              best_i == kRcShift ? "rc_shift" : "midpoint",
@@ -371,8 +385,24 @@ bool RelocateGenerator::computeBestLocation(const Target& target,
              result.getY(),
              plan.cur_wire_delay,
              plan.best_wire_delay,
+             plan.cur_fanout_wire_delay,
              plan.gate_delay);
   return have_best;
+}
+
+int RelocateGenerator::fanoutCount(const sta::Pin* drvr_pin) const
+{
+  sta::Graph* graph = resizer_.graph();
+  sta::Vertex* drvr_vertex = graph->pinDrvrVertex(drvr_pin);
+  int fanout = 0;
+  if (drvr_vertex != nullptr) {
+    sta::VertexOutEdgeIterator edge_iter(drvr_vertex, graph);
+    while (edge_iter.hasNext()) {
+      edge_iter.next();
+      ++fanout;
+    }
+  }
+  return fanout;
 }
 
 double RelocateGenerator::incidentStarWirelength(
@@ -482,6 +512,21 @@ std::vector<std::unique_ptr<MoveCandidate>> RelocateGenerator::generate(
     return candidates;
   }
 
+  // Leave high-fanout drivers to buffering.  Their sinks are spread out, so
+  // the criticality-weighted sink center is a poor location for any one
+  // critical sink, and moving the driver disturbs the tree that buffer and
+  // split-load build to offload the critical sinks.
+  if (fanoutCount(drvr_pin) > kMaxRelocateFanout) {
+    debugPrint(resizer_.logger(),
+               RSZ,
+               "relocate_move",
+               2,
+               "REJECT RelocateMove {}: fanout > {}",
+               resizer_.network()->pathName(drvr_pin),
+               kMaxRelocateFanout);
+    return candidates;
+  }
+
   odb::Point new_loc;
   RelocatePlan plan;
   if (!computeBestLocation(target, drvr_pin, new_loc, plan)) {
@@ -491,12 +536,15 @@ std::vector<std::unique_ptr<MoveCandidate>> RelocateGenerator::generate(
   // Round-1 acceptance guards.  These run only on the RC-aware anchor path;
   // the plain-midpoint fallback (plan.have_rc == false) keeps its prior
   // behaviour.  Tunable thresholds:
-  //   kMinWireFraction : the gate's incident wire delay must be at least this
-  //                      fraction of the stage delay (wire + gate).  On
-  //                      gate-delay-dominated paths (e.g. asap7/aes, ~2-3%
-  //                      wire) a placement move cannot recover meaningful
-  //                      delay, so relocate is skipped instead of churning
-  //                      moves that the endpoint timing gate will revert.
+  //   kMinWireFraction : the output-net wire delay (gate -> worst critical
+  //                      sink) must be at least this fraction of the output
+  //                      stage delay (that wire + the gate's drive delay at
+  //                      the full load), i.e. the stage must be wire
+  //                      dominated.  When the gate's own delay dominates
+  //                      (e.g. asap7/aes at ~2-3% wire) a placement move
+  //                      cannot recover meaningful delay, so relocate is
+  //                      skipped instead of churning moves that the endpoint
+  //                      timing gate will revert.
   //   kMinWireGainFrac : the chosen location must cut the criticality-weighted
   //                      incident wire delay by at least this fraction, else
   //                      the move is not worth the perturbation.
@@ -504,11 +552,11 @@ std::vector<std::unique_ptr<MoveCandidate>> RelocateGenerator::generate(
   //                      by more than this fraction.  A timing-driven move
   //                      toward the critical sink necessarily grows the span to
   //                      the cell's non-critical pins, so this only rejects
-  //                      egregious blowups (the gate flung across the die) whose
-  //                      pre-route Elmore gain routing would not preserve
-  //                      (WNS-survival heuristic); the real endpoint timing gate
-  //                      handles the finer accept/reject.
-  constexpr double kMinWireFraction = 0.15;
+  //                      egregious blowups (the gate flung across the die)
+  //                      whose pre-route Elmore gain routing would not preserve
+  //                      (WNS-survival heuristic); the real endpoint timing
+  //                      gate handles the finer accept/reject.
+  constexpr double kMinWireFraction = 0.5;
   constexpr double kMinWireGainFrac = 0.02;
   constexpr double kSpanTolerance = 0.15;
 
@@ -533,10 +581,11 @@ std::vector<std::unique_ptr<MoveCandidate>> RelocateGenerator::generate(
   }
 
   if (plan.have_rc) {
-    // (#2) Wire-delay targeting: skip gate-delay-dominated stages.
-    const double stage_delay = plan.cur_wire_delay + plan.gate_delay;
+    // (#2) Wire-delay targeting: skip stages whose output delay is dominated
+    // by the gate rather than the fanout wire.
+    const double stage_delay = plan.cur_fanout_wire_delay + plan.gate_delay;
     const double wire_frac
-        = stage_delay > 0.0 ? plan.cur_wire_delay / stage_delay : 0.0;
+        = stage_delay > 0.0 ? plan.cur_fanout_wire_delay / stage_delay : 0.0;
     if (wire_frac < kMinWireFraction) {
       debugPrint(resizer_.logger(),
                  RSZ,
