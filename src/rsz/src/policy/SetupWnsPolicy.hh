@@ -18,9 +18,11 @@ class SetupWnsPolicy : public SetupLegacyBase
                  MoveCommitter& committer,
                  RepairSetupContext& setup_context,
                  const OptimizerRunConfig& config,
-                 bool use_cone)
+                 bool use_cone,
+                 ConeDirection cone_direction = ConeDirection::kFanin)
       : SetupLegacyBase(resizer, committer, setup_context, config),
-        use_cone_(use_cone)
+        use_cone_(use_cone),
+        cone_direction_(cone_direction)
   {
   }
 
@@ -35,7 +37,11 @@ class SetupWnsPolicy : public SetupLegacyBase
                       bool use_cone_collection,
                       rsz::ViolatorSortType sort_type);
 
+  // Phase name for progress and debug reporting.
+  const char* phaseName() const;
+
   bool use_cone_{false};
+  ConeDirection cone_direction_{ConeDirection::kFanin};
 };
 
 }  // namespace rsz

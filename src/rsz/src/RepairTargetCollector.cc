@@ -14,6 +14,7 @@
 #include <queue>
 #include <set>
 #include <string>
+#include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -41,6 +42,7 @@
 #include "sta/Sta.hh"
 #include "sta/StringUtil.hh"
 #include "sta/TimingArc.hh"
+#include "sta/TimingRole.hh"
 #include "sta/Transition.hh"
 #include "utl/Logger.h"
 
@@ -1959,9 +1961,13 @@ RepairTargetCollector::collectViolatorsByFaninTraversalForEndpoint(
 void RepairTargetCollector::traverseFaninCone(
     sta::Vertex* endpoint,
     std::vector<std::pair<const sta::Pin*, sta::Slack>>& pins_with_slack,
-    sta::Slack slack_threshold)
+    sta::Slack slack_threshold,
+    std::unordered_set<sta::Vertex*>* visited)
 {
-  std::set<sta::Vertex*> visited_vertices;
+  std::unordered_set<sta::Vertex*> local_visited;
+  std::unordered_set<sta::Vertex*>& visited_vertices
+      = visited != nullptr ? *visited : local_visited;
+  visited_vertices.clear();
   std::queue<sta::Vertex*> to_visit;
 
   to_visit.push(endpoint);
@@ -2078,8 +2084,118 @@ void RepairTargetCollector::traverseFaninCone(
   }
 }
 
+const char* coneDirectionName(const ConeDirection direction)
+{
+  switch (direction) {
+    case ConeDirection::kFanin:
+      return "fanin";
+    case ConeDirection::kOverlap:
+      return "overlap";
+  }
+  return "unknown";
+}
+
+sta::Vertex* RepairTargetCollector::worstPathStartpoint(
+    sta::Vertex* endpoint) const
+{
+  const sta::Path* path = sta_->vertexWorstSlackPath(endpoint, max_);
+  if (path == nullptr) {
+    return nullptr;
+  }
+  // The first driver on the data path: a register output or an input port.
+  sta::PathExpanded expanded(path, sta_);
+  for (size_t i = expanded.startIndex(); i < expanded.size(); i++) {
+    sta::Vertex* vertex = expanded.path(i)->vertex(sta_);
+    if (vertex->isDriver(network_)
+        && !sta_->isClock(vertex->pin(), sta_->cmdMode())) {
+      return vertex;
+    }
+  }
+  return nullptr;
+}
+
+void RepairTargetCollector::traverseOverlapCone(
+    sta::Vertex* endpoint,
+    sta::Vertex* startpoint,
+    std::vector<std::pair<const sta::Pin*, sta::Slack>>& pins_with_slack,
+    sta::Slack slack_threshold)
+{
+  std::vector<std::pair<const sta::Pin*, sta::Slack>> fanin_pins;
+  std::unordered_set<sta::Vertex*> fanin_vertices;
+  traverseFaninCone(endpoint, fanin_pins, slack_threshold, &fanin_vertices);
+  std::unordered_map<const sta::Pin*, sta::Slack> fanin_slack;
+  fanin_slack.reserve(fanin_pins.size());
+  for (const auto& [pin, slack] : fanin_pins) {
+    fanin_slack.emplace(pin, slack);
+  }
+
+  std::unordered_set<sta::Vertex*> visited_vertices;
+  std::queue<sta::Vertex*> to_visit;
+
+  // The startpoint itself is a repairable driver unless it is a port.
+  const sta::Pin* startpoint_pin = startpoint->pin();
+  if (!network_->isTopLevelPort(startpoint_pin)) {
+    auto it = fanin_slack.find(startpoint_pin);
+    if (it == fanin_slack.end()) {
+      return;
+    }
+    pins_with_slack.emplace_back(startpoint_pin, it->second);
+  }
+  to_visit.push(startpoint);
+  visited_vertices.insert(startpoint);
+
+  while (!to_visit.empty()) {
+    sta::Vertex* current_vertex = to_visit.front();
+    to_visit.pop();
+
+    sta::VertexOutEdgeIterator edge_iter(current_vertex, graph_);
+    while (edge_iter.hasNext()) {
+      sta::Edge* edge = edge_iter.next();
+      if (edge->role()->isTimingCheck()) {
+        continue;
+      }
+      sta::Vertex* to_vertex = edge->to(graph_);
+      // Leaving the fanin cone cannot lead back to the endpoint.
+      if (!fanin_vertices.contains(to_vertex)
+          || !visited_vertices.insert(to_vertex).second) {
+        continue;
+      }
+      const sta::Pin* to_pin = to_vertex->pin();
+      if (to_pin == nullptr || network_->isTopLevelPort(to_pin)) {
+        continue;
+      }
+      if (to_vertex->isDriver(network_)) {
+        // Only the drivers the fanin traversal collected are critical.
+        auto it = fanin_slack.find(to_pin);
+        if (it == fanin_slack.end()) {
+          continue;
+        }
+        pins_with_slack.emplace_back(to_pin, it->second);
+      }
+      to_visit.push(to_vertex);
+    }
+  }
+}
+
+void RepairTargetCollector::traverseCone(
+    sta::Vertex* endpoint,
+    const ConeDirection direction,
+    std::vector<std::pair<const sta::Pin*, sta::Slack>>& pins_with_slack,
+    sta::Slack slack_threshold)
+{
+  sta::Vertex* startpoint = direction == ConeDirection::kOverlap
+                                ? worstPathStartpoint(endpoint)
+                                : nullptr;
+  if (startpoint == nullptr) {
+    // Fanin, or no usable startpoint for the overlap.
+    traverseFaninCone(endpoint, pins_with_slack, slack_threshold);
+    return;
+  }
+  traverseOverlapCone(endpoint, startpoint, pins_with_slack, slack_threshold);
+}
+
 // Helper function: Compute adaptive threshold using endpoint-relative margins.
-// pins_with_slack must be sorted worst slack first.
+// Linear in the number of pins; pins_with_slack need not be sorted.
 sta::Slack RepairTargetCollector::computeAdaptiveThreshold(
     const std::vector<std::pair<const sta::Pin*, sta::Slack>>& pins_with_slack,
     sta::Slack endpoint_slack,
@@ -2148,8 +2264,17 @@ sta::Slack RepairTargetCollector::computeAdaptiveThreshold(
     // itself is not a usable threshold, since no pin is strictly worse than
     // it. Take the worst pins up to the target range instead.
     const int keep = std::min(cone_size, kConeMaxTargetPins);
-    chosen_threshold
-        = keep < cone_size ? pins_with_slack[keep].second : sta::Slack(0.0);
+    chosen_threshold = 0.0;
+    if (keep < cone_size) {
+      // Slack of the first pin past the cap, found without a full sort.
+      std::vector<float> slacks;
+      slacks.reserve(cone_size);
+      for (const auto& pin_slack_pair : pins_with_slack) {
+        slacks.push_back(sta::delayAsFloat(pin_slack_pair.second));
+      }
+      std::nth_element(slacks.begin(), slacks.begin() + keep, slacks.end());
+      chosen_threshold = slacks[keep];
+    }
     pin_count = count_below(chosen_threshold);
   }
 
@@ -2191,7 +2316,8 @@ void RepairTargetCollector::collectPinsWithThreshold(
 vector<const sta::Pin*> RepairTargetCollector::collectViolatorsByConeTraversal(
     sta::Vertex* endpoint,
     ViolatorSortType sort_type,
-    std::optional<sta::Slack> explicit_threshold)
+    std::optional<sta::Slack> explicit_threshold,
+    const ConeDirection direction)
 {
   const sta::Pin* endpoint_pin = endpoint->pin();
   sta::Slack endpoint_slack = sta_->slack(endpoint, max_);
@@ -2210,7 +2336,7 @@ vector<const sta::Pin*> RepairTargetCollector::collectViolatorsByConeTraversal(
 
     // Traverse fanin cone with explicit threshold
     std::vector<std::pair<const sta::Pin*, sta::Slack>> cone_pins_with_slack;
-    traverseFaninCone(endpoint, cone_pins_with_slack, threshold);
+    traverseCone(endpoint, direction, cone_pins_with_slack, threshold);
     collectPinsWithThreshold(cone_pins_with_slack, threshold);
 
     debugPrint(logger_,
@@ -2225,8 +2351,9 @@ vector<const sta::Pin*> RepairTargetCollector::collectViolatorsByConeTraversal(
     // one moment. It goes stale when the phase switches endpoint and as
     // repair moves the cone's slacks, after which it collects nothing (or
     // everything). Reuse it only while it still serves this endpoint.
-    bool recompute
-        = needs_threshold_recompute_ || cone_threshold_endpoint_ != endpoint;
+    bool recompute = needs_threshold_recompute_
+                     || cone_threshold_endpoint_ != endpoint
+                     || cone_threshold_direction_ != direction;
     if (!recompute) {
       debugPrint(logger_,
                  RSZ,
@@ -2238,7 +2365,8 @@ vector<const sta::Pin*> RepairTargetCollector::collectViolatorsByConeTraversal(
 
       // Traverse fanin cone stopping at pins >= cached threshold
       std::vector<std::pair<const sta::Pin*, sta::Slack>> cone_pins_with_slack;
-      traverseFaninCone(endpoint, cone_pins_with_slack, cached_cone_threshold_);
+      traverseCone(
+          endpoint, direction, cone_pins_with_slack, cached_cone_threshold_);
       collectPinsWithThreshold(cone_pins_with_slack, cached_cone_threshold_);
 
       const int collected_count = violating_pins_.size();
@@ -2263,12 +2391,9 @@ vector<const sta::Pin*> RepairTargetCollector::collectViolatorsByConeTraversal(
                  network_->pathName(endpoint_pin),
                  delayAsString(endpoint_slack, 3, sta_));
 
-      // Collect every violating pin in the cone, worst slack first.
+      // Collect every violating pin in the cone.
       std::vector<std::pair<const sta::Pin*, sta::Slack>> cone_pins_with_slack;
-      traverseFaninCone(endpoint, cone_pins_with_slack, 0.0);
-      std::ranges::sort(cone_pins_with_slack, [](const auto& a, const auto& b) {
-        return a.second < b.second;
-      });
+      traverseCone(endpoint, direction, cone_pins_with_slack, 0.0);
 
       int chosen_pin_count = 0;
       cached_cone_threshold_ = computeAdaptiveThreshold(
@@ -2276,6 +2401,7 @@ vector<const sta::Pin*> RepairTargetCollector::collectViolatorsByConeTraversal(
       collectPinsWithThreshold(cone_pins_with_slack, cached_cone_threshold_);
 
       cone_threshold_endpoint_ = endpoint;
+      cone_threshold_direction_ = direction;
       needs_threshold_recompute_ = false;
     }
   }

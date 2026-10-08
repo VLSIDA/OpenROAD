@@ -10,6 +10,7 @@
 #include <optional>
 #include <set>
 #include <string>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -35,6 +36,18 @@ using std::vector;
 using utl::RSZ;
 
 // === Violator collection modes =============================================
+
+// Which part of the focus endpoint's fanin a cone collection gathers.
+enum class ConeDirection
+{
+  // The whole fanin cone of the endpoint.
+  kFanin,
+  // The fanin cone pins that the startpoint launching the endpoint's worst
+  // path also drives: the logic between that startpoint and the endpoint.
+  kOverlap
+};
+
+const char* coneDirectionName(ConeDirection direction);
 
 enum class ViolatorSortType
 {
@@ -138,7 +151,8 @@ class RepairTargetCollector
   vector<const sta::Pin*> collectViolatorsByConeTraversal(
       sta::Vertex* endpoint,
       ViolatorSortType sort_type = ViolatorSortType::SORT_BY_LOAD_DELAY,
-      std::optional<sta::Slack> explicit_threshold = std::nullopt);
+      std::optional<sta::Slack> explicit_threshold = std::nullopt,
+      ConeDirection direction = ConeDirection::kFanin);
 
   // Legacy function - kept for compatibility if needed
   vector<const sta::Pin*> collectViolatorsByFaninTraversalForEndpoint(
@@ -321,10 +335,29 @@ class RepairTargetCollector
 
   // === Cone traversal helpers ==============================================
   // Helper functions for cone-based collection
+  // Visits each vertex and edge of the critical fanin cone once. When
+  // visited is given, it receives every vertex the traversal touched.
   void traverseFaninCone(
       sta::Vertex* endpoint,
       std::vector<std::pair<const sta::Pin*, sta::Slack>>& pins_with_slack,
-      sta::Slack slack_threshold = 0.0);
+      sta::Slack slack_threshold = 0.0,
+      std::unordered_set<sta::Vertex*>* visited = nullptr);
+  // Collect the fanin cone pins that startpoint also drives, by walking
+  // forward from startpoint through the fanin cone only. Linear in the size
+  // of the fanin cone, however large the startpoint's own fanout is.
+  void traverseOverlapCone(
+      sta::Vertex* endpoint,
+      sta::Vertex* startpoint,
+      std::vector<std::pair<const sta::Pin*, sta::Slack>>& pins_with_slack,
+      sta::Slack slack_threshold);
+  // Collect the pins of the requested cone of endpoint.
+  void traverseCone(
+      sta::Vertex* endpoint,
+      ConeDirection direction,
+      std::vector<std::pair<const sta::Pin*, sta::Slack>>& pins_with_slack,
+      sta::Slack slack_threshold);
+  // Driver vertex that launches the endpoint's worst slack path.
+  sta::Vertex* worstPathStartpoint(sta::Vertex* endpoint) const;
   sta::Slack computeAdaptiveThreshold(
       const std::vector<std::pair<const sta::Pin*, sta::Slack>>&
           pins_with_slack,
@@ -389,6 +422,7 @@ class RepairTargetCollector
   bool needs_threshold_recompute_;
   // Endpoint the cached threshold was computed for
   sta::Vertex* cone_threshold_endpoint_ = nullptr;
+  ConeDirection cone_threshold_direction_ = ConeDirection::kFanin;
 };
 
 }  // namespace rsz

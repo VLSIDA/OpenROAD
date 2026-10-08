@@ -8,8 +8,10 @@
 #include <cstddef>
 #include <limits>
 #include <map>
+#include <optional>
 #include <queue>
 #include <set>
+#include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -54,14 +56,21 @@ void SetupWnsPolicy::iterate()
                  config_.verbose,
                  /*use_cone_collection=*/use_cone_,
                  rsz::ViolatorSortType::SORT_BY_LOAD_DELAY);
-  if (use_cone_) {
-    committer_.printTrackerPhaseSummary(
-        "WNS_CONE Phase Summary", "WNS_CONE Phase Endpoint Profiler", true);
-  } else {
-    committer_.printTrackerPhaseSummary(
-        "WNS_PATH Phase Summary", "WNS_PATH Phase Endpoint Profiler", true);
-  }
+  const std::string phase_name = phaseName();
+  const std::string summary_title = phase_name + " Phase Summary";
+  const std::string profiler_title = phase_name + " Phase Endpoint Profiler";
+  committer_.printTrackerPhaseSummary(
+      summary_title.c_str(), profiler_title.c_str(), true);
   markRunComplete(true);
+}
+
+const char* SetupWnsPolicy::phaseName() const
+{
+  if (!use_cone_) {
+    return "WNS_PATH";
+  }
+  return cone_direction_ == ConeDirection::kOverlap ? "WNS_CONE_OVERLAP"
+                                                    : "WNS_CONE_FANIN";
 }
 
 void SetupWnsPolicy::repairSetupWns(const float setup_slack_margin,
@@ -118,7 +127,10 @@ void SetupWnsPolicy::repairSetupWns(const float setup_slack_margin,
              1,
              "WNS{} Phase: Focusing on worst slack path{}...",
              phase_marker,
-             use_cone_collection ? " with fanin cone collection" : "");
+             use_cone_collection
+                 ? fmt::format(" with {} cone collection",
+                               coneDirectionName(cone_direction_))
+                 : "");
   printProgress(opto_iteration, false, phase_marker);
 
   sta::Vertex* current_endpoint = worst_endpoint;
@@ -219,7 +231,7 @@ void SetupWnsPolicy::repairSetupWns(const float setup_slack_margin,
                           fix_rate_threshold,
                           0,
                           1,
-                          use_cone_collection ? "WNS_CONE" : "WNS_PATH",
+                          phaseName(),
                           phase_marker)) {
       setup_context_.overall_no_progress_count++;
       if (setup_context_.overall_no_progress_count >= max_no_progress) {
@@ -259,7 +271,7 @@ void SetupWnsPolicy::repairSetupWns(const float setup_slack_margin,
     std::vector<const sta::Pin*> viol_pins;
     if (use_cone_collection) {
       viol_pins = target_collector_->collectViolatorsByConeTraversal(
-          current_endpoint, sort_type);
+          current_endpoint, sort_type, std::nullopt, cone_direction_);
     } else {
       viol_pins = target_collector_->collectViolators(1, -1, sort_type);
     }

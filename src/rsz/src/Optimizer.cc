@@ -51,7 +51,8 @@ bool isLegacyCompatiblePhase(const std::string_view phase_name)
 {
   return phase_name == "LEGACY" || phase_name == "LEGACY_MT"
          || phase_name == "WNS" || phase_name == "WNS_PATH"
-         || phase_name == "WNS_CONE" || phase_name == "TNS"
+         || phase_name == "WNS_CONE" || phase_name == "WNS_CONE_FANIN"
+         || phase_name == "WNS_CONE_OVERLAP" || phase_name == "TNS"
          || phase_name == "ENDPOINT_FANIN" || phase_name == "STARTPOINT_FANOUT"
          || phase_name == "LAST_GASP";
 }
@@ -106,9 +107,18 @@ std::unique_ptr<OptimizationPolicy> Optimizer::makePolicyForPhase(
     return std::make_unique<SetupWnsPolicy>(
         resizer_, committer_, setup_context, config_, /*use_cone=*/false);
   }
-  if (phase_name == "WNS_CONE") {
+  // WNS_CONE is the original name of the fanin cone phase.
+  if (phase_name == "WNS_CONE" || phase_name == "WNS_CONE_FANIN") {
     return std::make_unique<SetupWnsPolicy>(
         resizer_, committer_, setup_context, config_, /*use_cone=*/true);
+  }
+  if (phase_name == "WNS_CONE_OVERLAP") {
+    return std::make_unique<SetupWnsPolicy>(resizer_,
+                                            committer_,
+                                            setup_context,
+                                            config_,
+                                            /*use_cone=*/true,
+                                            ConeDirection::kOverlap);
   }
   if (phase_name == "TNS") {
     return std::make_unique<SetupTnsPolicy>(
@@ -152,7 +162,8 @@ std::unique_ptr<OptimizationPolicy> Optimizer::makePolicyForPhase(
       utl::RSZ,
       217,
       "Unknown phase name '{}'. Valid phase names are: LEGACY, WNS, "
-      "WNS_PATH, WNS_CONE, TNS, ENDPOINT_FANIN, STARTPOINT_FANOUT, "
+      "WNS_PATH, WNS_CONE, WNS_CONE_FANIN, WNS_CONE_OVERLAP, TNS, "
+      "ENDPOINT_FANIN, STARTPOINT_FANOUT, "
       "LAST_GASP, CRIT_VT_SWAP, REROUTE, GLOBAL_SIZING",
       phase_name);
   return nullptr;
@@ -186,7 +197,8 @@ bool Optimizer::run()
         utl::RSZ,
         223,
         "No phase names specified. Valid phase names are: LEGACY, WNS, "
-        "WNS_PATH, WNS_CONE, TNS, ENDPOINT_FANIN, STARTPOINT_FANOUT, "
+        "WNS_PATH, WNS_CONE, WNS_CONE_FANIN, WNS_CONE_OVERLAP, TNS, "
+        "ENDPOINT_FANIN, STARTPOINT_FANOUT, "
         "LAST_GASP, CRIT_VT_SWAP, REROUTE, GLOBAL_SIZING");
   }
   const int phase_count = phase_names.size();
