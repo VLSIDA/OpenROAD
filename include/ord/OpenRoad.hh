@@ -47,6 +47,10 @@ namespace cts {
 class TritonCTS;
 }
 
+namespace cms {
+class ClockMesh;
+}
+
 namespace grt {
 class GlobalRouter;
 }
@@ -168,6 +172,7 @@ class OpenRoad
   rsz::Resizer* getResizer() { return resizer_; }
   rmp::Restructure* getRestructure() { return restructure_; }
   cts::TritonCTS* getTritonCts() { return tritonCts_; }
+  cms::ClockMesh* getClockMesh() { return clock_mesh_; }
   dbVerilogNetwork* getVerilogNetwork() { return verilog_network_; }
   dpl::Opendp* getOpendp() { return opendp_; }
   fin::Finale* getFinale() { return finale_; }
@@ -286,6 +291,7 @@ class OpenRoad
   cgt::ClockGating* clock_gating_ = nullptr;
   rmp::Restructure* restructure_ = nullptr;
   cts::TritonCTS* tritonCts_ = nullptr;
+  cms::ClockMesh* clock_mesh_ = nullptr;
   tap::Tapcell* tapcell_ = nullptr;
   rcx::Ext* extractor_ = nullptr;
   drt::TritonRoute* detailed_router_ = nullptr;

@@ -1,0 +1,454 @@
+VERSION 5.8 ;
+DIVIDERCHAR "/" ;
+BUSBITCHARS "[]" ;
+DESIGN test_16_sinks ;
+UNITS DISTANCE MICRONS 2000 ;
+DIEAREA ( 0 0 ) ( 20000 20000 ) ;
+TRACKS X 190 DO 52 STEP 380 LAYER metal1 ;
+TRACKS Y 140 DO 71 STEP 280 LAYER metal1 ;
+TRACKS X 190 DO 52 STEP 380 LAYER metal2 ;
+TRACKS Y 140 DO 71 STEP 280 LAYER metal2 ;
+TRACKS X 190 DO 52 STEP 380 LAYER metal3 ;
+TRACKS Y 140 DO 71 STEP 280 LAYER metal3 ;
+TRACKS X 190 DO 36 STEP 560 LAYER metal4 ;
+TRACKS Y 140 DO 36 STEP 560 LAYER metal4 ;
+TRACKS X 190 DO 36 STEP 560 LAYER metal5 ;
+TRACKS Y 140 DO 36 STEP 560 LAYER metal5 ;
+TRACKS X 190 DO 36 STEP 560 LAYER metal6 ;
+TRACKS Y 140 DO 36 STEP 560 LAYER metal6 ;
+TRACKS X 1790 DO 12 STEP 1600 LAYER metal7 ;
+TRACKS Y 1740 DO 12 STEP 1600 LAYER metal7 ;
+TRACKS X 1790 DO 12 STEP 1600 LAYER metal8 ;
+TRACKS Y 1740 DO 12 STEP 1600 LAYER metal8 ;
+TRACKS X 3390 DO 5 STEP 3200 LAYER metal9 ;
+TRACKS Y 3340 DO 5 STEP 3200 LAYER metal9 ;
+TRACKS X 3390 DO 5 STEP 3200 LAYER metal10 ;
+TRACKS Y 3340 DO 5 STEP 3200 LAYER metal10 ;
+NONDEFAULTRULES 1 ;
+    - CTS_NDR_0
+      + LAYER metal1 WIDTH 140 SPACING 280
+      + LAYER metal2 WIDTH 140 SPACING 480
+      + LAYER metal3 WIDTH 140 SPACING 280
+      + LAYER metal4 WIDTH 280 SPACING 560
+      + LAYER metal5 WIDTH 280 SPACING 560
+      + LAYER metal6 WIDTH 280 SPACING 560
+      + LAYER metal7 WIDTH 800 SPACING 1600
+      + LAYER metal8 WIDTH 800 SPACING 1600
+      + LAYER metal9 WIDTH 1600 SPACING 3200
+      + LAYER metal10 WIDTH 1600 SPACING 3200
+    ;
+END NONDEFAULTRULES
+COMPONENTS 72 ;
+    - clkbuf_0_clk CLKBUF_X3 + SOURCE TIMING + PLACED ( 10239 10674 ) N ;
+    - clkbuf_0_clk_regs CLKBUF_X3 + SOURCE TIMING + PLACED ( 13230 11230 ) N ;
+    - clkbuf_1_0__f_clk CLKBUF_X3 + SOURCE TIMING + PLACED ( -147 7062 ) N ;
+    - clkbuf_1_0__f_clk_regs CLKBUF_X3 + SOURCE TIMING + PLACED ( 13229 -2769 ) N ;
+    - clkbuf_1_1__f_clk CLKBUF_X3 + SOURCE TIMING + PLACED ( 19310 15604 ) N ;
+    - clkbuf_1_1__f_clk_regs CLKBUF_X3 + SOURCE TIMING + PLACED ( 13229 25230 ) N ;
+    - clkbuf_leaf_0_clk CLKBUF_X3 + SOURCE TIMING + PLACED ( 4360 10185 ) N ;
+    - clkbuf_leaf_1_clk CLKBUF_X3 + SOURCE TIMING + PLACED ( 1419 18024 ) N ;
+    - clkbuf_leaf_2_clk CLKBUF_X3 + SOURCE TIMING + PLACED ( 7300 17044 ) N ;
+    - clkbuf_leaf_3_clk CLKBUF_X3 + SOURCE TIMING + PLACED ( 13179 18024 ) N ;
+    - clkbuf_leaf_4_clk CLKBUF_X3 + SOURCE TIMING + PLACED ( 19059 17044 ) N ;
+    - clkbuf_leaf_5_clk CLKBUF_X3 + SOURCE TIMING + PLACED ( 16120 10185 ) N ;
+    - clkbuf_leaf_6_clk CLKBUF_X3 + SOURCE TIMING + PLACED ( 18079 3324 ) N ;
+    - clkbuf_leaf_7_clk CLKBUF_X3 + SOURCE TIMING + PLACED ( 10239 3324 ) N ;
+    - clkbuf_leaf_8_clk CLKBUF_X3 + SOURCE TIMING + PLACED ( 2400 3324 ) N ;
+    - clkbuf_regs_0_ CLKBUF_X3 + SOURCE TIMING + PLACED ( 13230 11230 ) N ;
+    - clkload0 CLKBUF_X3 + SOURCE TIMING + PLACED ( -147 7062 ) N ;
+    - delaybuf_0_ CLKBUF_X3 + SOURCE TIMING + PLACED ( 10122 17869 ) N ;
+    - delaybuf_1_ CLKBUF_X3 + SOURCE TIMING + PLACED ( 10244 15879 ) N ;
+    - delaybuf_2_ CLKBUF_X3 + SOURCE TIMING + PLACED ( 10366 13889 ) N ;
+    - ff1 DFF_X1 + PLACED ( 500 500 ) N ;
+    - ff10 DFF_X1 + PLACED ( 12000 19500 ) N ;
+    - ff11 DFF_X1 + PLACED ( 18000 19500 ) N ;
+    - ff12 DFF_X1 + PLACED ( 19500 19500 ) N ;
+    - ff13 DFF_X1 + PLACED ( 9000 9000 ) N ;
+    - ff14 DFF_X1 + PLACED ( 11000 11000 ) N ;
+    - ff15 DFF_X1 + PLACED ( 11000 9000 ) N ;
+    - ff16 DFF_X1 + PLACED ( 9000 11000 ) N ;
+    - ff2 DFF_X1 + PLACED ( 2000 500 ) N ;
+    - ff3 DFF_X1 + PLACED ( 8000 500 ) N ;
+    - ff4 DFF_X1 + PLACED ( 12000 500 ) N ;
+    - ff5 DFF_X1 + PLACED ( 18000 500 ) N ;
+    - ff6 DFF_X1 + PLACED ( 19500 500 ) N ;
+    - ff7 DFF_X1 + PLACED ( 500 19500 ) N ;
+    - ff8 DFF_X1 + PLACED ( 2000 19500 ) N ;
+    - ff9 DFF_X1 + PLACED ( 8000 19500 ) N ;
+    - mesh_buf_11950_11900 CLKBUF_X3 + PLACED ( 11950 11900 ) N ;
+    - mesh_buf_11950_140 CLKBUF_X3 + PLACED ( 11950 140 ) N ;
+    - mesh_buf_11950_15820 CLKBUF_X3 + PLACED ( 11950 15820 ) N ;
+    - mesh_buf_11950_19740 CLKBUF_X3 + PLACED ( 11950 19740 ) N ;
+    - mesh_buf_11950_4060 CLKBUF_X3 + PLACED ( 11950 4060 ) N ;
+    - mesh_buf_11950_7980 CLKBUF_X3 + PLACED ( 11950 7980 ) N ;
+    - mesh_buf_15870_11900 CLKBUF_X3 + PLACED ( 15870 11900 ) N ;
+    - mesh_buf_15870_140 CLKBUF_X3 + PLACED ( 15870 140 ) N ;
+    - mesh_buf_15870_15820 CLKBUF_X3 + PLACED ( 15870 15820 ) N ;
+    - mesh_buf_15870_19740 CLKBUF_X3 + PLACED ( 15870 19740 ) N ;
+    - mesh_buf_15870_4060 CLKBUF_X3 + PLACED ( 15870 4060 ) N ;
+    - mesh_buf_15870_7980 CLKBUF_X3 + PLACED ( 15870 7980 ) N ;
+    - mesh_buf_190_11900 CLKBUF_X3 + PLACED ( 190 11900 ) N ;
+    - mesh_buf_190_140 CLKBUF_X3 + PLACED ( 190 140 ) N ;
+    - mesh_buf_190_15820 CLKBUF_X3 + PLACED ( 190 15820 ) N ;
+    - mesh_buf_190_19740 CLKBUF_X3 + PLACED ( 190 19740 ) N ;
+    - mesh_buf_190_4060 CLKBUF_X3 + PLACED ( 190 4060 ) N ;
+    - mesh_buf_190_7980 CLKBUF_X3 + PLACED ( 190 7980 ) N ;
+    - mesh_buf_19790_11900 CLKBUF_X3 + PLACED ( 19790 11900 ) N ;
+    - mesh_buf_19790_140 CLKBUF_X3 + PLACED ( 19790 140 ) N ;
+    - mesh_buf_19790_15820 CLKBUF_X3 + PLACED ( 19790 15820 ) N ;
+    - mesh_buf_19790_19740 CLKBUF_X3 + PLACED ( 19790 19740 ) N ;
+    - mesh_buf_19790_4060 CLKBUF_X3 + PLACED ( 19790 4060 ) N ;
+    - mesh_buf_19790_7980 CLKBUF_X3 + PLACED ( 19790 7980 ) N ;
+    - mesh_buf_4110_11900 CLKBUF_X3 + PLACED ( 4110 11900 ) N ;
+    - mesh_buf_4110_140 CLKBUF_X3 + PLACED ( 4110 140 ) N ;
+    - mesh_buf_4110_15820 CLKBUF_X3 + PLACED ( 4110 15820 ) N ;
+    - mesh_buf_4110_19740 CLKBUF_X3 + PLACED ( 4110 19740 ) N ;
+    - mesh_buf_4110_4060 CLKBUF_X3 + PLACED ( 4110 4060 ) N ;
+    - mesh_buf_4110_7980 CLKBUF_X3 + PLACED ( 4110 7980 ) N ;
+    - mesh_buf_8030_11900 CLKBUF_X3 + PLACED ( 8030 11900 ) N ;
+    - mesh_buf_8030_140 CLKBUF_X3 + PLACED ( 8030 140 ) N ;
+    - mesh_buf_8030_15820 CLKBUF_X3 + PLACED ( 8030 15820 ) N ;
+    - mesh_buf_8030_19740 CLKBUF_X3 + PLACED ( 8030 19740 ) N ;
+    - mesh_buf_8030_4060 CLKBUF_X3 + PLACED ( 8030 4060 ) N ;
+    - mesh_buf_8030_7980 CLKBUF_X3 + PLACED ( 8030 7980 ) N ;
+END COMPONENTS
+PINS 53 ;
+    - clk + NET clk + DIRECTION INPUT + USE SIGNAL
+      + PORT
+        + LAYER metal6 ( -140 -140 ) ( 140 140 )
+        + FIXED ( 10000 19860 ) N ;
+    - proxy_11950_11900 + NET clk_buf_11950_11900 + DIRECTION INPUT + USE CLOCK
+      + PORT
+        + LAYER metal4 ( -140 -140 ) ( 140 140 )
+        + PLACED ( 11950 11900 ) N ;
+    - proxy_11950_140 + NET clk_buf_11950_140 + DIRECTION INPUT + USE CLOCK
+      + PORT
+        + LAYER metal4 ( -140 -140 ) ( 140 140 )
+        + PLACED ( 11950 140 ) N ;
+    - proxy_11950_15820 + NET clk_buf_11950_15820 + DIRECTION INPUT + USE CLOCK
+      + PORT
+        + LAYER metal4 ( -140 -140 ) ( 140 140 )
+        + PLACED ( 11950 15820 ) N ;
+    - proxy_11950_19740 + NET clk_buf_11950_19740 + DIRECTION INPUT + USE CLOCK
+      + PORT
+        + LAYER metal4 ( -140 -140 ) ( 140 140 )
+        + PLACED ( 11950 19740 ) N ;
+    - proxy_11950_4060 + NET clk_buf_11950_4060 + DIRECTION INPUT + USE CLOCK
+      + PORT
+        + LAYER metal4 ( -140 -140 ) ( 140 140 )
+        + PLACED ( 11950 4060 ) N ;
+    - proxy_11950_7980 + NET clk_buf_11950_7980 + DIRECTION INPUT + USE CLOCK
+      + PORT
+        + LAYER metal4 ( -140 -140 ) ( 140 140 )
+        + PLACED ( 11950 7980 ) N ;
+    - proxy_15870_11900 + NET clk_buf_15870_11900 + DIRECTION INPUT + USE CLOCK
+      + PORT
+        + LAYER metal4 ( -140 -140 ) ( 140 140 )
+        + PLACED ( 15870 11900 ) N ;
+    - proxy_15870_140 + NET clk_buf_15870_140 + DIRECTION INPUT + USE CLOCK
+      + PORT
+        + LAYER metal4 ( -140 -140 ) ( 140 140 )
+        + PLACED ( 15870 140 ) N ;
+    - proxy_15870_15820 + NET clk_buf_15870_15820 + DIRECTION INPUT + USE CLOCK
+      + PORT
+        + LAYER metal4 ( -140 -140 ) ( 140 140 )
+        + PLACED ( 15870 15820 ) N ;
+    - proxy_15870_19740 + NET clk_buf_15870_19740 + DIRECTION INPUT + USE CLOCK
+      + PORT
+        + LAYER metal4 ( -140 -140 ) ( 140 140 )
+        + PLACED ( 15870 19740 ) N ;
+    - proxy_15870_4060 + NET clk_buf_15870_4060 + DIRECTION INPUT + USE CLOCK
+      + PORT
+        + LAYER metal4 ( -140 -140 ) ( 140 140 )
+        + PLACED ( 15870 4060 ) N ;
+    - proxy_15870_7980 + NET clk_buf_15870_7980 + DIRECTION INPUT + USE CLOCK
+      + PORT
+        + LAYER metal4 ( -140 -140 ) ( 140 140 )
+        + PLACED ( 15870 7980 ) N ;
+    - proxy_190_11900 + NET clk_buf_190_11900 + DIRECTION INPUT + USE CLOCK
+      + PORT
+        + LAYER metal4 ( -140 -140 ) ( 140 140 )
+        + PLACED ( 190 11900 ) N ;
+    - proxy_190_140 + NET clk_buf_190_140 + DIRECTION INPUT + USE CLOCK
+      + PORT
+        + LAYER metal4 ( -140 -140 ) ( 140 140 )
+        + PLACED ( 190 140 ) N ;
+    - proxy_190_15820 + NET clk_buf_190_15820 + DIRECTION INPUT + USE CLOCK
+      + PORT
+        + LAYER metal4 ( -140 -140 ) ( 140 140 )
+        + PLACED ( 190 15820 ) N ;
+    - proxy_190_19740 + NET clk_buf_190_19740 + DIRECTION INPUT + USE CLOCK
+      + PORT
+        + LAYER metal4 ( -140 -140 ) ( 140 140 )
+        + PLACED ( 190 19740 ) N ;
+    - proxy_190_4060 + NET clk_buf_190_4060 + DIRECTION INPUT + USE CLOCK
+      + PORT
+        + LAYER metal4 ( -140 -140 ) ( 140 140 )
+        + PLACED ( 190 4060 ) N ;
+    - proxy_190_7980 + NET clk_buf_190_7980 + DIRECTION INPUT + USE CLOCK
+      + PORT
+        + LAYER metal4 ( -140 -140 ) ( 140 140 )
+        + PLACED ( 190 7980 ) N ;
+    - proxy_19790_11900 + NET clk_buf_19790_11900 + DIRECTION INPUT + USE CLOCK
+      + PORT
+        + LAYER metal4 ( -140 -140 ) ( 140 140 )
+        + PLACED ( 19790 11900 ) N ;
+    - proxy_19790_140 + NET clk_buf_19790_140 + DIRECTION INPUT + USE CLOCK
+      + PORT
+        + LAYER metal4 ( -140 -140 ) ( 140 140 )
+        + PLACED ( 19790 140 ) N ;
+    - proxy_19790_15820 + NET clk_buf_19790_15820 + DIRECTION INPUT + USE CLOCK
+      + PORT
+        + LAYER metal4 ( -140 -140 ) ( 140 140 )
+        + PLACED ( 19790 15820 ) N ;
+    - proxy_19790_19740 + NET clk_buf_19790_19740 + DIRECTION INPUT + USE CLOCK
+      + PORT
+        + LAYER metal4 ( -140 -140 ) ( 140 140 )
+        + PLACED ( 19790 19740 ) N ;
+    - proxy_19790_4060 + NET clk_buf_19790_4060 + DIRECTION INPUT + USE CLOCK
+      + PORT
+        + LAYER metal4 ( -140 -140 ) ( 140 140 )
+        + PLACED ( 19790 4060 ) N ;
+    - proxy_19790_7980 + NET clk_buf_19790_7980 + DIRECTION INPUT + USE CLOCK
+      + PORT
+        + LAYER metal4 ( -140 -140 ) ( 140 140 )
+        + PLACED ( 19790 7980 ) N ;
+    - proxy_4110_11900 + NET clk_buf_4110_11900 + DIRECTION INPUT + USE CLOCK
+      + PORT
+        + LAYER metal4 ( -140 -140 ) ( 140 140 )
+        + PLACED ( 4110 11900 ) N ;
+    - proxy_4110_140 + NET clk_buf_4110_140 + DIRECTION INPUT + USE CLOCK
+      + PORT
+        + LAYER metal4 ( -140 -140 ) ( 140 140 )
+        + PLACED ( 4110 140 ) N ;
+    - proxy_4110_15820 + NET clk_buf_4110_15820 + DIRECTION INPUT + USE CLOCK
+      + PORT
+        + LAYER metal4 ( -140 -140 ) ( 140 140 )
+        + PLACED ( 4110 15820 ) N ;
+    - proxy_4110_19740 + NET clk_buf_4110_19740 + DIRECTION INPUT + USE CLOCK
+      + PORT
+        + LAYER metal4 ( -140 -140 ) ( 140 140 )
+        + PLACED ( 4110 19740 ) N ;
+    - proxy_4110_4060 + NET clk_buf_4110_4060 + DIRECTION INPUT + USE CLOCK
+      + PORT
+        + LAYER metal4 ( -140 -140 ) ( 140 140 )
+        + PLACED ( 4110 4060 ) N ;
+    - proxy_4110_7980 + NET clk_buf_4110_7980 + DIRECTION INPUT + USE CLOCK
+      + PORT
+        + LAYER metal4 ( -140 -140 ) ( 140 140 )
+        + PLACED ( 4110 7980 ) N ;
+    - proxy_8030_11900 + NET clk_buf_8030_11900 + DIRECTION INPUT + USE CLOCK
+      + PORT
+        + LAYER metal4 ( -140 -140 ) ( 140 140 )
+        + PLACED ( 8030 11900 ) N ;
+    - proxy_8030_140 + NET clk_buf_8030_140 + DIRECTION INPUT + USE CLOCK
+      + PORT
+        + LAYER metal4 ( -140 -140 ) ( 140 140 )
+        + PLACED ( 8030 140 ) N ;
+    - proxy_8030_15820 + NET clk_buf_8030_15820 + DIRECTION INPUT + USE CLOCK
+      + PORT
+        + LAYER metal4 ( -140 -140 ) ( 140 140 )
+        + PLACED ( 8030 15820 ) N ;
+    - proxy_8030_19740 + NET clk_buf_8030_19740 + DIRECTION INPUT + USE CLOCK
+      + PORT
+        + LAYER metal4 ( -140 -140 ) ( 140 140 )
+        + PLACED ( 8030 19740 ) N ;
+    - proxy_8030_4060 + NET clk_buf_8030_4060 + DIRECTION INPUT + USE CLOCK
+      + PORT
+        + LAYER metal4 ( -140 -140 ) ( 140 140 )
+        + PLACED ( 8030 4060 ) N ;
+    - proxy_8030_7980 + NET clk_buf_8030_7980 + DIRECTION INPUT + USE CLOCK
+      + PORT
+        + LAYER metal4 ( -140 -140 ) ( 140 140 )
+        + PLACED ( 8030 7980 ) N ;
+    - sink_bterm_1 + NET sink_1 + DIRECTION INPUT + USE CLOCK
+      + PORT
+        + LAYER metal4 ( -140 -140 ) ( 140 140 )
+        + PLACED ( 4110 1730 ) N ;
+    - sink_bterm_10 + NET sink_10 + DIRECTION INPUT + USE CLOCK
+      + PORT
+        + LAYER metal4 ( -140 -140 ) ( 140 140 )
+        + PLACED ( 15870 20730 ) N ;
+    - sink_bterm_11 + NET sink_11 + DIRECTION INPUT + USE CLOCK
+      + PORT
+        + LAYER metal5 ( -140 -140 ) ( 140 140 )
+        + PLACED ( 21230 19740 ) N ;
+    - sink_bterm_12 + NET sink_12 + DIRECTION INPUT + USE CLOCK
+      + PORT
+        + LAYER metal5 ( -140 -140 ) ( 140 140 )
+        + PLACED ( 22730 19740 ) N ;
+    - sink_bterm_13 + NET sink_13 + DIRECTION INPUT + USE CLOCK
+      + PORT
+        + LAYER metal4 ( -140 -140 ) ( 140 140 )
+        + PLACED ( 11950 10230 ) N ;
+    - sink_bterm_14 + NET sink_14 + DIRECTION INPUT + USE CLOCK
+      + PORT
+        + LAYER metal5 ( -140 -140 ) ( 140 140 )
+        + PLACED ( 14230 11900 ) N ;
+    - sink_bterm_15 + NET sink_15 + DIRECTION INPUT + USE CLOCK
+      + PORT
+        + LAYER metal4 ( -140 -140 ) ( 140 140 )
+        + PLACED ( 15870 10230 ) N ;
+    - sink_bterm_16 + NET sink_16 + DIRECTION INPUT + USE CLOCK
+      + PORT
+        + LAYER metal4 ( -140 -140 ) ( 140 140 )
+        + PLACED ( 11950 12230 ) N ;
+    - sink_bterm_2 + NET sink_2 + DIRECTION INPUT + USE CLOCK
+      + PORT
+        + LAYER metal4 ( -140 -140 ) ( 140 140 )
+        + PLACED ( 4110 1450 ) N ;
+    - sink_bterm_3 + NET sink_3 + DIRECTION INPUT + USE CLOCK
+      + PORT
+        + LAYER metal4 ( -140 -140 ) ( 140 140 )
+        + PLACED ( 11950 1730 ) N ;
+    - sink_bterm_4 + NET sink_4 + DIRECTION INPUT + USE CLOCK
+      + PORT
+        + LAYER metal4 ( -140 -140 ) ( 140 140 )
+        + PLACED ( 15870 1730 ) N ;
+    - sink_bterm_5 + NET sink_5 + DIRECTION INPUT + USE CLOCK
+      + PORT
+        + LAYER metal4 ( -140 -140 ) ( 140 140 )
+        + PLACED ( 19790 1730 ) N ;
+    - sink_bterm_6 + NET sink_6 + DIRECTION INPUT + USE CLOCK
+      + PORT
+        + LAYER metal5 ( -140 -140 ) ( 140 140 )
+        + PLACED ( 22730 140 ) N ;
+    - sink_bterm_7 + NET sink_7 + DIRECTION INPUT + USE CLOCK
+      + PORT
+        + LAYER metal4 ( -140 -140 ) ( 140 140 )
+        + PLACED ( 4110 20730 ) N ;
+    - sink_bterm_8 + NET sink_8 + DIRECTION INPUT + USE CLOCK
+      + PORT
+        + LAYER metal5 ( -140 -140 ) ( 140 140 )
+        + PLACED ( 5230 19740 ) N ;
+    - sink_bterm_9 + NET sink_9 + DIRECTION INPUT + USE CLOCK
+      + PORT
+        + LAYER metal4 ( -140 -140 ) ( 140 140 )
+        + PLACED ( 11950 20730 ) N ;
+END PINS
+SPECIALNETS 1 ;
+    - clk_mesh + USE CLOCK
+      + ROUTED metal4 0 ( 19790 19740 ) via4_0
+      NEW metal4 0 ( 15870 19740 ) via4_0
+      NEW metal4 0 ( 11950 19740 ) via4_0
+      NEW metal4 0 ( 8030 19740 ) via4_0
+      NEW metal4 0 ( 4110 19740 ) via4_0
+      NEW metal4 0 ( 260 19740 ) via4_0
+      NEW metal4 0 ( 19790 15820 ) via4_0
+      NEW metal4 0 ( 15870 15820 ) via4_0
+      NEW metal4 0 ( 11950 15820 ) via4_0
+      NEW metal4 0 ( 8030 15820 ) via4_0
+      NEW metal4 0 ( 4110 15820 ) via4_0
+      NEW metal4 0 ( 260 15820 ) via4_0
+      NEW metal4 0 ( 19790 11900 ) via4_0
+      NEW metal4 0 ( 15870 11900 ) via4_0
+      NEW metal4 0 ( 11950 11900 ) via4_0
+      NEW metal4 0 ( 8030 11900 ) via4_0
+      NEW metal4 0 ( 4110 11900 ) via4_0
+      NEW metal4 0 ( 260 11900 ) via4_0
+      NEW metal4 0 ( 19790 7980 ) via4_0
+      NEW metal4 0 ( 15870 7980 ) via4_0
+      NEW metal4 0 ( 11950 7980 ) via4_0
+      NEW metal4 0 ( 8030 7980 ) via4_0
+      NEW metal4 0 ( 4110 7980 ) via4_0
+      NEW metal4 0 ( 260 7980 ) via4_0
+      NEW metal4 0 ( 19790 4060 ) via4_0
+      NEW metal4 0 ( 15870 4060 ) via4_0
+      NEW metal4 0 ( 11950 4060 ) via4_0
+      NEW metal4 0 ( 8030 4060 ) via4_0
+      NEW metal4 0 ( 4110 4060 ) via4_0
+      NEW metal4 0 ( 260 4060 ) via4_0
+      NEW metal4 0 ( 19790 210 ) via4_0
+      NEW metal4 0 ( 15870 210 ) via4_0
+      NEW metal4 0 ( 11950 210 ) via4_0
+      NEW metal4 0 ( 8030 210 ) via4_0
+      NEW metal4 0 ( 4110 210 ) via4_0
+      NEW metal4 0 ( 260 210 ) via4_0
+      NEW metal4 280 + SHAPE STRIPE ( 19790 140 ) ( 19790 20730 )
+      NEW metal4 280 + SHAPE STRIPE ( 15870 140 ) ( 15870 20730 )
+      NEW metal4 280 + SHAPE STRIPE ( 11950 140 ) ( 11950 20730 )
+      NEW metal4 280 + SHAPE STRIPE ( 8030 140 ) ( 8030 20730 )
+      NEW metal4 280 + SHAPE STRIPE ( 4110 140 ) ( 4110 20730 )
+      NEW metal4 280 + SHAPE STRIPE ( 190 140 ) ( 190 20730 )
+      NEW metal5 280 + SHAPE STRIPE ( 190 19740 ) ( 22730 19740 )
+      NEW metal5 280 + SHAPE STRIPE ( 190 15820 ) ( 22730 15820 )
+      NEW metal5 280 + SHAPE STRIPE ( 190 11900 ) ( 22730 11900 )
+      NEW metal5 280 + SHAPE STRIPE ( 190 7980 ) ( 22730 7980 )
+      NEW metal5 280 + SHAPE STRIPE ( 190 4060 ) ( 22730 4060 )
+      NEW metal5 280 + SHAPE STRIPE ( 190 140 ) ( 22730 140 ) ;
+END SPECIALNETS
+NETS 72 ;
+    - clk ( PIN clk ) ( delaybuf_0_ A ) ( clkbuf_regs_0_ A ) + USE CLOCK + NONDEFAULTRULE CTS_NDR_0 ;
+    - clk_buf_11950_11900 ( PIN proxy_11950_11900 ) ( mesh_buf_11950_11900 Z ) + USE CLOCK ;
+    - clk_buf_11950_140 ( PIN proxy_11950_140 ) ( mesh_buf_11950_140 Z ) + USE CLOCK ;
+    - clk_buf_11950_15820 ( PIN proxy_11950_15820 ) ( mesh_buf_11950_15820 Z ) + USE CLOCK ;
+    - clk_buf_11950_19740 ( PIN proxy_11950_19740 ) ( mesh_buf_11950_19740 Z ) + USE CLOCK ;
+    - clk_buf_11950_4060 ( PIN proxy_11950_4060 ) ( mesh_buf_11950_4060 Z ) + USE CLOCK ;
+    - clk_buf_11950_7980 ( PIN proxy_11950_7980 ) ( mesh_buf_11950_7980 Z ) + USE CLOCK ;
+    - clk_buf_15870_11900 ( PIN proxy_15870_11900 ) ( mesh_buf_15870_11900 Z ) + USE CLOCK ;
+    - clk_buf_15870_140 ( PIN proxy_15870_140 ) ( mesh_buf_15870_140 Z ) + USE CLOCK ;
+    - clk_buf_15870_15820 ( PIN proxy_15870_15820 ) ( mesh_buf_15870_15820 Z ) + USE CLOCK ;
+    - clk_buf_15870_19740 ( PIN proxy_15870_19740 ) ( mesh_buf_15870_19740 Z ) + USE CLOCK ;
+    - clk_buf_15870_4060 ( PIN proxy_15870_4060 ) ( mesh_buf_15870_4060 Z ) + USE CLOCK ;
+    - clk_buf_15870_7980 ( PIN proxy_15870_7980 ) ( mesh_buf_15870_7980 Z ) + USE CLOCK ;
+    - clk_buf_190_11900 ( PIN proxy_190_11900 ) ( mesh_buf_190_11900 Z ) + USE CLOCK ;
+    - clk_buf_190_140 ( PIN proxy_190_140 ) ( mesh_buf_190_140 Z ) + USE CLOCK ;
+    - clk_buf_190_15820 ( PIN proxy_190_15820 ) ( mesh_buf_190_15820 Z ) + USE CLOCK ;
+    - clk_buf_190_19740 ( PIN proxy_190_19740 ) ( mesh_buf_190_19740 Z ) + USE CLOCK ;
+    - clk_buf_190_4060 ( PIN proxy_190_4060 ) ( mesh_buf_190_4060 Z ) + USE CLOCK ;
+    - clk_buf_190_7980 ( PIN proxy_190_7980 ) ( mesh_buf_190_7980 Z ) + USE CLOCK ;
+    - clk_buf_19790_11900 ( PIN proxy_19790_11900 ) ( mesh_buf_19790_11900 Z ) + USE CLOCK ;
+    - clk_buf_19790_140 ( PIN proxy_19790_140 ) ( mesh_buf_19790_140 Z ) + USE CLOCK ;
+    - clk_buf_19790_15820 ( PIN proxy_19790_15820 ) ( mesh_buf_19790_15820 Z ) + USE CLOCK ;
+    - clk_buf_19790_19740 ( PIN proxy_19790_19740 ) ( mesh_buf_19790_19740 Z ) + USE CLOCK ;
+    - clk_buf_19790_4060 ( PIN proxy_19790_4060 ) ( mesh_buf_19790_4060 Z ) + USE CLOCK ;
+    - clk_buf_19790_7980 ( PIN proxy_19790_7980 ) ( mesh_buf_19790_7980 Z ) + USE CLOCK ;
+    - clk_buf_4110_11900 ( PIN proxy_4110_11900 ) ( mesh_buf_4110_11900 Z ) + USE CLOCK ;
+    - clk_buf_4110_140 ( PIN proxy_4110_140 ) ( mesh_buf_4110_140 Z ) + USE CLOCK ;
+    - clk_buf_4110_15820 ( PIN proxy_4110_15820 ) ( mesh_buf_4110_15820 Z ) + USE CLOCK ;
+    - clk_buf_4110_19740 ( PIN proxy_4110_19740 ) ( mesh_buf_4110_19740 Z ) + USE CLOCK ;
+    - clk_buf_4110_4060 ( PIN proxy_4110_4060 ) ( mesh_buf_4110_4060 Z ) + USE CLOCK ;
+    - clk_buf_4110_7980 ( PIN proxy_4110_7980 ) ( mesh_buf_4110_7980 Z ) + USE CLOCK ;
+    - clk_buf_8030_11900 ( PIN proxy_8030_11900 ) ( mesh_buf_8030_11900 Z ) + USE CLOCK ;
+    - clk_buf_8030_140 ( PIN proxy_8030_140 ) ( mesh_buf_8030_140 Z ) + USE CLOCK ;
+    - clk_buf_8030_15820 ( PIN proxy_8030_15820 ) ( mesh_buf_8030_15820 Z ) + USE CLOCK ;
+    - clk_buf_8030_19740 ( PIN proxy_8030_19740 ) ( mesh_buf_8030_19740 Z ) + USE CLOCK ;
+    - clk_buf_8030_4060 ( PIN proxy_8030_4060 ) ( mesh_buf_8030_4060 Z ) + USE CLOCK ;
+    - clk_buf_8030_7980 ( PIN proxy_8030_7980 ) ( mesh_buf_8030_7980 Z ) + USE CLOCK ;
+    - clk_regs ( clkbuf_0_clk_regs A ) ( clkbuf_regs_0_ Z ) + USE CLOCK + NONDEFAULTRULE CTS_NDR_0 ;
+    - clknet_0_clk ( clkbuf_1_1__f_clk A ) ( clkbuf_1_0__f_clk A ) ( clkbuf_0_clk Z ) + USE CLOCK + NONDEFAULTRULE CTS_NDR_0 ;
+    - clknet_0_clk_regs ( clkbuf_1_1__f_clk_regs A ) ( clkbuf_1_0__f_clk_regs A ) ( clkbuf_0_clk_regs Z ) + USE CLOCK + NONDEFAULTRULE CTS_NDR_0 ;
+    - clknet_1_0__leaf_clk ( clkload0 A ) ( clkbuf_leaf_8_clk A ) ( clkbuf_leaf_7_clk A ) ( clkbuf_leaf_1_clk A ) ( clkbuf_leaf_0_clk A ) ( clkbuf_1_0__f_clk Z ) + USE CLOCK ;
+    - clknet_1_0__leaf_clk_regs ( clkbuf_1_0__f_clk_regs Z ) + USE CLOCK ;
+    - clknet_1_1__leaf_clk ( clkbuf_leaf_6_clk A ) ( clkbuf_leaf_5_clk A ) ( clkbuf_leaf_4_clk A ) ( clkbuf_leaf_3_clk A ) ( clkbuf_leaf_2_clk A ) ( clkbuf_1_1__f_clk Z ) + USE CLOCK ;
+    - clknet_1_1__leaf_clk_regs ( clkbuf_1_1__f_clk_regs Z ) + USE CLOCK ;
+    - clknet_leaf_0_clk ( mesh_buf_4110_11900 A ) ( mesh_buf_8030_7980 A ) ( mesh_buf_4110_7980 A ) ( mesh_buf_190_7980 A ) ( clkbuf_leaf_0_clk Z ) + USE CLOCK ;
+    - clknet_leaf_1_clk ( mesh_buf_4110_19740 A ) ( mesh_buf_190_19740 A ) ( mesh_buf_190_15820 A ) ( mesh_buf_190_11900 A ) ( clkbuf_leaf_1_clk Z ) + USE CLOCK ;
+    - clknet_leaf_2_clk ( mesh_buf_8030_11900 A ) ( mesh_buf_8030_15820 A ) ( mesh_buf_8030_19740 A ) ( mesh_buf_4110_15820 A ) ( clkbuf_leaf_2_clk Z ) + USE CLOCK ;
+    - clknet_leaf_3_clk ( mesh_buf_15870_19740 A ) ( mesh_buf_11950_19740 A ) ( mesh_buf_11950_15820 A ) ( mesh_buf_11950_11900 A ) ( clkbuf_leaf_3_clk Z ) + USE CLOCK ;
+    - clknet_leaf_4_clk ( mesh_buf_19790_11900 A ) ( mesh_buf_15870_15820 A ) ( mesh_buf_19790_15820 A ) ( mesh_buf_19790_19740 A ) ( clkbuf_leaf_4_clk Z ) + USE CLOCK ;
+    - clknet_leaf_5_clk ( mesh_buf_19790_7980 A ) ( mesh_buf_15870_7980 A ) ( mesh_buf_11950_7980 A ) ( mesh_buf_15870_11900 A ) ( clkbuf_leaf_5_clk Z ) + USE CLOCK ;
+    - clknet_leaf_6_clk ( mesh_buf_15870_140 A ) ( mesh_buf_19790_140 A ) ( mesh_buf_19790_4060 A ) ( mesh_buf_15870_4060 A ) ( clkbuf_leaf_6_clk Z ) + USE CLOCK ;
+    - clknet_leaf_7_clk ( mesh_buf_8030_140 A ) ( mesh_buf_8030_4060 A ) ( mesh_buf_11950_4060 A ) ( mesh_buf_11950_140 A ) ( clkbuf_leaf_7_clk Z ) + USE CLOCK ;
+    - clknet_leaf_8_clk ( mesh_buf_4110_4060 A ) ( mesh_buf_190_4060 A ) ( mesh_buf_190_140 A ) ( mesh_buf_4110_140 A ) ( clkbuf_leaf_8_clk Z ) + USE CLOCK ;
+    - delaynet_0_ ( delaybuf_1_ A ) ( delaybuf_0_ Z ) + USE CLOCK + NONDEFAULTRULE CTS_NDR_0 ;
+    - delaynet_1_ ( delaybuf_2_ A ) ( delaybuf_1_ Z ) + USE CLOCK + NONDEFAULTRULE CTS_NDR_0 ;
+    - delaynet_2_ ( clkbuf_0_clk A ) ( delaybuf_2_ Z ) + USE CLOCK + NONDEFAULTRULE CTS_NDR_0 ;
+    - sink_1 ( PIN sink_bterm_1 ) ( ff1 CK ) + USE CLOCK ;
+    - sink_10 ( PIN sink_bterm_10 ) ( ff10 CK ) + USE CLOCK ;
+    - sink_11 ( PIN sink_bterm_11 ) ( ff11 CK ) + USE CLOCK ;
+    - sink_12 ( PIN sink_bterm_12 ) ( ff12 CK ) + USE CLOCK ;
+    - sink_13 ( PIN sink_bterm_13 ) ( ff13 CK ) + USE CLOCK ;
+    - sink_14 ( PIN sink_bterm_14 ) ( ff14 CK ) + USE CLOCK ;
+    - sink_15 ( PIN sink_bterm_15 ) ( ff15 CK ) + USE CLOCK ;
+    - sink_16 ( PIN sink_bterm_16 ) ( ff16 CK ) + USE CLOCK ;
+    - sink_2 ( PIN sink_bterm_2 ) ( ff2 CK ) + USE CLOCK ;
+    - sink_3 ( PIN sink_bterm_3 ) ( ff3 CK ) + USE CLOCK ;
+    - sink_4 ( PIN sink_bterm_4 ) ( ff4 CK ) + USE CLOCK ;
+    - sink_5 ( PIN sink_bterm_5 ) ( ff5 CK ) + USE CLOCK ;
+    - sink_6 ( PIN sink_bterm_6 ) ( ff6 CK ) + USE CLOCK ;
+    - sink_7 ( PIN sink_bterm_7 ) ( ff7 CK ) + USE CLOCK ;
+    - sink_8 ( PIN sink_bterm_8 ) ( ff8 CK ) + USE CLOCK ;
+    - sink_9 ( PIN sink_bterm_9 ) ( ff9 CK ) + USE CLOCK ;
+END NETS
+END DESIGN

@@ -83,6 +83,8 @@ entries:
     title: Detailed Placement
   - file: main/src/cts/README
     title: Clock Tree Synthesis
+  - file: main/src/cms/README
+    title: Clock Mesh Synthesis
   - file: main/src/grt/README
     title: Global Routing
     entries:

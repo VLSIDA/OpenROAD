@@ -82,6 +82,8 @@ OPENROAD_LIBRARY_DEPS = [
     "//src/ant",
     "//src/ant:ui",
     "//src/cgt",
+    "//src/cms",
+    "//src/cms:ui",
     "//src/cts",
     "//src/cts:ui",
     "//src/dbSta",

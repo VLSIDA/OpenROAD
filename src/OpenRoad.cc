@@ -25,6 +25,8 @@
 #include "ant/MakeAntennaChecker.hh"
 #include "cgt/ClockGating.h"
 #include "cgt/MakeClockGating.h"
+#include "cms/ClockMesh.hh"
+#include "cms/MakeClockMesh.h"
 #include "cts/MakeTritoncts.h"
 #include "cts/TritonCTS.h"
 #include "db_sta/MakeDbSta.hh"
@@ -135,6 +137,7 @@ OpenRoad::~OpenRoad()
   delete restructure_;
   delete clock_gating_;
   delete tritonCts_;
+  delete clock_mesh_;
   delete tapcell_;
   delete macro_placer_;
   delete example_;
@@ -253,6 +256,8 @@ void OpenRoad::init(Tcl_Interp* tcl_interp,
                                   stt_builder_,
                                   resizer_,
                                   estimate_parasitics_);
+  clock_mesh_ = new cms::ClockMesh();
+  clock_mesh_->init(db_, sta_, logger_, tritonCts_);
   tapcell_ = new tap::Tapcell(db_, logger_);
   partitionMgr_ = new par::PartitionMgr(db_, getDbNetwork(), sta_, logger_);
   macro_placer_ = new mpl::MacroPlacer(db_, sta_, logger_, partitionMgr_);
@@ -306,6 +311,7 @@ void OpenRoad::init(Tcl_Interp* tcl_interp,
   tap::initTapcell(tcl_interp);
   mpl::initMacroPlacer(tcl_interp);
   exa::initExample(tcl_interp);
+  cms::initClockMesh(tcl_interp);
   rcx::initOpenRCX(tcl_interp);
   pad::initICeWall(tcl_interp);
   rmp::initRestructure(tcl_interp);

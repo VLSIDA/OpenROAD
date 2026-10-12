@@ -1,0 +1,150 @@
+VERSION 5.8 ;
+DIVIDERCHAR "/" ;
+BUSBITCHARS "[]" ;
+DESIGN test_16_sinks ;
+UNITS DISTANCE MICRONS 2000 ;
+DIEAREA ( 0 0 ) ( 20000 20000 ) ;
+TRACKS X 190 DO 52 STEP 380 LAYER metal1 ;
+TRACKS Y 140 DO 71 STEP 280 LAYER metal1 ;
+TRACKS X 190 DO 52 STEP 380 LAYER metal2 ;
+TRACKS Y 140 DO 71 STEP 280 LAYER metal2 ;
+TRACKS X 190 DO 52 STEP 380 LAYER metal3 ;
+TRACKS Y 140 DO 71 STEP 280 LAYER metal3 ;
+TRACKS X 190 DO 36 STEP 560 LAYER metal4 ;
+TRACKS Y 140 DO 36 STEP 560 LAYER metal4 ;
+TRACKS X 190 DO 36 STEP 560 LAYER metal5 ;
+TRACKS Y 140 DO 36 STEP 560 LAYER metal5 ;
+TRACKS X 190 DO 36 STEP 560 LAYER metal6 ;
+TRACKS Y 140 DO 36 STEP 560 LAYER metal6 ;
+TRACKS X 1790 DO 12 STEP 1600 LAYER metal7 ;
+TRACKS Y 1740 DO 12 STEP 1600 LAYER metal7 ;
+TRACKS X 1790 DO 12 STEP 1600 LAYER metal8 ;
+TRACKS Y 1740 DO 12 STEP 1600 LAYER metal8 ;
+TRACKS X 3390 DO 5 STEP 3200 LAYER metal9 ;
+TRACKS Y 3340 DO 5 STEP 3200 LAYER metal9 ;
+TRACKS X 3390 DO 5 STEP 3200 LAYER metal10 ;
+TRACKS Y 3340 DO 5 STEP 3200 LAYER metal10 ;
+NONDEFAULTRULES 1 ;
+    - CTS_NDR_0
+      + LAYER metal1 WIDTH 140 SPACING 280
+      + LAYER metal2 WIDTH 140 SPACING 480
+      + LAYER metal3 WIDTH 140 SPACING 280
+      + LAYER metal4 WIDTH 280 SPACING 560
+      + LAYER metal5 WIDTH 280 SPACING 560
+      + LAYER metal6 WIDTH 280 SPACING 560
+      + LAYER metal7 WIDTH 800 SPACING 1600
+      + LAYER metal8 WIDTH 800 SPACING 1600
+      + LAYER metal9 WIDTH 1600 SPACING 3200
+      + LAYER metal10 WIDTH 1600 SPACING 3200
+    ;
+END NONDEFAULTRULES
+COMPONENTS 35 ;
+    - clkbuf_0_clk CLKBUF_X3 + SOURCE TIMING + PLACED ( 10240 11165 ) N ;
+    - clkbuf_0_clk_regs CLKBUF_X3 + SOURCE TIMING + PLACED ( 13230 11230 ) N ;
+    - clkbuf_1_0__f_clk CLKBUF_X3 + SOURCE TIMING + PLACED ( 11989 -1084 ) N ;
+    - clkbuf_1_0__f_clk_regs CLKBUF_X3 + SOURCE TIMING + PLACED ( 13229 -2769 ) N ;
+    - clkbuf_1_1__f_clk CLKBUF_X3 + SOURCE TIMING + PLACED ( 14058 21346 ) N ;
+    - clkbuf_1_1__f_clk_regs CLKBUF_X3 + SOURCE TIMING + PLACED ( 13229 25230 ) N ;
+    - clkbuf_regs_0_ CLKBUF_X3 + SOURCE TIMING + PLACED ( 13230 11230 ) N ;
+    - clkload0 CLKBUF_X3 + SOURCE TIMING + PLACED ( 11989 -1084 ) N ;
+    - delaybuf_0_ CLKBUF_X3 + SOURCE TIMING + PLACED ( 10122 17992 ) N ;
+    - delaybuf_1_ CLKBUF_X3 + SOURCE TIMING + PLACED ( 10245 16124 ) N ;
+    - delaybuf_2_ CLKBUF_X3 + SOURCE TIMING + PLACED ( 10367 14257 ) N ;
+    - ff1 DFF_X1 + PLACED ( 500 500 ) N ;
+    - ff10 DFF_X1 + PLACED ( 12000 19500 ) N ;
+    - ff11 DFF_X1 + PLACED ( 18000 19500 ) N ;
+    - ff12 DFF_X1 + PLACED ( 19500 19500 ) N ;
+    - ff13 DFF_X1 + PLACED ( 9000 9000 ) N ;
+    - ff14 DFF_X1 + PLACED ( 11000 11000 ) N ;
+    - ff15 DFF_X1 + PLACED ( 11000 9000 ) N ;
+    - ff16 DFF_X1 + PLACED ( 9000 11000 ) N ;
+    - ff2 DFF_X1 + PLACED ( 2000 500 ) N ;
+    - ff3 DFF_X1 + PLACED ( 8000 500 ) N ;
+    - ff4 DFF_X1 + PLACED ( 12000 500 ) N ;
+    - ff5 DFF_X1 + PLACED ( 18000 500 ) N ;
+    - ff6 DFF_X1 + PLACED ( 19500 500 ) N ;
+    - ff7 DFF_X1 + PLACED ( 500 19500 ) N ;
+    - ff8 DFF_X1 + PLACED ( 2000 19500 ) N ;
+    - ff9 DFF_X1 + PLACED ( 8000 19500 ) N ;
+    - mesh_buf_11950_11900 CLKBUF_X2 + PLACED ( 11950 11900 ) N ;
+    - mesh_buf_11950_140 CLKBUF_X2 + PLACED ( 11950 140 ) N ;
+    - mesh_buf_15870_11900 CLKBUF_X2 + PLACED ( 15870 11900 ) N ;
+    - mesh_buf_15870_19740 CLKBUF_X3 + PLACED ( 15870 19740 ) N ;
+    - mesh_buf_190_140 CLKBUF_X2 + PLACED ( 190 140 ) N ;
+    - mesh_buf_190_19740 CLKBUF_X2 + PLACED ( 190 19740 ) N ;
+    - mesh_buf_19790_140 CLKBUF_X2 + PLACED ( 19790 140 ) N ;
+    - mesh_buf_19790_19740 CLKBUF_X2 + PLACED ( 19790 19740 ) N ;
+END COMPONENTS
+PINS 1 ;
+    - clk + NET clk + DIRECTION INPUT + USE SIGNAL
+      + PORT
+        + LAYER metal6 ( -140 -140 ) ( 140 140 )
+        + FIXED ( 10000 19860 ) N ;
+END PINS
+SPECIALNETS 1 ;
+    - clk_mesh + USE CLOCK
+      + ROUTED metal4 0 ( 19790 19740 ) via4_0
+      NEW metal4 0 ( 15870 19740 ) via4_0
+      NEW metal4 0 ( 11950 19740 ) via4_0
+      NEW metal4 0 ( 8030 19740 ) via4_0
+      NEW metal4 0 ( 4110 19740 ) via4_0
+      NEW metal4 0 ( 260 19740 ) via4_0
+      NEW metal4 0 ( 19790 15820 ) via4_0
+      NEW metal4 0 ( 15870 15820 ) via4_0
+      NEW metal4 0 ( 11950 15820 ) via4_0
+      NEW metal4 0 ( 8030 15820 ) via4_0
+      NEW metal4 0 ( 4110 15820 ) via4_0
+      NEW metal4 0 ( 260 15820 ) via4_0
+      NEW metal4 0 ( 19790 11900 ) via4_0
+      NEW metal4 0 ( 15870 11900 ) via4_0
+      NEW metal4 0 ( 11950 11900 ) via4_0
+      NEW metal4 0 ( 8030 11900 ) via4_0
+      NEW metal4 0 ( 4110 11900 ) via4_0
+      NEW metal4 0 ( 260 11900 ) via4_0
+      NEW metal4 0 ( 19790 7980 ) via4_0
+      NEW metal4 0 ( 15870 7980 ) via4_0
+      NEW metal4 0 ( 11950 7980 ) via4_0
+      NEW metal4 0 ( 8030 7980 ) via4_0
+      NEW metal4 0 ( 4110 7980 ) via4_0
+      NEW metal4 0 ( 260 7980 ) via4_0
+      NEW metal4 0 ( 19790 4060 ) via4_0
+      NEW metal4 0 ( 15870 4060 ) via4_0
+      NEW metal4 0 ( 11950 4060 ) via4_0
+      NEW metal4 0 ( 8030 4060 ) via4_0
+      NEW metal4 0 ( 4110 4060 ) via4_0
+      NEW metal4 0 ( 260 4060 ) via4_0
+      NEW metal4 0 ( 19790 210 ) via4_0
+      NEW metal4 0 ( 15870 210 ) via4_0
+      NEW metal4 0 ( 11950 210 ) via4_0
+      NEW metal4 0 ( 8030 210 ) via4_0
+      NEW metal4 0 ( 4110 210 ) via4_0
+      NEW metal4 0 ( 260 210 ) via4_0
+      NEW metal4 280 + SHAPE STRIPE ( 19790 140 ) ( 19790 20730 )
+      NEW metal4 280 + SHAPE STRIPE ( 15870 140 ) ( 15870 20730 )
+      NEW metal4 280 + SHAPE STRIPE ( 11950 140 ) ( 11950 20730 )
+      NEW metal4 280 + SHAPE STRIPE ( 8030 140 ) ( 8030 20730 )
+      NEW metal4 280 + SHAPE STRIPE ( 4110 140 ) ( 4110 20730 )
+      NEW metal4 280 + SHAPE STRIPE ( 190 140 ) ( 190 20730 )
+      NEW metal5 280 + SHAPE STRIPE ( 190 19740 ) ( 22730 19740 )
+      NEW metal5 280 + SHAPE STRIPE ( 190 15820 ) ( 22730 15820 )
+      NEW metal5 280 + SHAPE STRIPE ( 190 11900 ) ( 22730 11900 )
+      NEW metal5 280 + SHAPE STRIPE ( 190 7980 ) ( 22730 7980 )
+      NEW metal5 280 + SHAPE STRIPE ( 190 4060 ) ( 22730 4060 )
+      NEW metal5 280 + SHAPE STRIPE ( 190 140 ) ( 22730 140 ) ;
+END SPECIALNETS
+NETS 11 ;
+    - clk ( PIN clk ) ( delaybuf_0_ A ) ( clkbuf_regs_0_ A ) + USE CLOCK + NONDEFAULTRULE CTS_NDR_0 ;
+    - clk_regs ( clkbuf_0_clk_regs A ) ( clkbuf_regs_0_ Z ) + USE CLOCK + NONDEFAULTRULE CTS_NDR_0 ;
+    - clknet_0_clk ( clkbuf_1_1__f_clk A ) ( clkbuf_1_0__f_clk A ) ( clkbuf_0_clk Z ) + USE CLOCK + NONDEFAULTRULE CTS_NDR_0 ;
+    - clknet_0_clk_regs ( clkbuf_1_1__f_clk_regs A ) ( clkbuf_1_0__f_clk_regs A ) ( clkbuf_0_clk_regs Z ) + USE CLOCK + NONDEFAULTRULE CTS_NDR_0 ;
+    - clknet_1_0__leaf_clk ( clkload0 A ) ( mesh_buf_190_140 A ) ( mesh_buf_11950_140 A ) ( mesh_buf_19790_140 A ) ( mesh_buf_11950_11900 A ) ( clkbuf_1_0__f_clk Z ) + USE CLOCK ;
+    - clknet_1_0__leaf_clk_regs ( ff15 CK ) ( ff13 CK ) ( ff6 CK ) ( ff5 CK ) ( ff4 CK ) ( ff3 CK ) ( ff2 CK )
+      ( ff1 CK ) ( clkbuf_1_0__f_clk_regs Z ) + USE CLOCK ;
+    - clknet_1_1__leaf_clk ( mesh_buf_15870_11900 A ) ( mesh_buf_190_19740 A ) ( mesh_buf_15870_19740 A ) ( mesh_buf_19790_19740 A ) ( clkbuf_1_1__f_clk Z ) + USE CLOCK ;
+    - clknet_1_1__leaf_clk_regs ( ff16 CK ) ( ff14 CK ) ( ff12 CK ) ( ff11 CK ) ( ff10 CK ) ( ff9 CK ) ( ff8 CK )
+      ( ff7 CK ) ( clkbuf_1_1__f_clk_regs Z ) + USE CLOCK ;
+    - delaynet_0_ ( delaybuf_1_ A ) ( delaybuf_0_ Z ) + USE CLOCK + NONDEFAULTRULE CTS_NDR_0 ;
+    - delaynet_1_ ( delaybuf_2_ A ) ( delaybuf_1_ Z ) + USE CLOCK + NONDEFAULTRULE CTS_NDR_0 ;
+    - delaynet_2_ ( clkbuf_0_clk A ) ( delaybuf_2_ Z ) + USE CLOCK + NONDEFAULTRULE CTS_NDR_0 ;
+END NETS
+END DESIGN
